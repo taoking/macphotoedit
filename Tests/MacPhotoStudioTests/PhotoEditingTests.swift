@@ -47,6 +47,17 @@ final class PhotoEditingTests: XCTestCase {
         state.transform.crop = NormalizedCrop(x: 0.1, y: 0.15, width: 0.7, height: 0.6)
         state.hsl[.blue] = HSLAdjustment(hue: 0.3, saturation: -0.15, luminance: 0.2)
         state.curves[.red] = [CurvePoint(x: 0, y: 0.1), CurvePoint(x: 0.5, y: 0.65), CurvePoint(x: 1, y: 1)]
+        state.localMasks = [
+            LocalMask(
+                kind: .radialGradient,
+                opacity: 0.8,
+                adjustments: LocalMaskAdjustments(exposure: 0.65, contrast: 0.1, saturation: -0.2),
+                centerX: 0.4,
+                centerY: 0.6,
+                radius: 0.22,
+                feather: 0.15
+            )
+        ]
         try await firstStore.savePhotoEditState(state, for: asset.id)
         var rawState = RAWEditState.identity
         rawState.exposure = 0.75
@@ -62,6 +73,21 @@ final class PhotoEditingTests: XCTestCase {
         XCTAssertEqual(restoredState, state)
         let restoredRAWState = try await reopenedStore.rawEditState(for: asset.id)
         XCTAssertEqual(restoredRAWState, rawState)
+    }
+
+    func testLegacyPhotoEditStateDefaultsToNoLocalMasks() throws {
+        var legacyState = PhotoEditState.identity
+        legacyState.version = 2
+        legacyState.light.exposure = 1
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(legacyState)) as? [String: Any])
+        object.removeValue(forKey: "localMasks")
+        let legacy = try JSONDecoder().decode(
+            PhotoEditState.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(legacy.version, 2)
+        XCTAssertEqual(legacy.light.exposure, 1)
+        XCTAssertTrue(legacy.localMasks.isEmpty)
     }
 
     func testCubeParserAcceptsIdentity17And33AndRejectsBadData() throws {
@@ -126,6 +152,45 @@ final class PhotoEditingTests: XCTestCase {
         XCTAssertEqual(source.extent, CGRect(x: 0, y: 0, width: 8, height: 8))
     }
 
+    func testLinearAndRadialLocalMasksApplyOnlyInsideTheirRenderedRegions() throws {
+        let source = CIImage(color: CIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 20, height: 20))
+        var linearState = PhotoEditState.identity
+        linearState.localMasks = [
+            LocalMask(
+                kind: .linearGradient,
+                adjustments: LocalMaskAdjustments(exposure: 1, contrast: 0, saturation: 0),
+                startX: 0,
+                startY: 0.5,
+                endX: 1,
+                endY: 0.5
+            )
+        ]
+        let linearOutput = PhotoImagePipeline.apply(linearState, to: source)
+        let left = try rgba(of: linearOutput, at: CGPoint(x: 1, y: 10))
+        let right = try rgba(of: linearOutput, at: CGPoint(x: 18, y: 10))
+        XCTAssertGreaterThan(left.x, right.x + 0.04)
+        XCTAssertGreaterThan(left.y, right.y + 0.04)
+
+        var radialState = PhotoEditState.identity
+        radialState.localMasks = [
+            LocalMask(
+                kind: .radialGradient,
+                adjustments: LocalMaskAdjustments(exposure: 1, contrast: 0, saturation: 0),
+                centerX: 0.5,
+                centerY: 0.5,
+                radius: 0.2,
+                feather: 0.1
+            )
+        ]
+        let radialOutput = PhotoImagePipeline.apply(radialState, to: source)
+        let center = try rgba(of: radialOutput, at: CGPoint(x: 10, y: 10))
+        let edge = try rgba(of: radialOutput, at: CGPoint(x: 1, y: 1))
+        XCTAssertGreaterThan(center.x, edge.x + 0.05)
+        XCTAssertEqual(edge.x, 0.2, accuracy: 0.04)
+        XCTAssertEqual(source.extent, CGRect(x: 0, y: 0, width: 20, height: 20))
+    }
+
     func testPreviewAndExportUseSameColorPipelineAndDoNotModifySourceFile() async throws {
         let sourceURL = temporaryDirectory.appending(path: "source.png")
         let originalData = try pngData(width: 64, height: 32, color: CGColor(red: 0.15, green: 0.4, blue: 0.8, alpha: 1))
@@ -135,6 +200,17 @@ final class PhotoEditingTests: XCTestCase {
         state.color.saturation = 0.15
         state.hsl[.blue] = HSLAdjustment(hue: -0.1, saturation: 0.2, luminance: 0.1)
         state.curves[.master] = [CurvePoint(x: 0, y: 0), CurvePoint(x: 0.5, y: 0.58), CurvePoint(x: 1, y: 1)]
+        state.localMasks = [
+            LocalMask(
+                kind: .linearGradient,
+                opacity: 0.75,
+                adjustments: LocalMaskAdjustments(exposure: 0.45, contrast: 0.1, saturation: -0.1),
+                startX: 0,
+                startY: 0.5,
+                endX: 1,
+                endY: 0.5
+            )
+        ]
 
         let preview = try await PreviewRenderer().render(sourceURL: sourceURL, state: state, lut: nil, maximumPixelSize: 1_024)
         let export = try await ExportRenderer().render(sourceURL: sourceURL, state: state, lut: nil)
@@ -214,10 +290,14 @@ final class PhotoEditingTests: XCTestCase {
 
         var targetState = PhotoEditState.identity
         targetState.transform.crop = NormalizedCrop(x: 0.25, y: 0.3, width: 0.5, height: 0.4)
+        targetState.localMasks = [
+            LocalMask(kind: .linearGradient, adjustments: LocalMaskAdjustments(exposure: 0.5, contrast: 0, saturation: 0))
+        ]
         let pasted = targetState.applying(imported.content)
         XCTAssertEqual(pasted.light.exposure, 1.4)
         XCTAssertEqual(pasted.color.vibrance, 0.25)
         XCTAssertEqual(pasted.transform.crop, targetState.transform.crop)
+        XCTAssertEqual(pasted.localMasks, targetState.localMasks)
 
         try await repository.delete(imported)
         let presetsAfterDelete = try await repository.presets()
@@ -405,10 +485,12 @@ final class PhotoEditingTests: XCTestCase {
         return Data(lines.joined(separator: "\n").utf8)
     }
 
-    private func rgba(of image: CIImage) throws -> SIMD4<Double> {
+    private func rgba(of image: CIImage, at point: CGPoint? = nil) throws -> SIMD4<Double> {
         let context = CIContext(options: [.useSoftwareRenderer: true])
+        let samplePoint = point ?? CGPoint(x: image.extent.midX, y: image.extent.midY)
+        let bounds = CGRect(x: samplePoint.x, y: samplePoint.y, width: 1, height: 1)
         var pixels = Array(repeating: UInt8(0), count: 4)
-        context.render(image.cropped(to: CGRect(x: image.extent.midX, y: image.extent.midY, width: 1, height: 1)), toBitmap: &pixels, rowBytes: 4, bounds: CGRect(x: image.extent.midX, y: image.extent.midY, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        context.render(image.cropped(to: bounds), toBitmap: &pixels, rowBytes: 4, bounds: bounds, format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
         return SIMD4<Double>(Double(pixels[0]) / 255, Double(pixels[1]) / 255, Double(pixels[2]) / 255, Double(pixels[3]) / 255)
     }
 

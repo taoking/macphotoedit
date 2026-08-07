@@ -186,6 +186,55 @@ final class PhotoEditorViewModel: ObservableObject {
         )
     }
 
+    func addLocalMask(kind: LocalMaskKind) -> UUID {
+        let mask = LocalMask(kind: kind)
+        state.localMasks.append(mask)
+        stateDidChange()
+        return mask.id
+    }
+
+    func deleteLocalMask(id: UUID) {
+        state.localMasks.removeAll { $0.id == id }
+        stateDidChange()
+    }
+
+    func localMask(id: UUID) -> LocalMask? {
+        state.localMasks.first(where: { $0.id == id })
+    }
+
+    func localMaskBinding(_ id: UUID, keyPath: WritableKeyPath<LocalMask, Double>) -> Binding<Double> {
+        Binding(
+            get: { self.localMask(id: id)?[keyPath: keyPath] ?? 0 },
+            set: { value in
+                guard let index = self.state.localMasks.firstIndex(where: { $0.id == id }) else { return }
+                self.state.localMasks[index][keyPath: keyPath] = value
+            }
+        )
+    }
+
+    func localMaskEnabledBinding(_ id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { self.localMask(id: id)?.isEnabled ?? false },
+            set: { value in
+                guard let index = self.state.localMasks.firstIndex(where: { $0.id == id }) else { return }
+                self.state.localMasks[index].isEnabled = value
+            }
+        )
+    }
+
+    func localMaskAdjustmentBinding(
+        _ id: UUID,
+        keyPath: WritableKeyPath<LocalMaskAdjustments, Double>
+    ) -> Binding<Double> {
+        Binding(
+            get: { self.localMask(id: id)?.adjustments[keyPath: keyPath] ?? 0 },
+            set: { value in
+                guard let index = self.state.localMasks.firstIndex(where: { $0.id == id }) else { return }
+                self.state.localMasks[index].adjustments[keyPath: keyPath] = value
+            }
+        )
+    }
+
     private func scheduleSave() {
         saveTask?.cancel()
         let state = state
@@ -211,6 +260,7 @@ struct PhotoEditorView: View {
     @State private var technicalInputTransfer: PhotoTransferFunction = .sRGB
     @State private var technicalOutputSpace: PhotoColorSpace = .rec709
     @State private var technicalOutputTransfer: PhotoTransferFunction = .rec709
+    @State private var selectedLocalMaskID: UUID?
 
     init(asset: LibraryAssetRecord, model: ApplicationModel) {
         self.asset = asset
@@ -230,7 +280,10 @@ struct PhotoEditorView: View {
             }
         }
         .frame(minWidth: 920, minHeight: 640)
-        .task { await editor.load() }
+        .task {
+            await editor.load()
+            selectedLocalMaskID = editor.state.localMasks.first?.id
+        }
         .onChange(of: editor.state) { _, _ in editor.stateDidChange() }
     }
 
@@ -307,6 +360,7 @@ struct PhotoEditorView: View {
                     slider("降噪", value: editor.binding(\.detail.noiseReduction), range: 0...0.2)
                     slider("暗角", value: editor.binding(\.effects.vignette), range: -2...2)
                 }
+                localMasksSection
                 transformSection
                 hslSection
                 curvesSection
@@ -329,6 +383,59 @@ struct PhotoEditorView: View {
             slider("校正", value: editor.binding(\.transform.straightenDegrees), range: -15...15)
             Toggle("水平翻转", isOn: editor.binding(\.transform.flipHorizontal))
             Toggle("垂直翻转", isOn: editor.binding(\.transform.flipVertical))
+        }
+    }
+
+    private var localMasksSection: some View {
+        adjustmentSection("局部蒙版") {
+            HStack(spacing: 8) {
+                Button("添加线性") {
+                    selectedLocalMaskID = editor.addLocalMask(kind: .linearGradient)
+                }
+                Button("添加径向") {
+                    selectedLocalMaskID = editor.addLocalMask(kind: .radialGradient)
+                }
+            }
+            if editor.state.localMasks.isEmpty {
+                Text("本地非破坏性渐变蒙版会同时用于预览和导出。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker("当前蒙版", selection: $selectedLocalMaskID) {
+                    ForEach(Array(editor.state.localMasks.enumerated()), id: \.element.id) { index, mask in
+                        Text("\(index + 1). \(mask.kind.title)").tag(Optional(mask.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                if let selectedLocalMaskID, let mask = editor.localMask(id: selectedLocalMaskID) {
+                    Toggle("启用", isOn: editor.localMaskEnabledBinding(selectedLocalMaskID))
+                    slider("不透明度", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.opacity), range: 0...1)
+                    switch mask.kind {
+                    case .linearGradient:
+                        slider("起点 X", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.startX), range: 0...1)
+                        slider("起点 Y", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.startY), range: 0...1)
+                        slider("终点 X", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.endX), range: 0...1)
+                        slider("终点 Y", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.endY), range: 0...1)
+                    case .radialGradient:
+                        slider("中心 X", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.centerX), range: 0...1)
+                        slider("中心 Y", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.centerY), range: 0...1)
+                        slider("半径", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.radius), range: 0.01...1)
+                        slider("羽化", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.feather), range: 0.001...1)
+                    }
+                    slider("局部曝光", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.exposure), range: -3...3)
+                    slider("局部对比度", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.contrast), range: -1...1)
+                    slider("局部饱和度", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.saturation), range: -1...1)
+                    Button(role: .destructive) {
+                        editor.deleteLocalMask(id: selectedLocalMaskID)
+                        self.selectedLocalMaskID = editor.state.localMasks.first?.id
+                    } label: {
+                        Label("删除当前蒙版", systemImage: "trash")
+                    }
+                }
+            }
+            Text("蒙版坐标按原图比例保存；旋转、裁剪和不同预览尺寸不会改变其作用位置。局部蒙版不包含在可复用 Preset 中。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

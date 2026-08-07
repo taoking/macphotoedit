@@ -18,6 +18,7 @@ struct PhotoImagePipeline {
 
     static func apply(_ state: PhotoEditState, to source: CIImage, lut: CubeLUT? = nil) -> CIImage {
         var image = applyCreativeAdjustments(state, to: source)
+        image = applyLocalMasks(state.localMasks, to: image)
         if let lut, let application = state.lut { image = LUTProcessor.apply(lut, to: image, strength: application.clampedStrength) }
         return applyTransform(image, using: state.transform)
     }
@@ -66,6 +67,22 @@ struct PhotoImagePipeline {
         return image
     }
 
+    /// Applies every mask sequentially to the pre-transform image. Sequential
+    /// composition makes mask ordering deterministic and keeps preview/export
+    /// identical at every resolution.
+    static func applyLocalMasks(_ masks: [LocalMask], to source: CIImage) -> CIImage {
+        masks.reduce(source) { image, mask in
+            guard mask.isRenderable else { return image }
+            let adjusted = apply(mask.adjustments, to: image)
+            let maskImage = LocalMaskRenderer.image(for: mask, extent: image.extent)
+            guard let maskImage else { return image }
+            return adjusted.applyingFilter("CIBlendWithMask", parameters: [
+                kCIInputBackgroundImageKey: image,
+                kCIInputMaskImageKey: maskImage
+            ])
+        }
+    }
+
     static func applyTransform(_ image: CIImage, using transform: TransformAdjustments) -> CIImage {
         let crop = transform.crop.clamped
         let extent = image.extent
@@ -76,6 +93,68 @@ struct PhotoImagePipeline {
         let radians = (transform.rotationDegrees + transform.straightenDegrees) * .pi / 180
         if radians != 0 { affine = affine.rotated(by: radians) }
         return cropped.transformed(by: affine)
+    }
+
+    private static func apply(_ adjustments: LocalMaskAdjustments, to source: CIImage) -> CIImage {
+        var image = source
+        if adjustments.exposure != 0 {
+            image = image.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: adjustments.exposure])
+        }
+        if adjustments.contrast != 0 || adjustments.saturation != 0 {
+            image = image.applyingFilter("CIColorControls", parameters: [
+                kCIInputContrastKey: max(0, 1 + adjustments.contrast),
+                kCIInputSaturationKey: max(0, 1 + adjustments.saturation)
+            ])
+        }
+        return image
+    }
+}
+
+private enum LocalMaskRenderer {
+    static func image(for mask: LocalMask, extent: CGRect) -> CIImage? {
+        guard extent.width > 0, extent.height > 0 else { return nil }
+        let maskImage: CIImage
+        switch mask.kind {
+        case .linearGradient:
+            let start = CGPoint(
+                x: extent.minX + extent.width * mask.clampedStartX,
+                y: extent.minY + extent.height * mask.clampedStartY
+            )
+            let end = CGPoint(
+                x: extent.minX + extent.width * mask.clampedEndX,
+                y: extent.minY + extent.height * mask.clampedEndY
+            )
+            guard start != end else { return nil }
+            maskImage = CIImage(
+                color: .black
+            ).cropped(to: extent).applyingFilter("CILinearGradient", parameters: [
+                "inputPoint0": CIVector(cgPoint: start),
+                "inputPoint1": CIVector(cgPoint: end),
+                "inputColor0": CIColor.white,
+                "inputColor1": CIColor.black
+            ])
+        case .radialGradient:
+            let center = CGPoint(
+                x: extent.minX + extent.width * mask.clampedCenterX,
+                y: extent.minY + extent.height * mask.clampedCenterY
+            )
+            let scale = min(extent.width, extent.height)
+            let radius0 = max(1, scale * mask.clampedRadius)
+            let radius1 = radius0 + max(1, scale * mask.clampedFeather)
+            maskImage = CIImage(color: .black).cropped(to: extent).applyingFilter("CIRadialGradient", parameters: [
+                "inputCenter": CIVector(cgPoint: center),
+                "inputRadius0": radius0,
+                "inputRadius1": radius1,
+                "inputColor0": CIColor.white,
+                "inputColor1": CIColor.black
+            ])
+        }
+        guard mask.clampedOpacity < 1 else { return maskImage.cropped(to: extent) }
+        return maskImage.applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": CIVector(x: mask.clampedOpacity, y: 0, z: 0, w: 0),
+            "inputGVector": CIVector(x: 0, y: mask.clampedOpacity, z: 0, w: 0),
+            "inputBVector": CIVector(x: 0, y: 0, z: mask.clampedOpacity, w: 0)
+        ]).cropped(to: extent)
     }
 }
 

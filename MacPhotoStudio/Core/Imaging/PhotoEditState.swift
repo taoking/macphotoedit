@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct PhotoEditState: Codable, Sendable, Equatable {
-    var version = 2
+    var version = 3
     var light = LightAdjustments()
     var color = ColorAdjustments()
     var detail = DetailAdjustments()
@@ -18,11 +18,14 @@ struct PhotoEditState: Codable, Sendable, Equatable {
     /// renderer permits it to run.
     var technicalLUT: LUTApplication?
     var colorPipeline = PhotoColorPipelineSettings.sdr
+    /// Local masks remain per-asset edit state. They are intentionally not part
+    /// of reusable presets because their geometry belongs to one photo.
+    var localMasks: [LocalMask] = []
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case version, light, color, detail, effects, transform, hsl, curves, lut, technicalLUT, colorPipeline
+        case version, light, color, detail, effects, transform, hsl, curves, lut, technicalLUT, colorPipeline, localMasks
     }
 
     init(from decoder: Decoder) throws {
@@ -38,6 +41,7 @@ struct PhotoEditState: Codable, Sendable, Equatable {
         lut = try container.decodeIfPresent(LUTApplication.self, forKey: .lut)
         technicalLUT = try container.decodeIfPresent(LUTApplication.self, forKey: .technicalLUT)
         colorPipeline = try container.decodeIfPresent(PhotoColorPipelineSettings.self, forKey: .colorPipeline) ?? .sdr
+        localMasks = try container.decodeIfPresent([LocalMask].self, forKey: .localMasks) ?? []
     }
 
     static let identity = PhotoEditState()
@@ -66,6 +70,96 @@ struct DetailAdjustments: Codable, Sendable, Equatable {
 
 struct EffectAdjustments: Codable, Sendable, Equatable {
     var vignette: Double = 0
+}
+
+enum LocalMaskKind: String, Codable, Sendable, CaseIterable, Identifiable {
+    case linearGradient
+    case radialGradient
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .linearGradient: "线性渐变"
+        case .radialGradient: "径向渐变"
+        }
+    }
+}
+
+struct LocalMaskAdjustments: Codable, Sendable, Equatable {
+    var exposure: Double = 0
+    var contrast: Double = 0
+    var saturation: Double = 0
+
+    var hasAdjustments: Bool {
+        exposure != 0 || contrast != 0 || saturation != 0
+    }
+}
+
+/// Geometry is normalized to the pre-transform image extent. This lets the
+/// edit state survive preview downsampling and full-resolution export without
+/// copying or editing the referenced original.
+struct LocalMask: Codable, Sendable, Equatable, Identifiable {
+    let id: UUID
+    var kind: LocalMaskKind
+    var isEnabled: Bool
+    var opacity: Double
+    var adjustments: LocalMaskAdjustments
+    /// Linear gradient: white at `start`, black at `end`.
+    var startX: Double
+    var startY: Double
+    var endX: Double
+    var endY: Double
+    /// Radial gradient: white inside `radius`, feathered to black by
+    /// `radius + feather`.
+    var centerX: Double
+    var centerY: Double
+    var radius: Double
+    var feather: Double
+
+    init(
+        id: UUID = UUID(),
+        kind: LocalMaskKind,
+        isEnabled: Bool = true,
+        opacity: Double = 1,
+        adjustments: LocalMaskAdjustments = .init(),
+        startX: Double = 0.5,
+        startY: Double = 1,
+        endX: Double = 0.5,
+        endY: Double = 0,
+        centerX: Double = 0.5,
+        centerY: Double = 0.5,
+        radius: Double = 0.28,
+        feather: Double = 0.20
+    ) {
+        self.id = id
+        self.kind = kind
+        self.isEnabled = isEnabled
+        self.opacity = opacity
+        self.adjustments = adjustments
+        self.startX = startX
+        self.startY = startY
+        self.endX = endX
+        self.endY = endY
+        self.centerX = centerX
+        self.centerY = centerY
+        self.radius = radius
+        self.feather = feather
+    }
+
+    var clampedOpacity: Double { min(max(opacity, 0), 1) }
+    var clampedStartX: Double { min(max(startX, 0), 1) }
+    var clampedStartY: Double { min(max(startY, 0), 1) }
+    var clampedEndX: Double { min(max(endX, 0), 1) }
+    var clampedEndY: Double { min(max(endY, 0), 1) }
+    var clampedCenterX: Double { min(max(centerX, 0), 1) }
+    var clampedCenterY: Double { min(max(centerY, 0), 1) }
+    var clampedRadius: Double { min(max(radius, 0.01), 1) }
+    var clampedFeather: Double { min(max(feather, 0.001), 1) }
+
+    var isRenderable: Bool {
+        isEnabled && clampedOpacity > 0 && adjustments.hasAdjustments
+    }
 }
 
 struct TransformAdjustments: Codable, Sendable, Equatable {

@@ -247,6 +247,7 @@ enum PhotoColorPipeline {
 
         // Creative adjustments → Creative LUT → Output Transform.
         image = PhotoImagePipeline.applyCreativeAdjustments(state, to: image)
+        image = PhotoImagePipeline.applyLocalMasks(state.localMasks, to: image)
         if let creativeLUT, let application = state.lut {
             image = LUTProcessor.apply(creativeLUT, to: image, strength: application.clampedStrength)
         }

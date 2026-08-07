@@ -466,3 +466,42 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 10 advanced video`
+
+## Phase 11
+
+Status:
+- COMPLETED
+
+Implemented:
+- `PhotoEditState` v3 增加按资产持久化的有序 `localMasks`，支持线性与径向渐变蒙版、启用状态、不透明度、归一化几何以及局部曝光/对比度/饱和度。旧 v1/v2 JSON 缺少该字段时以空数组安全解码，并保留原版本标记以避免破坏既有兼容性约定。
+- `PhotoImagePipeline` 使用真实 `CILinearGradient` / `CIRadialGradient` 与 `CIBlendWithMask` 顺序合成局部调整；`PhotoColorPipeline` 在全局 creative adjustments 后、Creative LUT 前调用相同阶段，保证预览和全分辨率导出不走两套效果。
+- 照片编辑器增加局部蒙版管理界面：添加/选择/启用/删除线性或径向蒙版，编辑坐标、中心、半径、羽化、不透明度及三项局部调整。几何保持在 crop/rotate 前的归一化原图坐标。
+- Local masks 保持每张照片独有，不加入 Preset/Copy-Paste 内容，避免将一张图片的蒙版位置悄悄覆盖到另一张；新增 [local-masks.md](local-masks.md) 说明本地隐私、渲染顺序与能力边界。
+
+Tests:
+- `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 50 tests, 0 failures。新增覆盖旧 PhotoEditState JSON 的空蒙版兼容、Catalog 重开后的局部蒙版持久化、线性/径向 Core Image 区域像素差异、含局部蒙版的预览/导出一致性、以及 Preset 不覆盖现有局部蒙版。
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `** BUILD SUCCEEDED **`。
+
+Acceptance:
+- PASS — 线性/径向蒙版不是 UI 占位：它们在真实 Core Image 管线中对不同区域产生经过测试的像素差异，并按有序数组稳定叠加。
+- PASS — 编辑状态、PreviewRenderer 和 ExportRenderer 共用 `PhotoColorPipeline`；测试确认带局部蒙版的预览与导出色调一致，原始文件字节不变。
+- PASS — 功能完全本地处理，未引入网络、云端上传或远程模型依赖；Preset/Copy-Paste 不覆盖蒙版几何。
+
+Regression:
+- PASS — 全量 50 项测试覆盖 Phase 0–10 的 Catalog/扫描/书签/离线、资料库、照片/RAW/LUT、预设/批量导出、管理/色彩/HDR still、视频资料库、视频编辑、fade 和 Proxy 工作流，未发现回归。
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — 在用户授权的 JPEG/HEIC、RAW/DNG 与 24MP/48MP 图像上操作局部蒙版 UI，确认预览刷新、滑杆交互、多个蒙版顺序、旋转/裁剪后的视觉位置和完整导出结果；自动化使用临时小图。
+- MANUAL VERIFICATION REQUIRED — 在 HDR 与 SDR 屏幕上检查局部曝光配合 EDR/HDR still preview 的视觉结果；自动化只能验证数值渲染，不能测量实际显示亮度或色彩管理质量。
+
+Known Limitations:
+- 本阶段只完成 Linear Gradient 和 Radial Gradient；Brush Mask、Subject Mask、Sky Mask、perceptual similarity、semantic search 和 face grouping 未实现，且没有以 mock 或 hardcode 冒充完成。
+- 径向蒙版当前为圆形半径加羽化，而非任意椭圆或可变形选择区；蒙版几何使用 inspector 数值滑杆，尚无画布直接拖拽控制点。
+- 真机高分辨率、RAW、HDR 显示与多蒙版性能需上述人工核验；不会提交用户照片、RAW、数据库或缓存。
+
+Commit:
+- `feat: complete phase 11 local masks`
