@@ -30,7 +30,7 @@ final class VideoEditorViewModel: ObservableObject {
     func load() async {
         state = await model.videoEditState(for: asset.id) ?? .identity
         luts = (await model.videoLUTLibrary()?.all ?? []).filter { $0.kind == .creative }
-        session = await model.makeVideoPlaybackSession(for: asset)
+        session = await model.makeVideoPlaybackSession(for: asset, preferProxy: false)
         schedulePreview(debounce: false)
     }
 
@@ -192,6 +192,7 @@ struct VideoEditorView: View {
                 }
                 transformSection
                 lutSection
+                fadeSection
                 audioSection
             }
             .padding(14)
@@ -272,6 +273,18 @@ struct VideoEditorView: View {
         adjustmentSection("音频") {
             Toggle("静音", isOn: editor.boolBinding(\.isMuted))
             slider("增益", value: editor.doubleBinding(\.audioGain), range: -60...12, suffix: " dB")
+            slider("音频淡入", value: editor.doubleBinding(\.audioFadeInDuration), range: 0...10, suffix: " s")
+            slider("音频淡出", value: editor.doubleBinding(\.audioFadeOutDuration), range: 0...10, suffix: " s")
+        }
+    }
+
+    private var fadeSection: some View {
+        adjustmentSection("转场") {
+            slider("画面淡入", value: editor.doubleBinding(\.fadeInDuration), range: 0...10, suffix: " s")
+            slider("画面淡出", value: editor.doubleBinding(\.fadeOutDuration), range: 0...10, suffix: " s")
+            Text("淡入淡出通过视频 composition 渲染至黑场；音频使用独立音量坡道。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

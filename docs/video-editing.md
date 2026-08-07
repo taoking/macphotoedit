@@ -4,7 +4,8 @@
 
 每个视频的 `VideoEditState` 单独保存在 Catalog SQLite v10 的
 `video_edit_states` 表中。状态包含 trim、裁剪、90° 旋转、翻转、曝光、
-对比度、饱和度、色温、色调、Creative LUT 和强度、静音、音频增益与速度。
+对比度、饱和度、色温、色调、Creative LUT 和强度、静音、音频增益、速度，
+以及画面/音频淡入淡出时长。
 应用不会写回、移动、重命名或覆盖引用的视频源文件。
 
 ## AVFoundation 管线
@@ -13,7 +14,7 @@
 AVURLAsset
 → trim composition（视频与所有可用音轨使用同一时间范围）
 → composition time scale（速度同时作用于音频和视频）
-→ Core Image video composition（颜色 / Creative LUT / 裁剪 / 变换）
+→ Core Image video composition（颜色 / Creative LUT / 裁剪 / 变换 / 画面淡入淡出）
 → AVPlayer preview 或新的 MP4 文件
 ```
 
@@ -24,6 +25,13 @@ Creative LUT 的模型、解析器和强度语义。Technical LUT 不进入本�
 导出读取视频轨的 `preferredTransform`，先计算显示方向尺寸，再应用用户的
 裁剪与四分之一转变换。这样旋转拍摄的源视频不会因 raw natural size 而被
 强制回横向画布。
+
+## 淡入淡出
+
+画面淡入/淡出在 composition 的**输出时间线**上渲染到黑场，因此在 trim 和
+speed 之后仍和实际输出时长一致。音频由独立的 `AVAudioMix` 音量坡道处理；
+淡入和淡出重叠时会生成与画面一致的三角包络，而不是让两个 AVFoundation
+坡道覆盖彼此。
 
 ## 导出与安全
 
@@ -41,12 +49,13 @@ Creative LUT 的模型、解析器和强度语义。Technical LUT 不进入本�
 `VideoEditingTests` 使用临时目录生成小型 H.264 MOV（不提交媒体文件），验证：
 
 - 状态、trim/speed 限制、输出方向/尺寸计算；
-- Catalog v10 持久化及 Videos 的 Edited 查询；
+- Catalog v11（含 video proxy）持久化及 Videos 的 Edited 查询；
 - Core Image 调色与 Creative LUT intensity；
+- 画面淡入/淡出包络与实际 Core Image 黑场渲染；
 - 实际 H.264 和 HEVC MP4 导出、trim + speed 时长、裁剪后尺寸、输出编码与源文件字节不变；
+- 实际 H.264 Proxy 生成、签名失效、删除和源文件字节不变；
 - 对源 URL 的导出覆盖请求被拒绝。
 
-已检测的 HDR 视频继续使用原生播放，但会明确禁止进入本阶段的 SDR 编辑/导出，
-以避免生成色彩不可靠的文件；HDR 视频处理与 Technical LUT 会在 Phase 10 单独
-实现。真实有音频、旋转、4K、外置盘与权限组合仍需在用户授权的媒体上人工验证；
-见开发进度记录。
+已检测的 HDR 视频继续使用原生播放，但会明确禁止进入当前 SDR 编辑、导出和
+Proxy 路径，以避免生成色彩不可靠的文件。真实有音频、旋转、4K、外置盘与权限
+组合仍需在用户授权的媒体上人工验证；见开发进度记录。

@@ -312,6 +312,24 @@ enum CatalogMigrations {
                 );
                 """
             )
+        },
+        CatalogMigration(version: 11, name: "addVideoProxySchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS video_proxies (
+                    asset_id TEXT PRIMARY KEY NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    source_file_size INTEGER NOT NULL,
+                    source_modified_at REAL,
+                    relative_path TEXT NOT NULL,
+                    width INTEGER,
+                    height INTEGER,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS video_proxies_source_signature_index
+                    ON video_proxies(source_file_size, source_modified_at);
+                """
+            )
         }
     ]
 }

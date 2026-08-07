@@ -64,7 +64,9 @@ enum VideoFramePipeline {
         _ source: CIImage,
         state: VideoEditState,
         lut: CubeLUT?,
-        renderSize: CGSize
+        renderSize: CGSize,
+        compositionTime: Double? = nil,
+        compositionDuration: Double? = nil
     ) -> CIImage {
         var image = source
         if state.adjustments.exposure != 0 {
@@ -88,7 +90,23 @@ enum VideoFramePipeline {
         if let lut, let application = state.lut {
             image = LUTProcessor.apply(lut, to: image, strength: application.clampedStrength)
         }
-        return transformed(image, state: state, renderSize: renderSize)
+        image = transformed(image, state: state, renderSize: renderSize)
+        if let compositionTime, let compositionDuration {
+            let opacity = VideoFadeEnvelope.opacity(
+                at: compositionTime,
+                duration: compositionDuration,
+                fadeIn: state.clampedFadeInDuration,
+                fadeOut: state.clampedFadeOutDuration
+            )
+            if opacity < 1 {
+                image = image.applyingFilter("CIColorMatrix", parameters: [
+                    "inputRVector": CIVector(x: opacity, y: 0, z: 0, w: 0),
+                    "inputGVector": CIVector(x: 0, y: opacity, z: 0, w: 0),
+                    "inputBVector": CIVector(x: 0, y: 0, z: opacity, w: 0)
+                ])
+            }
+        }
+        return image
     }
 
     private static func transformed(_ source: CIImage, state: VideoEditState, renderSize: CGSize) -> CIImage {
@@ -199,6 +217,7 @@ private enum VideoCompositionBuilder {
             maximumPixelSize: resize.maximumPixelSize
         )
         let frameRate = max(1, Int32(nominalFrameRate.rounded()))
+        let outputDuration = trim.duration / state.clampedSpeed
         let videoComposition = AVMutableVideoComposition(
             asset: composition,
             applyingCIFiltersWithHandler: { request in
@@ -206,7 +225,9 @@ private enum VideoCompositionBuilder {
                     request.sourceImage,
                     state: state,
                     lut: lut,
-                    renderSize: renderSize
+                    renderSize: renderSize,
+                    compositionTime: CMTimeGetSeconds(request.compositionTime),
+                    compositionDuration: outputDuration
                 )
                 request.finish(with: rendered, context: nil)
             }
@@ -214,8 +235,8 @@ private enum VideoCompositionBuilder {
         videoComposition.renderSize = renderSize
         videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
 
-        let audioMix = makeAudioMix(for: composition, state: state)
-        let duration = composition.duration.isNumeric ? CMTimeGetSeconds(composition.duration) : trim.duration / state.clampedSpeed
+        let duration = composition.duration.isNumeric ? CMTimeGetSeconds(composition.duration) : outputDuration
+        let audioMix = makeAudioMix(for: composition, state: state, duration: duration)
         return PreparedVideoComposition(
             composition: composition,
             videoComposition: videoComposition,
@@ -224,13 +245,57 @@ private enum VideoCompositionBuilder {
         )
     }
 
-    private static func makeAudioMix(for composition: AVMutableComposition, state: VideoEditState) -> AVAudioMix? {
+    private static func makeAudioMix(
+        for composition: AVMutableComposition,
+        state: VideoEditState,
+        duration: Double
+    ) -> AVAudioMix? {
         let audioTracks = composition.tracks(withMediaType: .audio)
         guard !audioTracks.isEmpty else { return nil }
         let gain = state.isMuted ? 0 : min(4, max(0, pow(10, state.clampedAudioGain / 20)))
+        let fadeIn = VideoFadeEnvelope.clampedDuration(state.clampedAudioFadeInDuration, within: duration)
+        let fadeOut = VideoFadeEnvelope.clampedDuration(state.clampedAudioFadeOutDuration, within: duration)
         let parameters = audioTracks.map { track -> AVMutableAudioMixInputParameters in
             let parameter = AVMutableAudioMixInputParameters(track: track)
-            parameter.setVolume(Float(gain), at: .zero)
+            let volume = Float(gain)
+            if fadeIn > 0, fadeOut > 0, fadeIn + fadeOut > duration {
+                // AVAudioMix ramps do not combine multiplicatively. For overlapping
+                // fades, use the exact triangular envelope shared by the video fade:
+                // min(t / fadeIn, (duration - t) / fadeOut).
+                let crossover = duration * fadeIn / (fadeIn + fadeOut)
+                let peakVolume = volume * Float(duration / (fadeIn + fadeOut))
+                parameter.setVolumeRamp(
+                    fromStartVolume: 0,
+                    toEndVolume: peakVolume,
+                    timeRange: CMTimeRange(start: .zero, duration: CMTime(seconds: crossover, preferredTimescale: 600))
+                )
+                parameter.setVolumeRamp(
+                    fromStartVolume: peakVolume,
+                    toEndVolume: 0,
+                    timeRange: CMTimeRange(
+                        start: CMTime(seconds: crossover, preferredTimescale: 600),
+                        duration: CMTime(seconds: duration - crossover, preferredTimescale: 600)
+                    )
+                )
+            } else {
+                if fadeIn > 0 {
+                    parameter.setVolumeRamp(
+                        fromStartVolume: 0,
+                        toEndVolume: volume,
+                        timeRange: CMTimeRange(start: .zero, duration: CMTime(seconds: fadeIn, preferredTimescale: 600))
+                    )
+                } else {
+                    parameter.setVolume(volume, at: .zero)
+                }
+                if fadeOut > 0 {
+                    let start = max(0, duration - fadeOut)
+                    parameter.setVolumeRamp(
+                        fromStartVolume: volume,
+                        toEndVolume: 0,
+                        timeRange: CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), duration: CMTime(seconds: fadeOut, preferredTimescale: 600))
+                    )
+                }
+            }
             return parameter
         }
         let mix = AVMutableAudioMix()

@@ -28,6 +28,7 @@ xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 ```
 
-The app stores its catalog, thumbnail and video-filmstrip caches, previews, presets, LUTs, and logs
+The app stores its catalog, thumbnail/video-filmstrip/Proxy caches, previews, presets, LUTs, and logs
 under `~/Library/Application Support/MacPhotoStudio/`. Original media is never
-copied there or modified by the app.
+copied there or modified by the app. Video Proxy files are derived H.264 previews
+only; editing and export always read the referenced original.

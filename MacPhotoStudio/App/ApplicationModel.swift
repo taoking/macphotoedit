@@ -24,6 +24,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestBatchEditReport: BatchEditReport?
     @Published private(set) var latestBatchExportReport: BatchExportReport?
     @Published private(set) var latestVideoExportReport: VideoExportReport?
+    @Published private(set) var latestVideoProxyReport: VideoProxyReport?
     @Published private(set) var latestDuplicateScanReport: DuplicateScanReport?
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var hasMoreLibraryAssets = false
@@ -38,6 +39,7 @@ final class ApplicationModel: ObservableObject {
     private var thumbnailLoader: ThumbnailLoader?
     private var videoFilmstripLoader: VideoFilmstripLoader?
     private var videoEditingService: VideoEditingService?
+    private var videoProxyService: VideoProxyService?
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
     private var duplicateScanner: ExactDuplicateScanner?
@@ -76,6 +78,10 @@ final class ApplicationModel: ObservableObject {
                 catalogStore: catalogStore,
                 mediaRootStore: mediaRootStore,
                 lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
+            )
+            self.videoProxyService = VideoProxyService(
+                catalogStore: catalogStore,
+                directoryURL: paths.videoProxiesDirectory
             )
             self.photoEditingService = PhotoEditingService(
                 catalogStore: catalogStore,
@@ -284,7 +290,10 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
-    func makeVideoPlaybackSession(for asset: LibraryAssetRecord) async -> VideoPlaybackSession? {
+    func makeVideoPlaybackSession(
+        for asset: LibraryAssetRecord,
+        preferProxy: Bool = true
+    ) async -> VideoPlaybackSession? {
         guard asset.mediaType == .video else { return nil }
         guard asset.availability == .available else {
             libraryError = "视频当前不可访问。"
@@ -307,8 +316,17 @@ final class ApplicationModel: ObservableObject {
                 libraryError = "找不到视频原文件。"
                 return nil
             }
+            var proxyURL: URL?
+            if preferProxy, let videoProxyService {
+                do {
+                    proxyURL = try await videoProxyService.proxyURL(for: asset)
+                } catch {
+                    AppLogger.app.debug("Proxy unavailable for \(asset.relativePath, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                }
+            }
             return VideoPlaybackSession(
                 sourceURL: sourceURL,
+                playbackURL: proxyURL,
                 securityScopedRootURL: resolvedRoot.directoryURL,
                 duration: asset.duration,
                 frameRate: asset.frameRate
@@ -386,7 +404,7 @@ final class ApplicationModel: ObservableObject {
             return nil
         }
         guard asset.videoIsHDR != true else {
-            libraryError = "HDR 视频编辑与导出将在 Phase 10 提供；当前保留原视频播放，不会用 SDR 管线处理。"
+            libraryError = "当前编辑与导出管线仅支持 SDR；HDR 视频保持原生播放，不会用 SDR 管线处理。"
             return nil
         }
 
@@ -447,6 +465,91 @@ final class ApplicationModel: ObservableObject {
         }
         batchWorkerTasks[task.id] = worker
         return task.id
+    }
+
+    func startVideoProxyGeneration(
+        for asset: LibraryAssetRecord,
+        options: VideoProxyOptions = .init()
+    ) async -> UUID? {
+        guard let videoProxyService, let mediaRootStore else { return nil }
+        guard asset.mediaType == .video, asset.availability == .available else {
+            libraryError = "请选择一个当前可访问的视频生成 Proxy。"
+            return nil
+        }
+        guard asset.videoIsHDR != true else {
+            libraryError = "HDR 视频 Proxy 需要保留 HDR 色彩契约；当前不会使用 SDR Proxy 替代原视频。"
+            return nil
+        }
+        guard let root = mediaRoots.first(where: { $0.id == asset.rootID }) else { return nil }
+
+        let resolvedRoot: ResolvedMediaRoot
+        let sourceURL: URL
+        do {
+            resolvedRoot = try await mediaRootStore.resolve(root)
+            guard let safeURL = safeMediaURL(for: asset, in: resolvedRoot.directoryURL) else {
+                libraryError = "视频路径无效，已拒绝在资料库根目录外生成 Proxy。"
+                return nil
+            }
+            sourceURL = safeURL
+            let exists = try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolvedRoot.directoryURL) {
+                FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false))
+            }
+            guard exists else {
+                libraryError = "找不到需要生成 Proxy 的原视频。"
+                return nil
+            }
+        } catch {
+            report(error, activity: "Preparing video Proxy")
+            return nil
+        }
+
+        let task = await batchTaskCenter.enqueue(kind: .videoProxyGeneration, title: "生成视频 Proxy：\(asset.filename)")
+        await refreshBatchTasks()
+        let taskCenter = batchTaskCenter
+        let worker = Task { [weak self, videoProxyService] in
+            let didStartAccess = resolvedRoot.directoryURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccess {
+                    resolvedRoot.directoryURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                try await taskCenter.start(task.id)
+                await self?.refreshBatchTasks()
+                let report = try await videoProxyService.generate(
+                    for: asset,
+                    sourceURL: sourceURL,
+                    options: options,
+                    reportProgress: { progress in
+                        try? await taskCenter.updateProgress(progress, for: task.id)
+                    }
+                )
+                try await taskCenter.complete(task.id)
+                await self?.finishVideoProxyGeneration(report, taskID: task.id)
+            } catch is CancellationError {
+                try? await taskCenter.cancel(task.id)
+                await self?.finishCancelledBatchTask(task.id)
+            } catch {
+                try? await taskCenter.fail(task.id)
+                await self?.finishFailedVideoProxyGeneration(task.id, error: error)
+            }
+        }
+        batchWorkerTasks[task.id] = worker
+        return task.id
+    }
+
+    func removeVideoProxy(for asset: LibraryAssetRecord) async -> Bool {
+        guard let videoProxyService else { return false }
+        do {
+            try await videoProxyService.removeProxy(for: asset.id)
+            if latestVideoProxyReport?.assetID == asset.id {
+                latestVideoProxyReport = nil
+            }
+            return true
+        } catch {
+            report(error, activity: "Removing video Proxy")
+            return false
+        }
     }
 
     private func safeMediaURL(for asset: LibraryAssetRecord, in rootURL: URL) -> URL? {
@@ -1132,6 +1235,12 @@ final class ApplicationModel: ObservableObject {
         await refreshBatchTasks()
     }
 
+    private func finishVideoProxyGeneration(_ report: VideoProxyReport, taskID: UUID) async {
+        latestVideoProxyReport = report
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+    }
+
     private func finishDuplicateScan(_ report: DuplicateScanReport, taskID: UUID) async {
         latestDuplicateScanReport = report
         batchWorkerTasks[taskID] = nil
@@ -1153,6 +1262,12 @@ final class ApplicationModel: ObservableObject {
         batchWorkerTasks[taskID] = nil
         await refreshBatchTasks()
         report(error, activity: "Video export")
+    }
+
+    private func finishFailedVideoProxyGeneration(_ taskID: UUID, error: Error) async {
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+        report(error, activity: "Video Proxy generation")
     }
 
     private func finishFailedDuplicateTask(_ taskID: UUID, error: Error) async {

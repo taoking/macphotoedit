@@ -1,7 +1,7 @@
 import Foundation
 
 struct VideoEditState: Codable, Sendable, Equatable {
-    var version = 1
+    var version = 2
     var trimStart: Double = 0
     /// A nil end uses the complete source duration. Keeping it nil avoids
     /// baking the source duration into a non-destructive edit state.
@@ -13,11 +13,18 @@ struct VideoEditState: Codable, Sendable, Equatable {
     /// Gain in dB. The export pipeline converts this to a linear AVAudioMix volume.
     var audioGain: Double = 0
     var speed: Double = 1
+    /// Video fades are rendered to black in the video composition.
+    var fadeInDuration: Double = 0
+    var fadeOutDuration: Double = 0
+    /// Audio fades are independent of the video fade lengths.
+    var audioFadeInDuration: Double = 0
+    var audioFadeOutDuration: Double = 0
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
         case version, trimStart, trimEnd, transform, adjustments, lut, isMuted, audioGain, speed
+        case fadeInDuration, fadeOutDuration, audioFadeInDuration, audioFadeOutDuration
     }
 
     init(from decoder: Decoder) throws {
@@ -31,12 +38,20 @@ struct VideoEditState: Codable, Sendable, Equatable {
         isMuted = try container.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
         audioGain = try container.decodeIfPresent(Double.self, forKey: .audioGain) ?? 0
         speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? 1
+        fadeInDuration = try container.decodeIfPresent(Double.self, forKey: .fadeInDuration) ?? 0
+        fadeOutDuration = try container.decodeIfPresent(Double.self, forKey: .fadeOutDuration) ?? 0
+        audioFadeInDuration = try container.decodeIfPresent(Double.self, forKey: .audioFadeInDuration) ?? 0
+        audioFadeOutDuration = try container.decodeIfPresent(Double.self, forKey: .audioFadeOutDuration) ?? 0
     }
 
     static let identity = VideoEditState()
 
     var clampedSpeed: Double { min(max(speed, 0.25), 4) }
     var clampedAudioGain: Double { min(max(audioGain, -60), 12) }
+    var clampedFadeInDuration: Double { max(0, fadeInDuration) }
+    var clampedFadeOutDuration: Double { max(0, fadeOutDuration) }
+    var clampedAudioFadeInDuration: Double { max(0, audioFadeInDuration) }
+    var clampedAudioFadeOutDuration: Double { max(0, audioFadeOutDuration) }
 
     func resolvedTrim(for sourceDuration: Double) throws -> VideoTrimRange {
         guard sourceDuration.isFinite, sourceDuration > 0 else {
@@ -48,6 +63,27 @@ struct VideoEditState: Codable, Sendable, Equatable {
             throw StudioError.exportFailed(message: "裁剪结束时间必须晚于开始时间。")
         }
         return VideoTrimRange(start: start, end: end)
+    }
+}
+
+enum VideoFadeEnvelope {
+    static func opacity(at time: Double, duration: Double, fadeIn: Double, fadeOut: Double) -> Double {
+        guard duration.isFinite, duration > 0 else { return 1 }
+        var value = 1.0
+        let safeTime = min(max(0, time), duration)
+        let safeFadeIn = min(max(0, fadeIn), duration)
+        let safeFadeOut = min(max(0, fadeOut), duration)
+        if safeFadeIn > 0 {
+            value = min(value, safeTime / safeFadeIn)
+        }
+        if safeFadeOut > 0 {
+            value = min(value, (duration - safeTime) / safeFadeOut)
+        }
+        return min(max(value, 0), 1)
+    }
+
+    static func clampedDuration(_ requested: Double, within duration: Double) -> Double {
+        min(max(0, requested), max(0, duration))
     }
 }
 

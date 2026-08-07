@@ -47,6 +47,7 @@
 		B40F99FBC1AAD902AE5E45B8 /* LibraryCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */; };
 		B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */; };
 		B98C6F43DF189C7674063047 /* VideoPlaybackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E939691C923B1B116EF94156 /* VideoPlaybackSession.swift */; };
+		BA22654C90B81136DC514474 /* VideoProxyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2546CC391D757C51FC00F684 /* VideoProxyService.swift */; };
 		C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2325DD61230BAF602472DE97 /* ScanCoordinator.swift */; };
 		CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7A4D7504F84F852D9D9998 /* AppLogger.swift */; };
 		CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */; };
@@ -91,6 +92,7 @@
 		20605370C393B8133835DC85 /* VideoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditState.swift; sourceTree = "<group>"; };
 		22D96CB051B42A5C5A85F23C /* CubeLUT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CubeLUT.swift; sourceTree = "<group>"; };
 		2325DD61230BAF602472DE97 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
+		2546CC391D757C51FC00F684 /* VideoProxyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoProxyService.swift; sourceTree = "<group>"; };
 		2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImagePipeline.swift; sourceTree = "<group>"; };
 		34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBatchEditing.swift; sourceTree = "<group>"; };
 		3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatalogTests.swift; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				20605370C393B8133835DC85 /* VideoEditState.swift */,
 				178FFF550B59149A3E6B93E8 /* VideoFilmstripLoader.swift */,
 				E939691C923B1B116EF94156 /* VideoPlaybackSession.swift */,
+				2546CC391D757C51FC00F684 /* VideoProxyService.swift */,
 			);
 			path = Video;
 			sourceTree = "<group>";
@@ -542,6 +545,7 @@
 				272750C1480D362A8D6E9430 /* VideoFilmstripLoader.swift in Sources */,
 				B98C6F43DF189C7674063047 /* VideoPlaybackSession.swift in Sources */,
 				AC4664D33929530D7C10C5A1 /* VideoPreviewSheet.swift in Sources */,
+				BA22654C90B81136DC514474 /* VideoProxyService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

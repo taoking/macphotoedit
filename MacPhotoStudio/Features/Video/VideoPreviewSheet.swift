@@ -10,6 +10,8 @@ struct VideoPreviewSheet: View {
     @State private var filmstrip: [NSImage] = []
     @State private var loadingFailed = false
     @State private var editorAsset: LibraryAssetRecord?
+    @State private var proxyRefreshID = 0
+    @State private var isGeneratingProxy = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -25,8 +27,27 @@ struct VideoPreviewSheet: View {
                 Button("编辑") { editorAsset = asset }
                     .disabled(session == nil || asset.videoIsHDR == true)
                     .help(asset.videoIsHDR == true
-                        ? "HDR 视频编辑与导出将在 Phase 10 提供；当前只保留原生播放。"
+                        ? "当前 SDR 编辑管线不会处理 HDR 视频；仍可原生播放原视频。"
                         : "编辑此视频")
+                if asset.videoIsHDR != true {
+                    Button(isGeneratingProxy ? "正在生成 Proxy…" : "生成 Proxy") {
+                        Task {
+                            isGeneratingProxy = await applicationModel.startVideoProxyGeneration(for: asset) != nil
+                        }
+                    }
+                    .disabled(session == nil || isGeneratingProxy)
+                    .help("生成低分辨率 H.264 派生文件以加快此视频的预览；编辑与导出始终使用原视频。")
+                    if session?.usesProxy == true {
+                        Button("删除 Proxy") {
+                            Task {
+                                guard await applicationModel.removeVideoProxy(for: asset) else { return }
+                                session?.close()
+                                proxyRefreshID += 1
+                            }
+                        }
+                        .help("删除应用派生目录中的 Proxy，不会影响原视频。")
+                    }
+                }
                 Button("完成") { dismiss() }
             }
             .padding(.horizontal)
@@ -46,8 +67,9 @@ struct VideoPreviewSheet: View {
             }
         }
         .padding(.vertical)
-        .task(id: asset.id) {
+        .task(id: "playback-\(asset.id.uuidString)-\(proxyRefreshID)") {
             guard asset.mediaType == .video else { return }
+            session?.close()
             session = await applicationModel.makeVideoPlaybackSession(for: asset)
             loadingFailed = session == nil
         }
@@ -59,6 +81,17 @@ struct VideoPreviewSheet: View {
         }
         .onDisappear {
             session?.close()
+        }
+        .onChange(of: applicationModel.latestVideoProxyReport?.assetID) { _, assetID in
+            guard assetID == asset.id else { return }
+            isGeneratingProxy = false
+            proxyRefreshID += 1
+        }
+        .onChange(of: applicationModel.batchTasks) { _, tasks in
+            guard isGeneratingProxy,
+                  !tasks.contains(where: { $0.kind == .videoProxyGeneration && !$0.state.isTerminal })
+            else { return }
+            isGeneratingProxy = false
         }
         .sheet(item: $editorAsset) { editorAsset in
             VideoEditorView(asset: editorAsset, model: applicationModel)
@@ -72,9 +105,18 @@ private struct VideoPlaybackView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            VideoPlayer(player: session.player)
-                .frame(minWidth: 700, minHeight: 420)
-                .background(.black, in: RoundedRectangle(cornerRadius: 8))
+            ZStack(alignment: .topLeading) {
+                VideoPlayer(player: session.player)
+                    .frame(minWidth: 700, minHeight: 420)
+                    .background(.black, in: RoundedRectangle(cornerRadius: 8))
+                if session.usesProxy {
+                    Label("Proxy 预览", systemImage: "rectangle.compress.vertical")
+                        .font(.caption.weight(.semibold))
+                        .padding(7)
+                        .background(.black.opacity(0.65), in: Capsule())
+                        .padding(10)
+                }
+            }
 
             if !filmstrip.isEmpty {
                 HStack(spacing: 4) {

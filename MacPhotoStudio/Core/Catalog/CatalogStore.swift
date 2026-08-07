@@ -450,6 +450,57 @@ actor CatalogStore {
         )
     }
 
+    func videoProxy(for assetID: UUID) throws -> VideoProxyRecord? {
+        let rows = try requireConnection().query(
+            """
+            SELECT asset_id, source_file_size, source_modified_at, relative_path, width, height, created_at, updated_at
+            FROM video_proxies WHERE asset_id = ? LIMIT 1;
+            """,
+            bindings: [.text(assetID.uuidString)]
+        )
+        guard let row = rows.first,
+              let assetIDText = row.text(at: 0), let proxyAssetID = UUID(uuidString: assetIDText),
+              let fileSize = row.integer(at: 1), let relativePath = row.text(at: 3),
+              let createdAt = row.real(at: 6), let updatedAt = row.real(at: 7)
+        else { return nil }
+        return VideoProxyRecord(
+            assetID: proxyAssetID,
+            sourceFileSize: fileSize,
+            sourceModifiedAt: date(from: row.real(at: 2)),
+            relativePath: relativePath,
+            width: row.integer(at: 4).map(Int.init),
+            height: row.integer(at: 5).map(Int.init),
+            createdAt: Date(timeIntervalSince1970: createdAt),
+            updatedAt: Date(timeIntervalSince1970: updatedAt)
+        )
+    }
+
+    func saveVideoProxy(_ proxy: VideoProxyRecord) throws {
+        try requireConnection().execute(
+            """
+            INSERT INTO video_proxies (
+                asset_id, source_file_size, source_modified_at, relative_path, width, height, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                source_file_size = excluded.source_file_size,
+                source_modified_at = excluded.source_modified_at,
+                relative_path = excluded.relative_path,
+                width = excluded.width,
+                height = excluded.height,
+                updated_at = excluded.updated_at;
+            """,
+            bindings: [
+                .text(proxy.assetID.uuidString), .integer(proxy.sourceFileSize), sql(proxy.sourceModifiedAt),
+                .text(proxy.relativePath), sql(proxy.width), sql(proxy.height),
+                .real(proxy.createdAt.timeIntervalSince1970), .real(proxy.updatedAt.timeIntervalSince1970)
+            ]
+        )
+    }
+
+    func deleteVideoProxy(for assetID: UUID) throws {
+        try requireConnection().execute("DELETE FROM video_proxies WHERE asset_id = ?;", bindings: [.text(assetID.uuidString)])
+    }
+
     func photoPresets() throws -> [PhotoPreset] {
         try requireConnection().query(
             "SELECT id, name, content_json, is_favorite, created_at, updated_at FROM photo_presets ORDER BY is_favorite DESC, name COLLATE NOCASE ASC;"

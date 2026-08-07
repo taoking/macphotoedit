@@ -25,6 +25,10 @@ final class VideoEditingTests: XCTestCase {
         state.trimEnd = 99
         state.speed = 12
         state.audioGain = -100
+        state.fadeInDuration = -2
+        state.fadeOutDuration = 20
+        state.audioFadeInDuration = -1
+        state.audioFadeOutDuration = 20
         state.transform.crop = NormalizedCrop(x: 0.1, y: 0.2, width: 0.5, height: 0.5)
         state.transform.rotationDegrees = 90
 
@@ -33,6 +37,10 @@ final class VideoEditingTests: XCTestCase {
         XCTAssertEqual(trim.end, 8)
         XCTAssertEqual(state.clampedSpeed, 4)
         XCTAssertEqual(state.clampedAudioGain, -60)
+        XCTAssertEqual(state.clampedFadeInDuration, 0)
+        XCTAssertEqual(state.clampedFadeOutDuration, 20)
+        XCTAssertEqual(state.clampedAudioFadeInDuration, 0)
+        XCTAssertEqual(state.clampedAudioFadeOutDuration, 20)
         XCTAssertEqual(
             VideoFramePipeline.outputSize(sourceSize: CGSize(width: 1_920, height: 1_080), state: state, maximumPixelSize: nil),
             CGSize(width: 540, height: 960)
@@ -47,6 +55,34 @@ final class VideoEditingTests: XCTestCase {
         )
         XCTAssertEqual(rotatedSize.width, 1_080, accuracy: 0.001)
         XCTAssertEqual(rotatedSize.height, 1_920, accuracy: 0.001)
+    }
+
+    func testVideoFadeEnvelopeAndFramePipelineRenderToBlackAtClipBoundaries() throws {
+        XCTAssertEqual(VideoFadeEnvelope.opacity(at: 0, duration: 4, fadeIn: 1, fadeOut: 1), 0)
+        XCTAssertEqual(VideoFadeEnvelope.opacity(at: 0.5, duration: 4, fadeIn: 1, fadeOut: 1), 0.5)
+        XCTAssertEqual(VideoFadeEnvelope.opacity(at: 2, duration: 4, fadeIn: 1, fadeOut: 1), 1)
+        XCTAssertEqual(VideoFadeEnvelope.opacity(at: 4, duration: 4, fadeIn: 1, fadeOut: 1), 0)
+        XCTAssertEqual(VideoFadeEnvelope.opacity(at: 0.5, duration: 1, fadeIn: 1, fadeOut: 1), 0.5)
+
+        var state = VideoEditState.identity
+        state.fadeInDuration = 1
+        state.fadeOutDuration = 1
+        let source = CIImage(color: CIColor(red: 0.8, green: 0.4, blue: 0.2, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 8, height: 4))
+        let atStart = VideoFramePipeline.apply(
+            source, state: state, lut: nil, renderSize: CGSize(width: 8, height: 4),
+            compositionTime: 0, compositionDuration: 4
+        )
+        let atMiddle = VideoFramePipeline.apply(
+            source, state: state, lut: nil, renderSize: CGSize(width: 8, height: 4),
+            compositionTime: 2, compositionDuration: 4
+        )
+        let startPixel = try rgba(of: atStart)
+        let middlePixel = try rgba(of: atMiddle)
+        XCTAssertLessThan(startPixel.x, 0.02)
+        XCTAssertLessThan(startPixel.y, 0.02)
+        XCTAssertGreaterThan(middlePixel.x, 0.7)
+        XCTAssertGreaterThan(middlePixel.y, 0.35)
     }
 
     func testVideoFramePipelineAppliesCreativeLUTIntensityAndColorAdjustment() throws {
@@ -107,13 +143,17 @@ final class VideoEditingTests: XCTestCase {
         expected.adjustments.exposure = 0.75
         expected.lut = LUTApplication(identifier: UUID(), strength: 0.45)
         expected.isMuted = true
+        expected.fadeInDuration = 0.2
+        expected.fadeOutDuration = 0.3
+        expected.audioFadeInDuration = 0.15
+        expected.audioFadeOutDuration = 0.25
         try await store.saveVideoEditState(expected, for: asset.id)
 
         let reopened = CatalogStore(databaseURL: paths.catalogDatabaseURL)
         try await reopened.bootstrap()
         let schemaVersion = try await reopened.currentSchemaVersion()
         let restoredState = try await reopened.videoEditState(for: asset.id)
-        XCTAssertEqual(schemaVersion, 10)
+        XCTAssertEqual(schemaVersion, 11)
         XCTAssertEqual(restoredState, expected)
         let edited = try await reopened.libraryAssets(query: LibraryQuery(isEdited: true), limit: 10, offset: 0)
         XCTAssertEqual(edited.map(\.id), [asset.id])
@@ -208,6 +248,84 @@ final class VideoEditingTests: XCTestCase {
         let outputTrack = try XCTUnwrap(outputTracks.first)
         let formatDescriptions = try await outputTrack.load(.formatDescriptions)
         XCTAssertTrue(formatDescriptions.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_HEVC })
+    }
+
+    func testVideoProxyGenerationPersistsDerivedFileAndNeverModifiesSource() async throws {
+        let sourceURL = temporaryDirectory.appending(path: "proxy-source.mov")
+        try await makeVideo(at: sourceURL)
+        let sourceData = try Data(contentsOf: sourceURL)
+        let paths = try CatalogPaths.create(in: temporaryDirectory.appending(path: "proxy-catalog", directoryHint: .isDirectory))
+        let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await store.bootstrap()
+        let asset = try await catalogVideoAsset(store: store, sourceURL: sourceURL)
+        let service = VideoProxyService(catalogStore: store, directoryURL: paths.videoProxiesDirectory)
+
+        let report = try await service.generate(for: asset, sourceURL: sourceURL)
+
+        XCTAssertEqual(try Data(contentsOf: sourceURL), sourceData)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: report.proxyURL.path(percentEncoded: false)))
+        XCTAssertEqual(report.proxyURL.deletingLastPathComponent().standardizedFileURL, paths.videoProxiesDirectory.standardizedFileURL)
+        let currentProxy = try await service.proxyURL(for: asset)
+        XCTAssertEqual(currentProxy, report.proxyURL)
+        let reopened = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await reopened.bootstrap()
+        let stored = try await reopened.videoProxy(for: asset.id)
+        XCTAssertEqual(stored?.sourceFileSize, asset.fileSize)
+        XCTAssertEqual(stored?.relativePath, report.proxyURL.lastPathComponent)
+
+        let staleRecord = try XCTUnwrap(stored)
+        try await reopened.saveVideoProxy(
+            VideoProxyRecord(
+                assetID: staleRecord.assetID,
+                sourceFileSize: staleRecord.sourceFileSize + 1,
+                sourceModifiedAt: staleRecord.sourceModifiedAt,
+                relativePath: staleRecord.relativePath,
+                width: staleRecord.width,
+                height: staleRecord.height,
+                createdAt: staleRecord.createdAt,
+                updatedAt: .now
+            )
+        )
+        let staleProxy = try await service.proxyURL(for: asset)
+        XCTAssertNil(staleProxy)
+
+        try await service.removeProxy(for: asset.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: report.proxyURL.path(percentEncoded: false)))
+        let deleted = try await store.videoProxy(for: asset.id)
+        XCTAssertNil(deleted)
+        XCTAssertEqual(try Data(contentsOf: sourceURL), sourceData)
+    }
+
+    private func catalogVideoAsset(store: CatalogStore, sourceURL: URL) async throws -> LibraryAssetRecord {
+        let attributes = try FileManager.default.attributesOfItem(atPath: sourceURL.path(percentEncoded: false))
+        let fileSize = try XCTUnwrap(attributes[.size] as? NSNumber).int64Value
+        let modifiedAt = try XCTUnwrap(attributes[.modificationDate] as? Date)
+        let root = MediaRootRecord(
+            id: UUID(), displayName: "Proxy Root", bookmarkData: Data("bookmark".utf8),
+            lastKnownPath: temporaryDirectory.path(percentEncoded: false), volumeIdentifier: nil,
+            availability: .online, createdAt: .now, lastScannedAt: nil, lastScanError: nil
+        )
+        try await store.saveMediaRoot(root)
+        let scanID = UUID()
+        try await store.beginScan(rootID: root.id, scanID: scanID)
+        try await store.applyScanBatch([
+            ScannedMediaAsset(
+                rootID: root.id,
+                relativePath: sourceURL.lastPathComponent,
+                fileResourceIdentifier: "proxy-source",
+                mediaType: .video,
+                fileExtension: "mov",
+                fileSize: fileSize,
+                createdAt: modifiedAt,
+                modifiedAt: modifiedAt,
+                metadata: .video(VideoMetadata(
+                    width: 64, height: 48, duration: 0.8, frameRate: 30, codec: "H.264", creationDate: modifiedAt
+                ))
+            )
+        ], scanID: scanID)
+        try await store.finishScan(rootID: root.id, scanID: scanID)
+        let assets = try await store.libraryAssets(query: .all, limit: 1, offset: 0)
+        return try XCTUnwrap(assets.first)
     }
 
     private func makeVideo(at url: URL) async throws {

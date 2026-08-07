@@ -423,3 +423,46 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 9 video editing and lut`
+
+## Phase 10
+
+Status:
+- COMPLETED
+
+Implemented:
+- `VideoEditState` v2 以可向后兼容的 JSON 默认值持久化画面淡入/淡出和音频淡入/淡出；现有 Phase 9 状态重开时四项新值均为 0。
+- `VideoFramePipeline` 在 trim/speed 后的 composition 输出时间线上向黑场淡入/淡出；`AVAudioMix` 对每条可用音轨使用独立音量坡道。短片上两个音频淡化重叠时使用与画面相同的三角包络，避免 AVFoundation 坡道覆盖产生不确定音量。
+- 新增 Catalog v11 `video_proxies`：只记录 asset ID、源文件大小/修改时间签名、受控相对派生路径和尺寸；`CatalogPaths` 创建并隔离 Application Support 的 `video-proxies/` 目录，`.gitignore` 排除该缓存。
+- `VideoProxyService` 使用真实 AVFoundation H.264 中等质量、最长边最多 1280px 的 MP4 导出生成本地 Proxy；仅签名匹配且文件仍位于受控目录时预览使用 Proxy，失配/缺失自动回退原视频。删除 Proxy 仅删除派生文件和 Catalog 记录。
+- 视频预览提供生成/删除 Proxy、Proxy 使用标记、统一可取消后台任务和进度；视频编辑器与最终导出明确要求 `preferProxy: false`，始终读取引用的原视频。HDR 视频继续拒绝进入 SDR 编辑、导出和 Proxy 路径。
+- 新增 [advanced-video.md](advanced-video.md)，并更新 [video-editing.md](video-editing.md) 与 README，记录淡化/Proxy 管线、安全边界和人工验证范围。
+
+Tests:
+- `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 48 tests, 0 failures。新增覆盖 v11 migration、Proxy 目录、后台任务种类、fade 包络和真实 Core Image 黑场帧、fade 状态持久化、真实临时 H.264 Proxy 的派生路径/签名失效/删除，以及源视频字节不变。
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `** BUILD SUCCEEDED **`。存在既有 AVFoundation 弃用 API 警告，但没有编译错误。
+
+Acceptance:
+- PASS — 画面 fade 由真实 Core Image composition 在输出时间线上渲染至黑场；音频 fade 由实际 `AVAudioMix` 轨道坡道实现，trim 与 speed 后仍使用输出时长。
+- PASS — Proxy 不是占位播放路径：测试实际写出 H.264 MP4，Catalog v11 持久化后重开可读取，签名失配拒绝复用，删除会移除派生文件和记录，且源文件全程字节不变。
+- PASS — Proxy 生成/取消/进度接入统一 Background Task Center；预览显示正在使用 Proxy，编辑与最终导出仍锁定原视频。
+- PASS — 已检测 HDR 视频明确保持原生播放并拒绝 SDR Proxy/编辑/导出，不会错误产生 SDR 文件。
+
+Regression:
+- PASS — 全量 48 项测试覆盖 Phase 0–9：Catalog/扫描/书签/离线、资料库、照片/RAW/LUT、Preset/批量导出、相册/堆栈/重复检测、色彩/HDR still、视频资料库和视频编辑/导出均未回归。
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — 使用用户授权的含音轨 MOV/MP4/M4V，听检淡入、淡出以及短片上两个 fade 重叠时的音量包络；自动化环境没有可提交的真实音频 fixture。
+- MANUAL VERIFICATION REQUIRED — 在本地与外置卷的真实 4K/长视频上验证 1280px Proxy 的生成时间、进度、取消、重开复用、源文件修改后的回退、预览流畅度和 security-scoped 权限释放。
+- MANUAL VERIFICATION REQUIRED — 使用真实 HLG/PQ/BT.2100 参考视频和 HDR 屏确认 HDR 检测及“拒绝 SDR 编辑/导出/Proxy”的保护。真正 HDR video 处理、输出与 Technical LUT 仍不能声称已验证。
+
+Known Limitations:
+- Phase 10 的候选能力中，本阶段选择并完成 fade、audio fade 和 Proxy workflow；multi-segment timeline、split、reorder、simple transition、stabilization metadata/options 未实现，保持后续增量能力而非伪装为完整 NLE。
+- HDR video 处理/输出和 video Technical LUT 没有可靠的跨版本色彩契约实现，故继续明确拒绝而非错误降为 SDR；这不是已完成的 HDR video 支持。
+- 真实 4K、长片、含音轨、旋转、外置盘和 HDR fixture 不进入仓库，自动化的短 H.264 文件不能替代上述人工验收。
+
+Commit:
+- `feat: complete phase 10 advanced video`

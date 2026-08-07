@@ -20,6 +20,7 @@ final class FoundationServicesTests: XCTestCase {
             paths.catalogDirectory,
             paths.thumbnailsDirectory,
             paths.videoFilmstripsDirectory,
+            paths.videoProxiesDirectory,
             paths.previewsDirectory,
             paths.lutDirectory,
             paths.presetsDirectory,
@@ -62,6 +63,7 @@ final class FoundationServicesTests: XCTestCase {
         let center = BackgroundTaskCenter()
         let exportTask = await center.enqueue(kind: .photoExport, title: "导出照片")
         let editTask = await center.enqueue(kind: .photoBatchEdit, title: "批量粘贴")
+        let proxyTask = await center.enqueue(kind: .videoProxyGeneration, title: "生成视频 Proxy")
 
         try await center.start(exportTask.id)
         try await center.updateProgress(0.5, for: exportTask.id)
@@ -72,5 +74,6 @@ final class FoundationServicesTests: XCTestCase {
         XCTAssertEqual(completedExport?.state, .completed)
         XCTAssertEqual(completedExport?.progress, 1)
         XCTAssertEqual(queuedEdit?.state, .queued)
+        XCTAssertEqual(proxyTask.kind, .videoProxyGeneration)
     }
 }

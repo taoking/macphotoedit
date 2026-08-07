@@ -318,6 +318,10 @@ struct BatchTaskStatusSummary: View {
             Text("最近视频导出：\(report.destinationURL.lastPathComponent)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        } else if let report = model.latestVideoProxyReport {
+            Text("最近视频 Proxy：\(report.proxyURL.lastPathComponent)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } else if let report = model.latestBatchEditReport {
             Text("最近批量调整：成功 \(report.succeeded)，失败 \(report.failed)")
                 .font(.caption)

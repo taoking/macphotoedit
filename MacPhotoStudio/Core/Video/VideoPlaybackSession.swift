@@ -12,6 +12,8 @@ final class VideoPlaybackSession: ObservableObject {
 
     let player: AVPlayer
     let sourceURL: URL
+    let playbackURL: URL
+    let usesProxy: Bool
     @Published private(set) var duration: Double
 
     private let frameRate: Double
@@ -20,13 +22,22 @@ final class VideoPlaybackSession: ObservableObject {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
 
-    init(sourceURL: URL, securityScopedRootURL: URL, duration: Double?, frameRate: Double?) {
+    init(
+        sourceURL: URL,
+        playbackURL: URL? = nil,
+        securityScopedRootURL: URL,
+        duration: Double?,
+        frameRate: Double?
+    ) {
         self.sourceURL = sourceURL
+        let resolvedPlaybackURL = (playbackURL ?? sourceURL).standardizedFileURL
+        self.playbackURL = resolvedPlaybackURL
+        self.usesProxy = resolvedPlaybackURL != sourceURL.standardizedFileURL
         self.duration = max(0, duration ?? 0)
         self.frameRate = max(1, frameRate ?? 30)
         self.securityScopedRootURL = securityScopedRootURL
         self.hasSecurityScopedAccess = securityScopedRootURL.startAccessingSecurityScopedResource()
-        self.player = AVPlayer(url: sourceURL)
+        self.player = AVPlayer(url: resolvedPlaybackURL)
         configureObservers()
     }
 

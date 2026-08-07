@@ -5,6 +5,7 @@ struct CatalogPaths: Sendable, Equatable {
     let catalogDatabaseURL: URL
     let thumbnailsDirectory: URL
     let videoFilmstripsDirectory: URL
+    let videoProxiesDirectory: URL
     let previewsDirectory: URL
     let lutDirectory: URL
     let presetsDirectory: URL
@@ -30,6 +31,7 @@ struct CatalogPaths: Sendable, Equatable {
             catalogDatabaseURL: catalogDirectory.appending(path: "catalog.sqlite"),
             thumbnailsDirectory: catalogDirectory.appending(path: "thumbnails", directoryHint: .isDirectory),
             videoFilmstripsDirectory: catalogDirectory.appending(path: "video-filmstrips", directoryHint: .isDirectory),
+            videoProxiesDirectory: catalogDirectory.appending(path: "video-proxies", directoryHint: .isDirectory),
             previewsDirectory: catalogDirectory.appending(path: "previews", directoryHint: .isDirectory),
             lutDirectory: catalogDirectory.appending(path: "lut", directoryHint: .isDirectory),
             presetsDirectory: catalogDirectory.appending(path: "presets", directoryHint: .isDirectory),
@@ -40,6 +42,7 @@ struct CatalogPaths: Sendable, Equatable {
             paths.catalogDirectory,
             paths.thumbnailsDirectory,
             paths.videoFilmstripsDirectory,
+            paths.videoProxiesDirectory,
             paths.previewsDirectory,
             paths.lutDirectory,
             paths.presetsDirectory,

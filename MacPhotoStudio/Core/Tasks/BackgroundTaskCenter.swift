@@ -9,6 +9,7 @@ enum BackgroundTaskKind: String, Sendable, CaseIterable {
     case photoBatchEdit
     case photoExport
     case videoExport
+    case videoProxyGeneration
 }
 
 enum BackgroundTaskState: String, Sendable, Equatable {

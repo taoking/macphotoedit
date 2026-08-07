@@ -99,6 +99,17 @@ struct VideoMetadata: Sendable, Equatable {
     var isHDR: Bool? = nil
 }
 
+struct VideoProxyRecord: Sendable, Equatable {
+    let assetID: UUID
+    let sourceFileSize: Int64
+    let sourceModifiedAt: Date?
+    let relativePath: String
+    let width: Int?
+    let height: Int?
+    let createdAt: Date
+    let updatedAt: Date
+}
+
 enum ExtractedMetadata: Sendable, Equatable {
     case photo(PhotoMetadata)
     case video(VideoMetadata)
