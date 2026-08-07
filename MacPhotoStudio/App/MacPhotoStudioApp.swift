@@ -12,7 +12,12 @@ struct MacPhotoStudioApp: App {
                 }
         }
         .commands {
-            CommandGroup(replacing: .newItem) { }
+            CommandGroup(after: .newItem) {
+                Button("添加文件夹到资料库…") {
+                    applicationModel.presentAddFolderPanel()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
         }
     }
 }

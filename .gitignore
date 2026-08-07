@@ -23,6 +23,13 @@ logs/
 *.photoslibrary/
 *.arw
 *.dng
+*.jpg
+*.jpeg
+*.heic
+*.heif
+*.png
+*.tif
+*.tiff
 *.mov
 *.mp4
 *.m4v

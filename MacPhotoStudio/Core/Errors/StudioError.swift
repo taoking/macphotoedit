@@ -8,6 +8,10 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
     case invalidTaskTransition
     case bookmarkCreationFailed(path: String)
     case bookmarkResolutionFailed
+    case invalidMediaRoot(path: String)
+    case directoryEnumerationFailed(path: String)
+    case metadataExtractionFailed(path: String)
+    case mediaRootNotFound(id: UUID)
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +29,14 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
             return "无法为目录创建访问书签：\(path)"
         case .bookmarkResolutionFailed:
             return "无法恢复目录访问书签。"
+        case .invalidMediaRoot(let path):
+            return "选择的项目不是可索引的目录：\(path)"
+        case .directoryEnumerationFailed(let path):
+            return "无法枚举目录：\(path)"
+        case .metadataExtractionFailed(let path):
+            return "无法读取媒体元数据：\(path)"
+        case .mediaRootNotFound(let id):
+            return "找不到媒体根目录：\(id.uuidString)"
         }
     }
 }

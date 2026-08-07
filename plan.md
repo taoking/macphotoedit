@@ -5,8 +5,8 @@ The authoritative product requirements and acceptance criteria are
 required, concise execution tracker for the long-running implementation.
 
 - [x] Phase 0 — Foundation
-- [ ] Phase 1 — Catalog + Folder Indexing (next)
-- [ ] Phase 2 — Photo Library UX
+- [x] Phase 1 — Catalog + Folder Indexing
+- [ ] Phase 2 — Photo Library UX (in progress)
 - [ ] Phase 3 — Photo Editing + LUT
 - [ ] Phase 4 — RAW Editing
 - [ ] Phase 5 — Presets + Batch + Export

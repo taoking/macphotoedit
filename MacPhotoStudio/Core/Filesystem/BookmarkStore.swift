@@ -33,13 +33,16 @@ struct BookmarkStore: Sendable {
         }
     }
 
-    func withSecurityScopedAccess<T>(to url: URL, operation: () throws -> T) throws -> T {
+    func withSecurityScopedAccess<T: Sendable>(
+        to url: URL,
+        operation: @Sendable () async throws -> T
+    ) async throws -> T {
         let didStartAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccess {
                 url.stopAccessingSecurityScopedResource()
             }
         }
-        return try operation()
+        return try await operation()
     }
 }
