@@ -153,6 +153,43 @@ enum CatalogMigrations {
                 CREATE INDEX IF NOT EXISTS photo_metadata_capture_date_index ON photo_metadata(capture_date);
                 """
             )
+        },
+        CatalogMigration(version: 4, name: "addLibraryManagementSchema") { connection in
+            if try !connection.hasColumn(named: "rating", inTable: "media_assets") {
+                try connection.execute(
+                    "ALTER TABLE media_assets ADD COLUMN rating INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5);"
+                )
+            }
+            if try !connection.hasColumn(named: "flag", inTable: "media_assets") {
+                try connection.execute(
+                    "ALTER TABLE media_assets ADD COLUMN flag TEXT NOT NULL DEFAULT 'unflagged' CHECK (flag IN ('unflagged', 'pick', 'reject'));"
+                )
+            }
+            if try !connection.hasColumn(named: "gps_latitude", inTable: "photo_metadata") {
+                try connection.execute("ALTER TABLE photo_metadata ADD COLUMN gps_latitude REAL;")
+            }
+            if try !connection.hasColumn(named: "gps_longitude", inTable: "photo_metadata") {
+                try connection.execute("ALTER TABLE photo_metadata ADD COLUMN gps_longitude REAL;")
+            }
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tags (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    created_at REAL NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS asset_tags (
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                    PRIMARY KEY (asset_id, tag_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS media_assets_rating_index ON media_assets(rating);
+                CREATE INDEX IF NOT EXISTS media_assets_flag_index ON media_assets(flag);
+                CREATE INDEX IF NOT EXISTS asset_tags_tag_id_index ON asset_tags(tag_id);
+                """
+            )
         }
     ]
 }

@@ -6,8 +6,8 @@ required, concise execution tracker for the long-running implementation.
 
 - [x] Phase 0 — Foundation
 - [x] Phase 1 — Catalog + Folder Indexing
-- [ ] Phase 2 — Photo Library UX (in progress)
-- [ ] Phase 3 — Photo Editing + LUT
+- [x] Phase 2 — Photo Library UX
+- [ ] Phase 3 — Photo Editing + LUT (in progress)
 - [ ] Phase 4 — RAW Editing
 - [ ] Phase 5 — Presets + Batch + Export
 - [ ] Phase 6 — Advanced Photo Management

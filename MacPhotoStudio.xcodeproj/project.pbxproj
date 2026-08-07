@@ -8,18 +8,23 @@
 
 /* Begin PBXBuildFile section */
 		013E530C73BD5679E53A8AA8 /* FoundationServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */; };
+		0A976276A612EDABEAFCFB1E /* ThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */; };
 		0DA2AAFE91A2C30C21398B3A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */; };
+		238C42EF7EA4BA35AD57F9BD /* LibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F86F312851CF430251B8EEA /* LibrarySidebar.swift */; };
 		2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */; };
 		37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */; };
 		4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */; };
 		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
+		574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */; };
 		61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */; };
 		636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */; };
+		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
 		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
 		8355B475E67A478EEE96C013 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498BC16F3DE7AC336BA0153A /* CatalogModels.swift */; };
 		96EEA8E33AAC98AD7D05C9B7 /* MediaScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */; };
 		9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */; };
 		A863D6FFD80094DFEF6F6E5B /* MediaScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */; };
+		B40F99FBC1AAD902AE5E45B8 /* LibraryCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */; };
 		B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */; };
 		C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2325DD61230BAF602472DE97 /* ScanCoordinator.swift */; };
 		CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7A4D7504F84F852D9D9998 /* AppLogger.swift */; };
@@ -28,6 +33,7 @@
 		DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC889170459152139A872729 /* BackgroundTaskCenter.swift */; };
 		DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82FD80BD4A9E4EA94C756C1 /* ScanControl.swift */; };
 		E8FE5671F36C112B499E0979 /* MediaMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97D86CE6D4DB496A6949CAE /* MediaMetadataExtractor.swift */; };
+		E9475AE7BCB6623DCBF9A709 /* ThumbnailLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */; };
 		EAFB0A090487A7C9CD30EB73 /* CatalogPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163BA7295CE105D80B837A91 /* CatalogPaths.swift */; };
 		EFA234327D9F661FDCCCF976 /* CatalogIndexingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */; };
 /* End PBXBuildFile section */
@@ -48,17 +54,22 @@
 		163BA7295CE105D80B837A91 /* CatalogPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPaths.swift; sourceTree = "<group>"; };
 		1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogIndexingTests.swift; sourceTree = "<group>"; };
 		2325DD61230BAF602472DE97 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
+		3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatalogTests.swift; sourceTree = "<group>"; };
 		4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScannerTests.swift; sourceTree = "<group>"; };
 		46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacPhotoStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		498BC16F3DE7AC336BA0153A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogModels.swift; sourceTree = "<group>"; };
 		4A6EFD92551C7575799B149B /* ThumbnailStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailStore.swift; sourceTree = "<group>"; };
+		52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetBrowserView.swift; sourceTree = "<group>"; };
 		67733C2CD6E46F2FA7319BCE /* MacPhotoStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacPhotoStudio.entitlements; sourceTree = "<group>"; };
 		67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationModel.swift; sourceTree = "<group>"; };
 		714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
 		78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoStudioApp.swift; sourceTree = "<group>"; };
 		9F7A4D7504F84F852D9D9998 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		9F86F312851CF430251B8EEA /* LibrarySidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebar.swift; sourceTree = "<group>"; };
+		AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoaderTests.swift; sourceTree = "<group>"; };
 		AC889170459152139A872729 /* BackgroundTaskCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskCenter.swift; sourceTree = "<group>"; };
 		ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacPhotoStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoader.swift; sourceTree = "<group>"; };
 		B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScanner.swift; sourceTree = "<group>"; };
 		C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		C97D86CE6D4DB496A6949CAE /* MediaMetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaMetadataExtractor.swift; sourceTree = "<group>"; };
@@ -67,6 +78,7 @@
 		D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteConnection.swift; sourceTree = "<group>"; };
 		DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStoreTests.swift; sourceTree = "<group>"; };
 		DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationServicesTests.swift; sourceTree = "<group>"; };
+		E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryInspectorView.swift; sourceTree = "<group>"; };
 		EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryHomeView.swift; sourceTree = "<group>"; };
 		FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRootStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -89,7 +101,9 @@
 				1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */,
 				DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */,
 				DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */,
+				3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */,
 				4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */,
+				AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */,
 			);
 			name = MacPhotoStudioTests;
 			path = Tests/MacPhotoStudioTests;
@@ -193,7 +207,10 @@
 		D87B1CA34369E2CBA757BBCB /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */,
 				EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */,
+				E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */,
+				9F86F312851CF430251B8EEA /* LibrarySidebar.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -231,6 +248,7 @@
 		FCBAE7A6E307C744290B789F /* Thumbnail */ = {
 			isa = PBXGroup;
 			children = (
+				AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */,
 				4A6EFD92551C7575799B149B /* ThumbnailStore.swift */,
 			);
 			path = Thumbnail;
@@ -313,6 +331,7 @@
 			files = (
 				CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */,
 				9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */,
+				574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */,
 				DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */,
 				48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */,
 				4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */,
@@ -320,6 +339,8 @@
 				EAFB0A090487A7C9CD30EB73 /* CatalogPaths.swift in Sources */,
 				61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */,
 				636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */,
+				79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */,
+				238C42EF7EA4BA35AD57F9BD /* LibrarySidebar.swift in Sources */,
 				37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */,
 				E8FE5671F36C112B499E0979 /* MediaMetadataExtractor.swift in Sources */,
 				B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */,
@@ -328,6 +349,7 @@
 				DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */,
 				C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */,
 				DBD3A8A56734244DA9BC4425 /* StudioError.swift in Sources */,
+				0A976276A612EDABEAFCFB1E /* ThumbnailLoader.swift in Sources */,
 				7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -339,7 +361,9 @@
 				EFA234327D9F661FDCCCF976 /* CatalogIndexingTests.swift in Sources */,
 				2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */,
 				013E530C73BD5679E53A8AA8 /* FoundationServicesTests.swift in Sources */,
+				B40F99FBC1AAD902AE5E45B8 /* LibraryCatalogTests.swift in Sources */,
 				96EEA8E33AAC98AD7D05C9B7 /* MediaScannerTests.swift in Sources */,
+				E9475AE7BCB6623DCBF9A709 /* ThumbnailLoaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

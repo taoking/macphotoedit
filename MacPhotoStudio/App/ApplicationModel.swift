@@ -14,12 +14,23 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var startupState: StartupState = .starting
     @Published private(set) var mediaRoots: [MediaRootRecord] = []
     @Published private(set) var scanStatuses: [ScanStatus] = []
+    @Published private(set) var libraryAssets: [LibraryAssetRecord] = []
+    @Published private(set) var tags: [TagRecord] = []
+    @Published private(set) var selectedAssetTags: [TagRecord] = []
+    @Published private(set) var hasMoreLibraryAssets = false
+    @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
 
+    private let assetPageSize = 250
     private var hasBootstrapped = false
     private var catalogStore: CatalogStore?
     private var mediaRootStore: MediaRootStore?
     private var scanCoordinator: ScanCoordinator?
+    private var thumbnailLoader: ThumbnailLoader?
+    private var activeLibraryQuery = LibraryQuery.all
+    private var nextAssetOffset = 0
+    private var libraryRequestID = UUID()
+    private var lastLibraryAssetRefreshAt = Date.distantPast
 
     func bootstrapIfNeeded() async {
         guard !hasBootstrapped else { return }
@@ -35,8 +46,13 @@ final class ApplicationModel: ObservableObject {
             self.catalogStore = catalogStore
             self.mediaRootStore = mediaRootStore
             self.scanCoordinator = scanCoordinator
+            self.thumbnailLoader = ThumbnailLoader(
+                diskStore: ThumbnailStore(directoryURL: paths.thumbnailsDirectory),
+                mediaRootStore: mediaRootStore
+            )
             startupState = .ready(paths)
             await refreshLibrary(validateRoots: true)
+            await reloadLibraryAssets(query: .all)
             AppLogger.app.info("Catalog bootstrap completed")
         } catch {
             AppLogger.app.error("Catalog bootstrap failed: \(error.localizedDescription, privacy: .public)")
@@ -70,9 +86,9 @@ final class ApplicationModel: ObservableObject {
             let root = try await mediaRootStore.add(directoryURL: directoryURL)
             _ = await scanCoordinator.startScan(rootID: root.id)
             await refreshLibrary()
+            await reloadLibraryAssets(query: activeLibraryQuery)
         } catch {
-            libraryError = error.localizedDescription
-            AppLogger.app.error("Adding media root failed: \(error.localizedDescription, privacy: .public)")
+            report(error, activity: "Adding media root")
         }
     }
 
@@ -106,8 +122,176 @@ final class ApplicationModel: ObservableObject {
         do {
             mediaRoots = try await catalogStore.mediaRoots()
             scanStatuses = await scanCoordinator.statuses()
+            tags = try await catalogStore.tags()
+            let shouldReloadAssets = scanStatuses.contains {
+                $0.state == .completed && ($0.finishedAt ?? .distantPast) > lastLibraryAssetRefreshAt
+            }
+            if shouldReloadAssets {
+                await reloadLibraryAssets(query: activeLibraryQuery)
+            }
         } catch {
-            libraryError = error.localizedDescription
+            report(error, activity: "Refreshing library")
         }
+    }
+
+    func reloadLibraryAssets(query: LibraryQuery) async {
+        guard let catalogStore else { return }
+        activeLibraryQuery = query
+        nextAssetOffset = 0
+        libraryAssets = []
+        hasMoreLibraryAssets = false
+        let requestID = UUID()
+        libraryRequestID = requestID
+        isLoadingLibraryAssets = true
+
+        do {
+            let records = try await catalogStore.libraryAssets(query: query, limit: assetPageSize + 1, offset: 0)
+            guard requestID == libraryRequestID else { return }
+            libraryAssets = Array(records.prefix(assetPageSize))
+            nextAssetOffset = libraryAssets.count
+            hasMoreLibraryAssets = records.count > assetPageSize
+            lastLibraryAssetRefreshAt = .now
+            isLoadingLibraryAssets = false
+        } catch {
+            guard requestID == libraryRequestID else { return }
+            isLoadingLibraryAssets = false
+            report(error, activity: "Loading library assets")
+        }
+    }
+
+    func loadMoreLibraryAssets() async {
+        guard let catalogStore, hasMoreLibraryAssets, !isLoadingLibraryAssets else { return }
+        let requestID = libraryRequestID
+        let offset = nextAssetOffset
+        isLoadingLibraryAssets = true
+
+        do {
+            let records = try await catalogStore.libraryAssets(
+                query: activeLibraryQuery,
+                limit: assetPageSize + 1,
+                offset: offset
+            )
+            guard requestID == libraryRequestID else { return }
+            let newRecords = Array(records.prefix(assetPageSize))
+            libraryAssets.append(contentsOf: newRecords)
+            nextAssetOffset += newRecords.count
+            hasMoreLibraryAssets = records.count > assetPageSize
+            isLoadingLibraryAssets = false
+        } catch {
+            guard requestID == libraryRequestID else { return }
+            isLoadingLibraryAssets = false
+            report(error, activity: "Loading more library assets")
+        }
+    }
+
+    func thumbnailData(for asset: LibraryAssetRecord, maximumPixelSize: Int) async -> Data? {
+        guard let thumbnailLoader, let root = mediaRoots.first(where: { $0.id == asset.rootID }) else { return nil }
+        do {
+            return try await thumbnailLoader.thumbnailData(
+                for: asset,
+                root: root,
+                maximumPixelSize: maximumPixelSize
+            )
+        } catch is CancellationError {
+            return nil
+        } catch {
+            AppLogger.app.debug("Thumbnail unavailable for \(asset.relativePath, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func setRating(_ rating: Int, for assetIDs: [UUID]) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.updateRating(rating, for: assetIDs)
+            await reloadLibraryAssets(query: activeLibraryQuery)
+        } catch {
+            report(error, activity: "Updating rating")
+        }
+    }
+
+    func setFlag(_ flag: AssetFlag, for assetIDs: [UUID]) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.updateFlag(flag, for: assetIDs)
+            await reloadLibraryAssets(query: activeLibraryQuery)
+        } catch {
+            report(error, activity: "Updating flag")
+        }
+    }
+
+    func createTag(named name: String) async -> TagRecord? {
+        guard let catalogStore else { return nil }
+        do {
+            let tag = try await catalogStore.createTag(named: name)
+            tags = try await catalogStore.tags()
+            return tag
+        } catch {
+            report(error, activity: "Creating tag")
+            return nil
+        }
+    }
+
+    func renameTag(_ tag: TagRecord, to name: String) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.renameTag(tag.id, to: name)
+            tags = try await catalogStore.tags()
+        } catch {
+            report(error, activity: "Renaming tag")
+        }
+    }
+
+    func deleteTag(_ tag: TagRecord) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.deleteTag(tag.id)
+            tags = try await catalogStore.tags()
+            selectedAssetTags.removeAll { $0.id == tag.id }
+            await reloadLibraryAssets(query: activeLibraryQuery.tagID == tag.id ? .all : activeLibraryQuery)
+        } catch {
+            report(error, activity: "Deleting tag")
+        }
+    }
+
+    func addTag(_ tag: TagRecord, to assetIDs: [UUID]) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.addTag(tag.id, to: assetIDs)
+            if assetIDs.count == 1, let assetID = assetIDs.first {
+                selectedAssetTags = try await catalogStore.tags(for: assetID)
+            }
+        } catch {
+            report(error, activity: "Adding tag to assets")
+        }
+    }
+
+    func removeTag(_ tag: TagRecord, from assetIDs: [UUID]) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.removeTag(tag.id, from: assetIDs)
+            if assetIDs.count == 1, let assetID = assetIDs.first {
+                selectedAssetTags = try await catalogStore.tags(for: assetID)
+            }
+        } catch {
+            report(error, activity: "Removing tag from assets")
+        }
+    }
+
+    func loadTags(for assetID: UUID?) async {
+        guard let catalogStore, let assetID else {
+            selectedAssetTags = []
+            return
+        }
+        do {
+            selectedAssetTags = try await catalogStore.tags(for: assetID)
+        } catch {
+            report(error, activity: "Loading asset tags")
+        }
+    }
+
+    private func report(_ error: Error, activity: String) {
+        libraryError = error.localizedDescription
+        AppLogger.app.error("\(activity, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
     }
 }

@@ -17,6 +17,12 @@ enum MediaAssetAvailability: String, Codable, Sendable, CaseIterable {
     case offline
 }
 
+enum AssetFlag: String, Codable, Sendable, CaseIterable {
+    case unflagged
+    case pick
+    case reject
+}
+
 enum MetadataState: String, Codable, Sendable {
     case available
     case unavailable
@@ -75,6 +81,8 @@ struct PhotoMetadata: Sendable, Equatable {
     var iso: Int?
     var orientation: Int?
     var colorProfile: String?
+    var gpsLatitude: Double? = nil
+    var gpsLongitude: Double? = nil
 }
 
 struct VideoMetadata: Sendable, Equatable {
@@ -127,4 +135,72 @@ struct MediaAssetRecord: Identifiable, Sendable, Equatable {
     let modifiedAt: Date?
     let availability: MediaAssetAvailability
     let metadataState: MetadataState
+}
+
+struct TagRecord: Identifiable, Sendable, Equatable, Hashable {
+    let id: UUID
+    var name: String
+    let createdAt: Date
+}
+
+struct LibraryQuery: Sendable, Equatable {
+    var rootID: UUID? = nil
+    var searchText: String? = nil
+    var mediaType: MediaType? = nil
+    var minimumRating: Int? = nil
+    var flag: AssetFlag? = nil
+    var tagID: UUID? = nil
+    var captureDateFrom: Date? = nil
+    var captureDateTo: Date? = nil
+    var camera: String? = nil
+    var lens: String? = nil
+
+    static let all = LibraryQuery()
+}
+
+struct LibraryAssetRecord: Identifiable, Sendable, Equatable {
+    let id: UUID
+    let rootID: UUID
+    let rootDisplayName: String
+    let rootPath: String
+    let relativePath: String
+    let mediaType: MediaType
+    let fileExtension: String
+    let fileSize: Int64
+    let createdAt: Date?
+    let modifiedAt: Date?
+    let availability: MediaAssetAvailability
+    let metadataState: MetadataState
+    let rating: Int
+    let flag: AssetFlag
+    let width: Int?
+    let height: Int?
+    let captureDate: Date?
+    let cameraMake: String?
+    let cameraModel: String?
+    let lensModel: String?
+    let focalLength: Double?
+    let aperture: Double?
+    let shutterSpeed: Double?
+    let iso: Int?
+    let orientation: Int?
+    let colorProfile: String?
+    let gpsLatitude: Double?
+    let gpsLongitude: Double?
+    let duration: Double?
+    let frameRate: Double?
+    let codec: String?
+    let videoCreationDate: Date?
+
+    var filename: String {
+        URL(filePath: relativePath).lastPathComponent
+    }
+
+    var folderPath: String {
+        URL(filePath: relativePath).deletingLastPathComponent().path(percentEncoded: false)
+    }
+
+    var displayDate: Date? {
+        captureDate ?? videoCreationDate ?? createdAt
+    }
 }

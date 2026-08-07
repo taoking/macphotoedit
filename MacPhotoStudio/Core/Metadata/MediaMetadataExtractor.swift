@@ -13,6 +13,7 @@ struct MediaMetadataExtractor: Sendable {
 
         let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
         let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+        let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any] ?? [:]
         let isoValues = exif[kCGImagePropertyExifISOSpeedRatings] as? [NSNumber]
 
         return PhotoMetadata(
@@ -30,7 +31,15 @@ struct MediaMetadataExtractor: Sendable {
             shutterSpeed: number(exif[kCGImagePropertyExifExposureTime]),
             iso: isoValues?.first?.intValue,
             orientation: integer(properties[kCGImagePropertyOrientation]),
-            colorProfile: string(properties[kCGImagePropertyProfileName])
+            colorProfile: string(properties[kCGImagePropertyProfileName]),
+            gpsLatitude: coordinate(
+                gps[kCGImagePropertyGPSLatitude],
+                reference: string(gps[kCGImagePropertyGPSLatitudeRef])
+            ),
+            gpsLongitude: coordinate(
+                gps[kCGImagePropertyGPSLongitude],
+                reference: string(gps[kCGImagePropertyGPSLongitudeRef])
+            )
         )
     }
 
@@ -97,6 +106,14 @@ struct MediaMetadataExtractor: Sendable {
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         return formatter.date(from: value)
+    }
+
+    private func coordinate(_ value: Any?, reference: String?) -> Double? {
+        guard let coordinate = number(value) else { return nil }
+        switch reference?.uppercased() {
+        case "S", "W": return -abs(coordinate)
+        default: return coordinate
+        }
     }
 
     private func fourCharacterCode(_ code: FourCharCode) -> String {
