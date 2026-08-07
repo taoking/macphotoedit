@@ -314,6 +314,10 @@ struct BatchTaskStatusSummary: View {
             Text("最近导出：成功 \(report.succeeded)，跳过 \(report.skipped)，失败 \(report.failed)")
                 .font(.caption)
                 .foregroundStyle(report.failed == 0 ? Color.secondary : Color.orange)
+        } else if let report = model.latestVideoExportReport {
+            Text("最近视频导出：\(report.destinationURL.lastPathComponent)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } else if let report = model.latestBatchEditReport {
             Text("最近批量调整：成功 \(report.succeeded)，失败 \(report.failed)")
                 .font(.caption)

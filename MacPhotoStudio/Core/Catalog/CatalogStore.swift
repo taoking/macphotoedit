@@ -416,6 +416,40 @@ actor CatalogStore {
         )
     }
 
+    func videoEditState(for assetID: UUID) throws -> VideoEditState? {
+        let rows = try requireConnection().query(
+            "SELECT state_json FROM video_edit_states WHERE asset_id = ? LIMIT 1;",
+            bindings: [.text(assetID.uuidString)]
+        )
+        guard let json = rows.first?.text(at: 0) else { return nil }
+        do {
+            return try JSONDecoder().decode(VideoEditState.self, from: Data(json.utf8))
+        } catch {
+            throw StudioError.databaseExecutionFailed(message: "Unable to decode video edit state: \(error.localizedDescription)")
+        }
+    }
+
+    func saveVideoEditState(_ state: VideoEditState, for assetID: UUID, now: Date = .now) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let json: String
+        do {
+            json = String(decoding: try encoder.encode(state), as: UTF8.self)
+        } catch {
+            throw StudioError.databaseExecutionFailed(message: "Unable to encode video edit state: \(error.localizedDescription)")
+        }
+        try requireConnection().execute(
+            """
+            INSERT INTO video_edit_states (asset_id, state_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                state_json = excluded.state_json,
+                updated_at = excluded.updated_at;
+            """,
+            bindings: [.text(assetID.uuidString), .text(json), .real(now.timeIntervalSince1970), .real(now.timeIntervalSince1970)]
+        )
+    }
+
     func photoPresets() throws -> [PhotoPreset] {
         try requireConnection().query(
             "SELECT id, name, content_json, is_favorite, created_at, updated_at FROM photo_presets ORDER BY is_favorite DESC, name COLLATE NOCASE ASC;"
@@ -934,7 +968,7 @@ actor CatalogStore {
         bindings: inout [SQLiteValue]
     ) {
         if let isEdited {
-            let editedCondition = "(EXISTS (SELECT 1 FROM photo_edit_states edit_filter WHERE edit_filter.asset_id = a.id) OR EXISTS (SELECT 1 FROM raw_edit_states raw_edit_filter WHERE raw_edit_filter.asset_id = a.id))"
+            let editedCondition = "(EXISTS (SELECT 1 FROM photo_edit_states edit_filter WHERE edit_filter.asset_id = a.id) OR EXISTS (SELECT 1 FROM raw_edit_states raw_edit_filter WHERE raw_edit_filter.asset_id = a.id) OR EXISTS (SELECT 1 FROM video_edit_states video_edit_filter WHERE video_edit_filter.asset_id = a.id))"
             conditions.append(isEdited ? editedCondition : "NOT \(editedCondition)")
         }
         if let isRAW {

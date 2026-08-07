@@ -378,3 +378,48 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 8 video library`
+
+## Phase 9
+
+Status:
+- COMPLETED
+
+Implemented:
+- Catalog v10 `video_edit_states`：以独立、可重开恢复的 `VideoEditState` 保存 trim、crop、90° rotation、flip、曝光/对比度/饱和度/色温/色调、Creative LUT 与强度、静音、audio gain 和速度；只写 SQLite，绝不写回源视频。
+- `VideoFramePipeline` 与照片 `PhotoImagePipeline` 分离，使用 `AVMutableComposition`、`AVMutableVideoComposition` 与 Core Image 对视频帧执行颜色调整、Creative LUT、裁剪、旋转、翻转和 resize；复用 LUT 模型/解析器但不复用照片 renderer。
+- AVFoundation composition 将视频和全部可用音轨裁剪到同一时间范围，再共同执行 speed time scale；按轨道 `preferredTransform` 计算显示方向画布，避免旋转源视频被 raw natural size 强制回错误几何。
+- 增加真实视频编辑器：从视频预览进入，控件对 state 防抖保存并防抖重建 AVPlayerItem 预览；支持 trim、速度、颜色、crop、四分之一转、双翻转、Creative LUT/强度/导入、静音与音频增益。
+- `VideoExportService` 创建唯一临时 MP4 后才 move/显式 replace，拒绝源 URL；支持 H.264、HEVC、原始/最长边 resize、quality preset、命名和冲突策略，进度/取消/错误通过统一 Background Task Center 显示。
+- 已检测的 HDR 视频保留 Phase 8 原生播放，但禁止进入本阶段 SDR 编辑/导出，避免错误色彩输出；HDR 视频/Technical LUT 留待 Phase 10。
+- 新增 [video-editing.md](video-editing.md) 记录非破坏性状态、AVFoundation 管线、导出安全和验证范围。
+
+Tests:
+- `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 46 tests, 0 failures。新增覆盖 v10 迁移/持久化、Videos 的 Edited 查询、trim/speed、显示方向尺寸、Core Image 颜色与 Creative LUT intensity、真实临时 H.264/HEVC MP4 导出、裁剪尺寸/编码/时长、源文件字节不变及源 URL 覆盖拒绝；临时视频均在系统临时目录生成和清理。
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `** BUILD SUCCEEDED **`。
+
+Acceptance:
+- PASS — MOV/MP4 的 AVPlayer playback 来自 Phase 8，Phase 9 编辑预览通过独立 `VideoPipeline` 实际生成 composition，不是照片 renderer 或静态 UI。
+- PASS — trim、crop、rotation、flip、exposure/contrast/saturation、temperature/tint、Creative LUT/intensity、mute、audio gain 和 simple speed 均具备持久化 state、编辑器控件和实际 composition/export 路径。
+- PASS — H.264 与 HEVC 在当前 macOS 的临时真实视频上均成功导出并反读 codec；H.264 测试同时验证 trim+2× speed 后正确 duration、裁剪后 48×48 尺寸及源视频字节不变。
+- PASS — 导出报告进度、可取消任务和错误；输出先写唯一临时文件，默认冲突 rename，任何源 URL 目标都会在写入前被拒绝。
+- PASS — 旋转源的显示方向尺寸与用户四分之一转经过纯函数覆盖；实际旋转拍摄素材保留为人工核验。
+
+Regression:
+- PASS — 全量 46 项测试覆盖 Phase 0–8 的 Catalog/扫描/书签/离线、Grid/评分/Flag/Tag、照片/RAW/LUT、Preset/批量导出、相册/堆栈/重复检测、色彩管理/HDR still 与视频资料库功能，未发现回归。
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — 使用用户授权的本地和外置盘 MOV/MP4/M4V（H.264/HEVC、含/不含音轨、不同帧率、竖拍旋转）逐项确认预览、trim、2×/0.5×速度后的音视频同步、crop/flip、色温/色调、LUT 强度、静音/增益、进度与取消。
+- MANUAL VERIFICATION REQUIRED — 在真实 4K 长视频与外置卷上观察 AVFoundation 预览/导出的内存、速度、取消时机、security-scoped 权限和输出目录冲突交互；自动化采用短临时视频。
+- MANUAL VERIFICATION REQUIRED — HDR 视频只验证原生播放与“禁止 SDR 编辑/导出”的保护；真正 HDR 视频处理、输出和 Technical LUT 属于 Phase 10，需在 HDR 屏和参考素材上验收。
+
+Known Limitations:
+- HDR video、Technical LUT、proxy、timeline 多段/切分/重排、fade/transition 和 audio fade 明确不提前实现，留待 Phase 10。
+- AVFoundation export preset 可用性取决于当前 macOS、硬件和源素材；服务对不兼容的 HEVC/H.264 组合返回明确错误，不会生成伪文件。当前 CI 所在 macOS 已自动实测两种编码。
+- 自动化无真实用户音轨、竖拍、4K、外置盘或 HDR fixture，不能替代上述真实媒体与权限核验；不提交任何视频、数据库或缓存。
+
+Commit:
+- `feat: complete phase 9 video editing and lut`

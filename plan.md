@@ -13,6 +13,6 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 6 — Advanced Photo Management
 - [x] Phase 7 — Color Management + HDR
 - [x] Phase 8 — Video Library
-- [ ] Phase 9 — Video Editing + LUT
+- [x] Phase 9 — Video Editing + LUT
 - [ ] Phase 10 — Advanced Video
 - [ ] Phase 11 — Local Masks / Smart Features

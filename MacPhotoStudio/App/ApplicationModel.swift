@@ -23,6 +23,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var batchTasks: [StudioBackgroundTask] = []
     @Published private(set) var latestBatchEditReport: BatchEditReport?
     @Published private(set) var latestBatchExportReport: BatchExportReport?
+    @Published private(set) var latestVideoExportReport: VideoExportReport?
     @Published private(set) var latestDuplicateScanReport: DuplicateScanReport?
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var hasMoreLibraryAssets = false
@@ -36,6 +37,7 @@ final class ApplicationModel: ObservableObject {
     private var scanCoordinator: ScanCoordinator?
     private var thumbnailLoader: ThumbnailLoader?
     private var videoFilmstripLoader: VideoFilmstripLoader?
+    private var videoEditingService: VideoEditingService?
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
     private var duplicateScanner: ExactDuplicateScanner?
@@ -69,6 +71,11 @@ final class ApplicationModel: ObservableObject {
             self.videoFilmstripLoader = VideoFilmstripLoader(
                 diskStore: VideoFilmstripStore(directoryURL: paths.videoFilmstripsDirectory),
                 mediaRootStore: mediaRootStore
+            )
+            self.videoEditingService = VideoEditingService(
+                catalogStore: catalogStore,
+                mediaRootStore: mediaRootStore,
+                lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
             )
             self.photoEditingService = PhotoEditingService(
                 catalogStore: catalogStore,
@@ -310,6 +317,136 @@ final class ApplicationModel: ObservableObject {
             report(error, activity: "Preparing video playback")
             return nil
         }
+    }
+
+    func videoEditState(for assetID: UUID) async -> VideoEditState? {
+        guard let videoEditingService else { return nil }
+        do {
+            return try await videoEditingService.editState(for: assetID)
+        } catch {
+            report(error, activity: "Loading video edit state")
+            return nil
+        }
+    }
+
+    func saveVideoEditState(_ state: VideoEditState, for assetID: UUID) async -> Bool {
+        guard let videoEditingService else { return false }
+        do {
+            try await videoEditingService.save(state, for: assetID)
+            await reloadLibraryAssets(query: activeLibraryQuery)
+            return true
+        } catch {
+            report(error, activity: "Saving video edit state")
+            return false
+        }
+    }
+
+    func videoPreviewPayload(
+        for session: VideoPlaybackSession,
+        state: VideoEditState
+    ) async -> VideoPreviewPayload? {
+        guard let videoEditingService else { return nil }
+        do {
+            return try await videoEditingService.previewPayload(sourceURL: session.sourceURL, state: state)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(error, activity: "Building video preview")
+            return nil
+        }
+    }
+
+    func videoLUTLibrary() async -> LUTLibrary? {
+        guard let videoEditingService else { return nil }
+        do {
+            return try await videoEditingService.lutLibrary()
+        } catch {
+            report(error, activity: "Loading video LUT library")
+            return nil
+        }
+    }
+
+    func startVideoExport(
+        asset: LibraryAssetRecord,
+        state: VideoEditState,
+        outputDirectoryURL: URL,
+        options: VideoExportOptions
+    ) async -> UUID? {
+        guard let videoEditingService else { return nil }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: outputDirectoryURL.path(percentEncoded: false),
+            isDirectory: &isDirectory
+        ), isDirectory.boolValue else {
+            libraryError = "视频导出目录不可用。"
+            return nil
+        }
+        guard asset.mediaType == .video else {
+            libraryError = "请选择一个可导出的视频。"
+            return nil
+        }
+        guard asset.videoIsHDR != true else {
+            libraryError = "HDR 视频编辑与导出将在 Phase 10 提供；当前保留原视频播放，不会用 SDR 管线处理。"
+            return nil
+        }
+
+        let initialURL = outputDirectoryURL
+            .appending(path: options.namingRule.baseFilename(for: asset))
+            .appendingPathExtension(options.format.filenameExtension)
+        let destination: (url: URL?, allowsOverwrite: Bool)
+        do {
+            destination = try await ExportDestinationResolver.destination(
+                initialURL: initialURL,
+                sourceAssetID: asset.id,
+                policy: options.collisionPolicy,
+                resolver: { [weak self] collision in
+                    guard let self else { return .cancel }
+                    return await self.askForExportCollisionResolution(collision)
+                }
+            )
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(error, activity: "Resolving video export destination")
+            return nil
+        }
+        guard let destinationURL = destination.url else { return nil }
+
+        let task = await batchTaskCenter.enqueue(kind: .videoExport, title: "导出视频：\(asset.filename)")
+        await refreshBatchTasks()
+        let taskCenter = batchTaskCenter
+        let worker = Task { [weak self, videoEditingService] in
+            let didStartAccess = outputDirectoryURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccess {
+                    outputDirectoryURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                try await taskCenter.start(task.id)
+                await self?.refreshBatchTasks()
+                let report = try await videoEditingService.export(
+                    asset: asset,
+                    state: state,
+                    destinationURL: destinationURL,
+                    options: options,
+                    allowsOverwrite: destination.allowsOverwrite,
+                    reportProgress: { progress in
+                        try? await taskCenter.updateProgress(progress, for: task.id)
+                    }
+                )
+                try await taskCenter.complete(task.id)
+                await self?.finishVideoExport(report, taskID: task.id)
+            } catch is CancellationError {
+                try? await taskCenter.cancel(task.id)
+                await self?.finishCancelledBatchTask(task.id)
+            } catch {
+                try? await taskCenter.fail(task.id)
+                await self?.finishFailedVideoExport(task.id, error: error)
+            }
+        }
+        batchWorkerTasks[task.id] = worker
+        return task.id
     }
 
     private func safeMediaURL(for asset: LibraryAssetRecord, in rootURL: URL) -> URL? {
@@ -989,6 +1126,12 @@ final class ApplicationModel: ObservableObject {
         await refreshBatchTasks()
     }
 
+    private func finishVideoExport(_ report: VideoExportReport, taskID: UUID) async {
+        latestVideoExportReport = report
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+    }
+
     private func finishDuplicateScan(_ report: DuplicateScanReport, taskID: UUID) async {
         latestDuplicateScanReport = report
         batchWorkerTasks[taskID] = nil
@@ -1004,6 +1147,12 @@ final class ApplicationModel: ObservableObject {
         batchWorkerTasks[taskID] = nil
         await refreshBatchTasks()
         report(error, activity: "Batch photo export")
+    }
+
+    private func finishFailedVideoExport(_ taskID: UUID, error: Error) async {
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+        report(error, activity: "Video export")
     }
 
     private func finishFailedDuplicateTask(_ taskID: UUID, error: Error) async {

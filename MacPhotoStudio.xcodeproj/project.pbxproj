@@ -15,6 +15,7 @@
 		238C42EF7EA4BA35AD57F9BD /* LibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F86F312851CF430251B8EEA /* LibrarySidebar.swift */; };
 		272750C1480D362A8D6E9430 /* VideoFilmstripLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178FFF550B59149A3E6B93E8 /* VideoFilmstripLoader.swift */; };
 		2CA9F679AA28DA40DFF2A200 /* PresetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D1654CCB9D9142CDE9B186 /* PresetRepository.swift */; };
+		2E10229966BF33BBE05D6E0B /* VideoEditingPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD39ED3BF42EC68AB9DC4E6 /* VideoEditingPipeline.swift */; };
 		2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */; };
 		35799B232BC2ABA978C9CD36 /* PhotoBatchEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */; };
 		36435D85C22D820977C8FE05 /* BatchToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575C46B5C9E47C00A1A8F15E /* BatchToolsView.swift */; };
@@ -22,10 +23,13 @@
 		4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */; };
 		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
 		574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */; };
+		5A629FC7005C0B654876D675 /* VideoEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F4F7CF9FE5D49982A072D95 /* VideoEditingTests.swift */; };
+		5DCB877C5B3432C1D2691A0E /* VideoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE078B8F0958FB8AB0E01C35 /* VideoEditorView.swift */; };
 		61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */; };
 		6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */; };
 		636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */; };
 		653A7FF38CDE2B4E6D9F3540 /* AdvancedPhotoManagementServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */; };
+		68B8B082BE2E1FCDD7B55F98 /* VideoEditState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20605370C393B8133835DC85 /* VideoEditState.swift */; };
 		6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */; };
 		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
 		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
@@ -84,6 +88,7 @@
 		1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogIndexingTests.swift; sourceTree = "<group>"; };
 		178FFF550B59149A3E6B93E8 /* VideoFilmstripLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFilmstripLoader.swift; sourceTree = "<group>"; };
 		1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWEditState.swift; sourceTree = "<group>"; };
+		20605370C393B8133835DC85 /* VideoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditState.swift; sourceTree = "<group>"; };
 		22D96CB051B42A5C5A85F23C /* CubeLUT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CubeLUT.swift; sourceTree = "<group>"; };
 		2325DD61230BAF602472DE97 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
 		2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImagePipeline.swift; sourceTree = "<group>"; };
@@ -95,6 +100,7 @@
 		46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacPhotoStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		498BC16F3DE7AC336BA0153A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogModels.swift; sourceTree = "<group>"; };
 		4A6EFD92551C7575799B149B /* ThumbnailStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailStore.swift; sourceTree = "<group>"; };
+		4F4F7CF9FE5D49982A072D95 /* VideoEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditingTests.swift; sourceTree = "<group>"; };
 		52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetBrowserView.swift; sourceTree = "<group>"; };
 		575C46B5C9E47C00A1A8F15E /* BatchToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchToolsView.swift; sourceTree = "<group>"; };
 		647B4FDE39356A84890A9E2A /* VideoPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPreviewSheet.swift; sourceTree = "<group>"; };
@@ -113,6 +119,7 @@
 		A91FCF3D0A2A0077DCBC960D /* AdvancedPhotoManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPhotoManagementTests.swift; sourceTree = "<group>"; };
 		AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoaderTests.swift; sourceTree = "<group>"; };
 		AC889170459152139A872729 /* BackgroundTaskCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskCenter.swift; sourceTree = "<group>"; };
+		ADD39ED3BF42EC68AB9DC4E6 /* VideoEditingPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditingPipeline.swift; sourceTree = "<group>"; };
 		ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacPhotoStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoader.swift; sourceTree = "<group>"; };
 		B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScanner.swift; sourceTree = "<group>"; };
@@ -129,6 +136,7 @@
 		E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryInspectorView.swift; sourceTree = "<group>"; };
 		E939691C923B1B116EF94156 /* VideoPlaybackSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlaybackSession.swift; sourceTree = "<group>"; };
 		EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryHomeView.swift; sourceTree = "<group>"; };
+		EE078B8F0958FB8AB0E01C35 /* VideoEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorView.swift; sourceTree = "<group>"; };
 		F8B675C1906F7A568C2C1BE2 /* PhotoEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditorView.swift; sourceTree = "<group>"; };
 		FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRootStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -157,6 +165,7 @@
 				4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */,
 				075B4115D6DDB1C4F4FFA86C /* PhotoEditingTests.swift */,
 				AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */,
+				4F4F7CF9FE5D49982A072D95 /* VideoEditingTests.swift */,
 				65412376C8CA35E5F64F0F93 /* VideoLibraryTests.swift */,
 			);
 			name = MacPhotoStudioTests;
@@ -211,6 +220,8 @@
 		4B943CC236474E3D43F105CB /* Video */ = {
 			isa = PBXGroup;
 			children = (
+				ADD39ED3BF42EC68AB9DC4E6 /* VideoEditingPipeline.swift */,
+				20605370C393B8133835DC85 /* VideoEditState.swift */,
 				178FFF550B59149A3E6B93E8 /* VideoFilmstripLoader.swift */,
 				E939691C923B1B116EF94156 /* VideoPlaybackSession.swift */,
 			);
@@ -273,6 +284,7 @@
 		9DD1A76C95B77CD831BB29B3 /* Video */ = {
 			isa = PBXGroup;
 			children = (
+				EE078B8F0958FB8AB0E01C35 /* VideoEditorView.swift */,
 				647B4FDE39356A84890A9E2A /* VideoPreviewSheet.swift */,
 			);
 			path = Video;
@@ -524,6 +536,9 @@
 				DBD3A8A56734244DA9BC4425 /* StudioError.swift in Sources */,
 				0A976276A612EDABEAFCFB1E /* ThumbnailLoader.swift in Sources */,
 				7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */,
+				68B8B082BE2E1FCDD7B55F98 /* VideoEditState.swift in Sources */,
+				2E10229966BF33BBE05D6E0B /* VideoEditingPipeline.swift in Sources */,
+				5DCB877C5B3432C1D2691A0E /* VideoEditorView.swift in Sources */,
 				272750C1480D362A8D6E9430 /* VideoFilmstripLoader.swift in Sources */,
 				B98C6F43DF189C7674063047 /* VideoPlaybackSession.swift in Sources */,
 				AC4664D33929530D7C10C5A1 /* VideoPreviewSheet.swift in Sources */,
@@ -543,6 +558,7 @@
 				96EEA8E33AAC98AD7D05C9B7 /* MediaScannerTests.swift in Sources */,
 				93182D4623D9E7A5F524457F /* PhotoEditingTests.swift in Sources */,
 				E9475AE7BCB6623DCBF9A709 /* ThumbnailLoaderTests.swift in Sources */,
+				5A629FC7005C0B654876D675 /* VideoEditingTests.swift in Sources */,
 				D266B7E77573EAB96D368C38 /* VideoLibraryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -300,6 +300,18 @@ enum CatalogMigrations {
             if try !connection.hasColumn(named: "is_hdr", inTable: "video_metadata") {
                 try connection.execute("ALTER TABLE video_metadata ADD COLUMN is_hdr INTEGER CHECK (is_hdr IN (0, 1));")
             }
+        },
+        CatalogMigration(version: 10, name: "addVideoEditStateSchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS video_edit_states (
+                    asset_id TEXT PRIMARY KEY NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    state_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+                """
+            )
         }
     ]
 }

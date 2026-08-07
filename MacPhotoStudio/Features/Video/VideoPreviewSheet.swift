@@ -9,6 +9,7 @@ struct VideoPreviewSheet: View {
     @State private var session: VideoPlaybackSession?
     @State private var filmstrip: [NSImage] = []
     @State private var loadingFailed = false
+    @State private var editorAsset: LibraryAssetRecord?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -21,6 +22,11 @@ struct VideoPreviewSheet: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
                 }
+                Button("编辑") { editorAsset = asset }
+                    .disabled(session == nil || asset.videoIsHDR == true)
+                    .help(asset.videoIsHDR == true
+                        ? "HDR 视频编辑与导出将在 Phase 10 提供；当前只保留原生播放。"
+                        : "编辑此视频")
                 Button("完成") { dismiss() }
             }
             .padding(.horizontal)
@@ -53,6 +59,9 @@ struct VideoPreviewSheet: View {
         }
         .onDisappear {
             session?.close()
+        }
+        .sheet(item: $editorAsset) { editorAsset in
+            VideoEditorView(asset: editorAsset, model: applicationModel)
         }
     }
 }

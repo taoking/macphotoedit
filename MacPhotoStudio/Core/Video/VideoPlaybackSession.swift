@@ -11,7 +11,8 @@ final class VideoPlaybackSession: ObservableObject {
     @Published private(set) var volume: Double = 1
 
     let player: AVPlayer
-    let duration: Double
+    let sourceURL: URL
+    @Published private(set) var duration: Double
 
     private let frameRate: Double
     private let securityScopedRootURL: URL
@@ -20,6 +21,7 @@ final class VideoPlaybackSession: ObservableObject {
     private var endObserver: NSObjectProtocol?
 
     init(sourceURL: URL, securityScopedRootURL: URL, duration: Double?, frameRate: Double?) {
+        self.sourceURL = sourceURL
         self.duration = max(0, duration ?? 0)
         self.frameRate = max(1, frameRate ?? 30)
         self.securityScopedRootURL = securityScopedRootURL
@@ -64,6 +66,13 @@ final class VideoPlaybackSession: ObservableObject {
         if isPlaying {
             player.rate = Float(rate)
         }
+    }
+
+    func replaceCurrentItem(with item: AVPlayerItem, duration: Double) {
+        pause()
+        player.replaceCurrentItem(with: item)
+        self.duration = max(0, duration)
+        currentTime = 0
     }
 
     func setVolume(_ newVolume: Double) {
