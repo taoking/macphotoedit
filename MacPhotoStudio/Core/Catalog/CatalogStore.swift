@@ -462,6 +462,247 @@ actor CatalogStore {
         try requireConnection().execute("DELETE FROM photo_presets WHERE id = ?;", bindings: [.text(presetID.uuidString)])
     }
 
+    func albums() throws -> [AlbumRecord] {
+        try requireConnection().query(
+            "SELECT id, name, kind, criteria_json, created_at, updated_at FROM albums ORDER BY kind ASC, name COLLATE NOCASE ASC;"
+        ).compactMap(album(from:))
+    }
+
+    func createAlbum(named proposedName: String, now: Date = .now) throws -> AlbumRecord {
+        try createAlbum(named: proposedName, kind: .album, criteria: nil, now: now)
+    }
+
+    func createSmartAlbum(
+        named proposedName: String,
+        criteria: SmartAlbumCriteria,
+        now: Date = .now
+    ) throws -> AlbumRecord {
+        try createAlbum(named: proposedName, kind: .smartAlbum, criteria: criteria, now: now)
+    }
+
+    func renameAlbum(_ albumID: UUID, to proposedName: String, now: Date = .now) throws {
+        let name = try validatedCollectionName(proposedName)
+        try requireConnection().execute(
+            "UPDATE albums SET name = ?, updated_at = ? WHERE id = ?;",
+            bindings: [.text(name), .real(now.timeIntervalSince1970), .text(albumID.uuidString)]
+        )
+    }
+
+    func updateSmartAlbum(
+        _ albumID: UUID,
+        criteria: SmartAlbumCriteria,
+        now: Date = .now
+    ) throws {
+        try requireConnection().execute(
+            "UPDATE albums SET criteria_json = ?, updated_at = ? WHERE id = ? AND kind = 'smartAlbum';",
+            bindings: [.text(try encodedSmartAlbumCriteria(criteria)), .real(now.timeIntervalSince1970), .text(albumID.uuidString)]
+        )
+    }
+
+    func deleteAlbum(_ albumID: UUID) throws {
+        try requireConnection().execute("DELETE FROM albums WHERE id = ?;", bindings: [.text(albumID.uuidString)])
+    }
+
+    func addAssets(_ assetIDs: [UUID], toAlbum albumID: UUID, now: Date = .now) throws {
+        try requireManualAlbum(id: albumID)
+        try updateAssets(assetIDs) { connection, assetID in
+            try connection.execute(
+                "INSERT OR IGNORE INTO album_assets (album_id, asset_id, added_at) VALUES (?, ?, ?);",
+                bindings: [.text(albumID.uuidString), .text(assetID.uuidString), .real(now.timeIntervalSince1970)]
+            )
+        }
+    }
+
+    func removeAssets(_ assetIDs: [UUID], fromAlbum albumID: UUID) throws {
+        try requireManualAlbum(id: albumID)
+        try updateAssets(assetIDs) { connection, assetID in
+            try connection.execute(
+                "DELETE FROM album_assets WHERE album_id = ? AND asset_id = ?;",
+                bindings: [.text(albumID.uuidString), .text(assetID.uuidString)]
+            )
+        }
+    }
+
+    func assetStacks() throws -> [AssetStackRecord] {
+        try requireConnection().query(
+            """
+            SELECT s.id, s.title, s.kind, s.created_at, s.updated_at, COUNT(m.asset_id)
+            FROM asset_stacks s
+            LEFT JOIN asset_stack_members m ON m.stack_id = s.id
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC, s.title COLLATE NOCASE ASC;
+            """
+        ).compactMap(assetStack(from:))
+    }
+
+    func createStack(
+        kind: AssetStackKind,
+        title proposedTitle: String,
+        assetIDs: [UUID],
+        now: Date = .now
+    ) throws -> AssetStackRecord {
+        let uniqueAssetIDs = Array(Set(assetIDs))
+        guard uniqueAssetIDs.count >= 2 else {
+            throw StudioError.databaseExecutionFailed(message: "A stack requires at least two assets.")
+        }
+        let title = proposedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stack = AssetStackRecord(
+            id: UUID(),
+            title: title.isEmpty ? "\(kind.title)堆栈" : title,
+            kind: kind,
+            createdAt: now,
+            updatedAt: now,
+            assetCount: uniqueAssetIDs.count
+        )
+        let connection = try requireConnection()
+        try connection.transaction {
+            try connection.execute(
+                "INSERT INTO asset_stacks (id, title, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?);",
+                bindings: [.text(stack.id.uuidString), .text(stack.title), .text(stack.kind.rawValue), .real(now.timeIntervalSince1970), .real(now.timeIntervalSince1970)]
+            )
+            for (position, assetID) in uniqueAssetIDs.enumerated() {
+                try connection.execute(
+                    "INSERT INTO asset_stack_members (stack_id, asset_id, position) VALUES (?, ?, ?);",
+                    bindings: [.text(stack.id.uuidString), .text(assetID.uuidString), .integer(Int64(position))]
+                )
+            }
+        }
+        return stack
+    }
+
+    func addAssets(_ assetIDs: [UUID], toStack stackID: UUID, now: Date = .now) throws {
+        let connection = try requireConnection()
+        let startingPosition = try connection.query(
+            "SELECT COALESCE(MAX(position), -1) FROM asset_stack_members WHERE stack_id = ?;",
+            bindings: [.text(stackID.uuidString)]
+        ).first?.integer(at: 0).map(Int.init) ?? -1
+        try connection.transaction {
+            for (offset, assetID) in Set(assetIDs).enumerated() {
+                try connection.execute(
+                    "INSERT OR IGNORE INTO asset_stack_members (stack_id, asset_id, position) VALUES (?, ?, ?);",
+                    bindings: [.text(stackID.uuidString), .text(assetID.uuidString), .integer(Int64(startingPosition + offset + 1))]
+                )
+            }
+            try connection.execute(
+                "UPDATE asset_stacks SET updated_at = ? WHERE id = ?;",
+                bindings: [.real(now.timeIntervalSince1970), .text(stackID.uuidString)]
+            )
+        }
+    }
+
+    func removeAssets(_ assetIDs: [UUID], fromStack stackID: UUID, now: Date = .now) throws {
+        try updateAssets(assetIDs) { connection, assetID in
+            try connection.execute(
+                "DELETE FROM asset_stack_members WHERE stack_id = ? AND asset_id = ?;",
+                bindings: [.text(stackID.uuidString), .text(assetID.uuidString)]
+            )
+        }
+        try requireConnection().execute(
+            "UPDATE asset_stacks SET updated_at = ? WHERE id = ?;",
+            bindings: [.real(now.timeIntervalSince1970), .text(stackID.uuidString)]
+        )
+    }
+
+    func deleteStack(_ stackID: UUID) throws {
+        try requireConnection().execute("DELETE FROM asset_stacks WHERE id = ?;", bindings: [.text(stackID.uuidString)])
+    }
+
+    func markAssetsMissing(_ assetIDs: [UUID]) throws {
+        try updateAssets(assetIDs) { connection, assetID in
+            try connection.execute(
+                "UPDATE media_assets SET availability = ? WHERE id = ?;",
+                bindings: [.text(MediaAssetAvailability.missing.rawValue), .text(assetID.uuidString)]
+            )
+        }
+    }
+
+    func duplicateHashCandidates() throws -> [DuplicateHashCandidate] {
+        let rows = try requireConnection().query(
+            """
+            SELECT a.id, a.root_id, a.relative_path, a.file_size, a.modified_at
+            FROM media_assets a
+            WHERE a.availability = 'available'
+              AND a.file_size > 0
+              AND a.file_size IN (
+                  SELECT file_size
+                  FROM media_assets
+                  WHERE availability = 'available' AND file_size > 0
+                  GROUP BY file_size
+                  HAVING COUNT(*) > 1
+              )
+            ORDER BY a.file_size ASC, a.root_id ASC, a.relative_path COLLATE NOCASE ASC;
+            """
+        )
+        return rows.compactMap { duplicateHashCandidate(from: $0) }
+    }
+
+    func contentHash(for candidate: DuplicateHashCandidate, algorithm: String = "sha256") throws -> String? {
+        let rows = try requireConnection().query(
+            """
+            SELECT digest FROM asset_content_hashes
+            WHERE asset_id = ? AND algorithm = ? AND file_size = ?
+              AND ((modified_at IS NULL AND ? IS NULL) OR ABS(modified_at - ?) < 0.001)
+            LIMIT 1;
+            """,
+            bindings: [
+                .text(candidate.id.uuidString), .text(algorithm), .integer(candidate.fileSize),
+                sql(candidate.modifiedAt), sql(candidate.modifiedAt)
+            ]
+        )
+        return rows.first?.text(at: 0)
+    }
+
+    func saveContentHash(
+        _ digest: String,
+        for candidate: DuplicateHashCandidate,
+        algorithm: String = "sha256",
+        now: Date = .now
+    ) throws {
+        try requireConnection().execute(
+            """
+            INSERT INTO asset_content_hashes (asset_id, algorithm, file_size, modified_at, digest, computed_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                algorithm = excluded.algorithm,
+                file_size = excluded.file_size,
+                modified_at = excluded.modified_at,
+                digest = excluded.digest,
+                computed_at = excluded.computed_at;
+            """,
+            bindings: [.text(candidate.id.uuidString), .text(algorithm), .integer(candidate.fileSize), sql(candidate.modifiedAt), .text(digest), .real(now.timeIntervalSince1970)]
+        )
+    }
+
+    func exactDuplicateGroups() throws -> [ExactDuplicateGroup] {
+        let rows = try requireConnection().query(
+            """
+            SELECT h.digest, h.file_size, a.id, a.root_id, a.relative_path, a.file_size, a.modified_at
+            FROM asset_content_hashes h
+            JOIN media_assets a ON a.id = h.asset_id
+            WHERE h.algorithm = 'sha256'
+              AND a.availability = 'available'
+              AND h.file_size = a.file_size
+              AND ((h.modified_at IS NULL AND a.modified_at IS NULL) OR ABS(h.modified_at - a.modified_at) < 0.001)
+            ORDER BY h.file_size ASC, h.digest ASC, a.relative_path COLLATE NOCASE ASC;
+            """
+        )
+        var grouped: [String: (digest: String, fileSize: Int64, assets: [DuplicateHashCandidate])] = [:]
+        for row in rows {
+            guard let digest = row.text(at: 0), let fileSize = row.integer(at: 1),
+                  let candidate = duplicateHashCandidate(from: row, offset: 2) else { continue }
+            let key = "\(fileSize)-\(digest)"
+            var group = grouped[key, default: (digest, fileSize, [])]
+            group.assets.append(candidate)
+            grouped[key] = group
+        }
+        return grouped.values
+            .filter { $0.assets.count > 1 }
+            .map { ExactDuplicateGroup(digest: $0.digest, fileSize: $0.fileSize, assets: $0.assets) }
+            .sorted { lhs, rhs in
+                lhs.fileSize == rhs.fileSize ? lhs.digest < rhs.digest : lhs.fileSize < rhs.fileSize
+            }
+    }
+
     private func upsert(_ asset: ScannedMediaAsset, scanID: UUID, using connection: SQLiteConnection) throws {
         try connection.execute(
             """
@@ -576,6 +817,17 @@ actor CatalogStore {
         conditions: inout [String],
         bindings: inout [SQLiteValue]
     ) {
+        if let albumID = query.albumID {
+            conditions.append("EXISTS (SELECT 1 FROM album_assets album_filter WHERE album_filter.asset_id = a.id AND album_filter.album_id = ?)")
+            bindings.append(.text(albumID.uuidString))
+        }
+        if let stackID = query.stackID {
+            conditions.append("EXISTS (SELECT 1 FROM asset_stack_members stack_filter WHERE stack_filter.asset_id = a.id AND stack_filter.stack_id = ?)")
+            bindings.append(.text(stackID.uuidString))
+        }
+        if let smartAlbumCriteria = query.smartAlbumCriteria {
+            appendSmartAlbumFilters(smartAlbumCriteria, conditions: &conditions, bindings: &bindings)
+        }
         if let rootID = query.rootID {
             conditions.append("a.root_id = ?")
             bindings.append(.text(rootID.uuidString))
@@ -617,6 +869,72 @@ actor CatalogStore {
         if let lens = query.lens?.trimmingCharacters(in: .whitespacesAndNewlines), !lens.isEmpty {
             conditions.append("COALESCE(p.lens_model, '') LIKE ? COLLATE NOCASE")
             bindings.append(.text("%\(lens)%"))
+        }
+        appendManagedStateFilters(
+            isEdited: query.isEdited,
+            isRAW: query.isRAW,
+            conditions: &conditions,
+            bindings: &bindings
+        )
+    }
+
+    private func appendSmartAlbumFilters(
+        _ criteria: SmartAlbumCriteria,
+        conditions: inout [String],
+        bindings: inout [SQLiteValue]
+    ) {
+        if let minimumRating = criteria.minimumRating {
+            conditions.append("a.rating >= ?")
+            bindings.append(.integer(Int64(minimumRating)))
+        }
+        if let startDate = criteria.captureDateFrom {
+            conditions.append("COALESCE(p.capture_date, v.creation_date, a.created_at) >= ?")
+            bindings.append(.real(startDate.timeIntervalSince1970))
+        }
+        if let endDate = criteria.captureDateTo {
+            conditions.append("COALESCE(p.capture_date, v.creation_date, a.created_at) < ?")
+            bindings.append(.real(endDate.timeIntervalSince1970))
+        }
+        if let camera = criteria.camera?.trimmingCharacters(in: .whitespacesAndNewlines), !camera.isEmpty {
+            let pattern = "%\(camera)%"
+            conditions.append("(COALESCE(p.camera_make, '') LIKE ? COLLATE NOCASE OR COALESCE(p.camera_model, '') LIKE ? COLLATE NOCASE)")
+            bindings += [.text(pattern), .text(pattern)]
+        }
+        if let lens = criteria.lens?.trimmingCharacters(in: .whitespacesAndNewlines), !lens.isEmpty {
+            conditions.append("COALESCE(p.lens_model, '') LIKE ? COLLATE NOCASE")
+            bindings.append(.text("%\(lens)%"))
+        }
+        if let tagID = criteria.tagID {
+            conditions.append("EXISTS (SELECT 1 FROM asset_tags smart_tag_filter WHERE smart_tag_filter.asset_id = a.id AND smart_tag_filter.tag_id = ?)")
+            bindings.append(.text(tagID.uuidString))
+        }
+        if let mediaType = criteria.mediaType {
+            conditions.append("a.media_type = ?")
+            bindings.append(.text(mediaType.rawValue))
+        }
+        appendManagedStateFilters(
+            isEdited: criteria.isEdited,
+            isRAW: criteria.isRAW,
+            conditions: &conditions,
+            bindings: &bindings
+        )
+    }
+
+    private func appendManagedStateFilters(
+        isEdited: Bool?,
+        isRAW: Bool?,
+        conditions: inout [String],
+        bindings: inout [SQLiteValue]
+    ) {
+        if let isEdited {
+            let editedCondition = "(EXISTS (SELECT 1 FROM photo_edit_states edit_filter WHERE edit_filter.asset_id = a.id) OR EXISTS (SELECT 1 FROM raw_edit_states raw_edit_filter WHERE raw_edit_filter.asset_id = a.id))"
+            conditions.append(isEdited ? editedCondition : "NOT \(editedCondition)")
+        }
+        if let isRAW {
+            let placeholders = Array(repeating: "?", count: RAWFormat.extensions.count).joined(separator: ", ")
+            let rawCondition = "LOWER(a.file_extension) IN (\(placeholders))"
+            conditions.append(isRAW ? rawCondition : "NOT \(rawCondition)")
+            bindings += RAWFormat.extensions.sorted().map(SQLiteValue.text)
         }
     }
 
@@ -677,12 +995,111 @@ actor CatalogStore {
         }
     }
 
+    private func album(from row: SQLiteRow) -> AlbumRecord? {
+        guard
+            let idText = row.text(at: 0), let id = UUID(uuidString: idText),
+            let name = row.text(at: 1), let kindText = row.text(at: 2), let kind = AlbumKind(rawValue: kindText),
+            let createdAt = row.real(at: 4), let updatedAt = row.real(at: 5)
+        else { return nil }
+        let criteria: SmartAlbumCriteria?
+        if let json = row.text(at: 3) {
+            do {
+                criteria = try JSONDecoder().decode(SmartAlbumCriteria.self, from: Data(json.utf8))
+            } catch {
+                AppLogger.catalog.error("Skipping invalid smart album \(idText, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+        } else {
+            criteria = nil
+        }
+        return AlbumRecord(
+            id: id, name: name, kind: kind, criteria: criteria,
+            createdAt: Date(timeIntervalSince1970: createdAt),
+            updatedAt: Date(timeIntervalSince1970: updatedAt)
+        )
+    }
+
+    private func assetStack(from row: SQLiteRow) -> AssetStackRecord? {
+        guard
+            let idText = row.text(at: 0), let id = UUID(uuidString: idText),
+            let title = row.text(at: 1), let kindText = row.text(at: 2), let kind = AssetStackKind(rawValue: kindText),
+            let createdAt = row.real(at: 3), let updatedAt = row.real(at: 4), let count = row.integer(at: 5)
+        else { return nil }
+        return AssetStackRecord(
+            id: id, title: title, kind: kind,
+            createdAt: Date(timeIntervalSince1970: createdAt),
+            updatedAt: Date(timeIntervalSince1970: updatedAt), assetCount: Int(count)
+        )
+    }
+
+    private func duplicateHashCandidate(from row: SQLiteRow, offset: Int = 0) -> DuplicateHashCandidate? {
+        guard
+            let idText = row.text(at: offset), let id = UUID(uuidString: idText),
+            let rootText = row.text(at: offset + 1), let rootID = UUID(uuidString: rootText),
+            let relativePath = row.text(at: offset + 2), let fileSize = row.integer(at: offset + 3)
+        else { return nil }
+        return DuplicateHashCandidate(
+            id: id, rootID: rootID, relativePath: relativePath,
+            fileSize: fileSize, modifiedAt: date(from: row.real(at: offset + 4))
+        )
+    }
+
     private func validatedPresetName(_ proposedName: String) throws -> String {
         let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             throw StudioError.invalidPreset(message: "预设名称不能为空。")
         }
         return name
+    }
+
+    private func createAlbum(
+        named proposedName: String,
+        kind: AlbumKind,
+        criteria: SmartAlbumCriteria?,
+        now: Date
+    ) throws -> AlbumRecord {
+        let album = AlbumRecord(
+            id: UUID(), name: try validatedCollectionName(proposedName), kind: kind, criteria: criteria,
+            createdAt: now, updatedAt: now
+        )
+        let criteriaJSON = try album.criteria.map(encodedSmartAlbumCriteria)
+        try requireConnection().execute(
+            "INSERT INTO albums (id, name, kind, criteria_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?);",
+            bindings: [
+                .text(album.id.uuidString), .text(album.name), .text(album.kind.rawValue),
+                sql(criteriaJSON),
+                .real(now.timeIntervalSince1970), .real(now.timeIntervalSince1970)
+            ]
+        )
+        return album
+    }
+
+    private func requireManualAlbum(id: UUID) throws {
+        let kind = try requireConnection().query(
+            "SELECT kind FROM albums WHERE id = ? LIMIT 1;",
+            bindings: [.text(id.uuidString)]
+        ).first?.text(at: 0)
+        guard kind == AlbumKind.album.rawValue else {
+            throw StudioError.databaseExecutionFailed(message: "Only a standard album can contain manually selected assets.")
+        }
+    }
+
+    private func validatedCollectionName(_ proposedName: String) throws -> String {
+        let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            throw StudioError.databaseExecutionFailed(message: "Album name cannot be empty.")
+        }
+        return name
+    }
+
+    private func encodedSmartAlbumCriteria(_ criteria: SmartAlbumCriteria) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        do {
+            return String(decoding: try encoder.encode(criteria), as: UTF8.self)
+        } catch {
+            throw StudioError.databaseExecutionFailed(message: "Unable to encode smart album criteria: \(error.localizedDescription)")
+        }
     }
 
     private func encodedPresetContent(_ content: PhotoPresetContent) throws -> String {

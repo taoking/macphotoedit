@@ -9,10 +9,18 @@ struct LibrarySidebar: View {
     let selectMinimumRating: (Int?) -> Void
     let selectFlag: (AssetFlag?) -> Void
     let selectTag: (UUID?) -> Void
+    let selectAlbum: (AlbumRecord) -> Void
+    let selectStack: (AssetStackRecord) -> Void
     let addTag: () -> Void
     let editTag: (TagRecord) -> Void
     let deleteTag: (TagRecord) -> Void
+    let addAlbum: () -> Void
+    let addSmartAlbum: () -> Void
+    let editAlbum: (AlbumRecord) -> Void
+    let deleteAlbum: (AlbumRecord) -> Void
+    let deleteStack: (AssetStackRecord) -> Void
     let rescanRoot: (UUID) -> Void
+    let relinkRoot: (MediaRootRecord) -> Void
     @Binding var rawJPEGPairPreference: String
 
     var body: some View {
@@ -54,6 +62,9 @@ struct LibrarySidebar: View {
                         .buttonStyle(.borderless)
                         .help("重新扫描")
                     }
+                    .contextMenu {
+                        Button("重新定位文件夹…") { relinkRoot(root) }
+                    }
                 }
                 if model.mediaRoots.isEmpty {
                     Text("尚未添加文件夹")
@@ -62,12 +73,75 @@ struct LibrarySidebar: View {
                 }
             }
 
-            Section("智能相册") {
-                sidebarButton("全部照片", systemImage: "rectangle.stack.badge.play", selected: query.mediaType == .photo) {
-                    selectMediaType(.photo)
+            Section {
+                ForEach(model.albums.filter { $0.kind == .album }) { album in
+                    Button {
+                        selectAlbum(album)
+                    } label: {
+                        Label(album.name, systemImage: "rectangle.stack")
+                            .foregroundStyle(query.albumID == album.id ? Color.accentColor : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("重命名") { editAlbum(album) }
+                        Button("删除", role: .destructive) { deleteAlbum(album) }
+                    }
                 }
-                sidebarButton("全部视频", systemImage: "rectangle.stack.badge.person.crop", selected: query.mediaType == .video) {
-                    selectMediaType(.video)
+            } header: {
+                HStack {
+                    Text("相册")
+                    Spacer()
+                    Button(action: addAlbum) {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("新建相册")
+                }
+            }
+
+            Section {
+                ForEach(model.albums.filter { $0.kind == .smartAlbum }) { album in
+                    Button {
+                        selectAlbum(album)
+                    } label: {
+                        Label(album.name, systemImage: "gearshape.2")
+                            .foregroundStyle(query.smartAlbumCriteria == album.criteria ? Color.accentColor : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("编辑规则…") { editAlbum(album) }
+                        Button("删除", role: .destructive) { deleteAlbum(album) }
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("智能相册")
+                    Spacer()
+                    Button(action: addSmartAlbum) {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("新建智能相册")
+                }
+            }
+
+            Section("堆栈") {
+                ForEach(model.assetStacks) { stack in
+                    Button {
+                        selectStack(stack)
+                    } label: {
+                        Label("\(stack.title)（\(stack.assetCount)）", systemImage: "square.stack.3d.up")
+                            .foregroundStyle(query.stackID == stack.id ? Color.accentColor : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("删除堆栈", role: .destructive) { deleteStack(stack) }
+                    }
+                }
+                if model.assetStacks.isEmpty {
+                    Text("选择至少两项后，可从“整理”创建堆栈")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -127,7 +201,7 @@ struct LibrarySidebar: View {
     }
 
     private var isAllSelected: Bool {
-        query.rootID == nil && query.mediaType == nil && query.minimumRating == nil && query.flag == nil && query.tagID == nil
+        query == .all
     }
 
     private func sidebarButton(

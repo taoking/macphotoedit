@@ -16,11 +16,15 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var scanStatuses: [ScanStatus] = []
     @Published private(set) var libraryAssets: [LibraryAssetRecord] = []
     @Published private(set) var tags: [TagRecord] = []
+    @Published private(set) var albums: [AlbumRecord] = []
+    @Published private(set) var assetStacks: [AssetStackRecord] = []
     @Published private(set) var selectedAssetTags: [TagRecord] = []
     @Published private(set) var photoPresets: [PhotoPreset] = []
     @Published private(set) var batchTasks: [StudioBackgroundTask] = []
     @Published private(set) var latestBatchEditReport: BatchEditReport?
     @Published private(set) var latestBatchExportReport: BatchExportReport?
+    @Published private(set) var latestDuplicateScanReport: DuplicateScanReport?
+    @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -33,6 +37,8 @@ final class ApplicationModel: ObservableObject {
     private var thumbnailLoader: ThumbnailLoader?
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
+    private var duplicateScanner: ExactDuplicateScanner?
+    private var mediaTrashService: MediaTrashService?
     private let batchTaskCenter = BackgroundTaskCenter()
     private var batchWorkerTasks: [UUID: Task<Void, Never>] = [:]
     private var copiedPhotoContent: PhotoPresetContent?
@@ -65,10 +71,13 @@ final class ApplicationModel: ObservableObject {
                 lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
             )
             self.presetRepository = PresetRepository(catalogStore: catalogStore)
+            self.duplicateScanner = ExactDuplicateScanner(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
+            self.mediaTrashService = MediaTrashService(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
             startupState = .ready(paths)
             await refreshLibrary(validateRoots: true)
             await reloadLibraryAssets(query: .all)
             await reloadPhotoPresets()
+            await reloadAdvancedManagement()
             await refreshBatchTasks()
             AppLogger.app.info("Catalog bootstrap completed")
         } catch {
@@ -109,6 +118,32 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
+    func presentRelinkPanel(for root: MediaRootRecord) {
+        guard case .ready = startupState else { return }
+        let panel = NSOpenPanel()
+        panel.title = "重新定位媒体文件夹"
+        panel.message = "选择移动后的根文件夹。重新扫描后，匹配的相对路径会保留已有评分、标签与编辑状态。"
+        panel.prompt = "重新定位"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        guard panel.runModal() == .OK, let directoryURL = panel.url else { return }
+        Task { await relinkMediaRoot(root, to: directoryURL) }
+    }
+
+    func relinkMediaRoot(_ root: MediaRootRecord, to directoryURL: URL) async {
+        guard let mediaRootStore, let scanCoordinator else { return }
+        do {
+            libraryError = nil
+            let relinkedRoot = try await mediaRootStore.relink(root, to: directoryURL)
+            _ = await scanCoordinator.startScan(rootID: relinkedRoot.id)
+            await refreshLibrary()
+        } catch {
+            report(error, activity: "Relinking media root")
+        }
+    }
+
     func startScan(for rootID: UUID) async {
         guard let scanCoordinator else { return }
         _ = await scanCoordinator.startScan(rootID: rootID)
@@ -143,6 +178,8 @@ final class ApplicationModel: ObservableObject {
             mediaRoots = try await catalogStore.mediaRoots()
             scanStatuses = await scanCoordinator.statuses()
             tags = try await catalogStore.tags()
+            albums = try await catalogStore.albums()
+            assetStacks = try await catalogStore.assetStacks()
             let shouldReloadAssets = scanStatuses.contains {
                 $0.state == .completed && ($0.finishedAt ?? .distantPast) > lastLibraryAssetRefreshAt
             }
@@ -308,6 +345,187 @@ final class ApplicationModel: ObservableObject {
             selectedAssetTags = try await catalogStore.tags(for: assetID)
         } catch {
             report(error, activity: "Loading asset tags")
+        }
+    }
+
+    func reloadAdvancedManagement() async {
+        guard let catalogStore else { return }
+        do {
+            albums = try await catalogStore.albums()
+            assetStacks = try await catalogStore.assetStacks()
+        } catch {
+            report(error, activity: "Loading advanced photo management")
+        }
+    }
+
+    func createAlbum(named name: String) async -> Bool {
+        guard let catalogStore else { return false }
+        do {
+            _ = try await catalogStore.createAlbum(named: name)
+            await reloadAdvancedManagement()
+            return true
+        } catch {
+            report(error, activity: "Creating album")
+            return false
+        }
+    }
+
+    func createSmartAlbum(named name: String, criteria: SmartAlbumCriteria) async -> Bool {
+        guard let catalogStore else { return false }
+        do {
+            _ = try await catalogStore.createSmartAlbum(named: name, criteria: criteria)
+            await reloadAdvancedManagement()
+            return true
+        } catch {
+            report(error, activity: "Creating smart album")
+            return false
+        }
+    }
+
+    func renameAlbum(_ album: AlbumRecord, to name: String) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.renameAlbum(album.id, to: name)
+            await reloadAdvancedManagement()
+        } catch {
+            report(error, activity: "Renaming album")
+        }
+    }
+
+    func updateSmartAlbum(_ album: AlbumRecord, criteria: SmartAlbumCriteria) async {
+        guard let catalogStore, album.kind == .smartAlbum else { return }
+        do {
+            try await catalogStore.updateSmartAlbum(album.id, criteria: criteria)
+            await reloadAdvancedManagement()
+            if activeLibraryQuery.smartAlbumCriteria == album.criteria {
+                await reloadLibraryAssets(query: LibraryQuery(smartAlbumCriteria: criteria))
+            }
+        } catch {
+            report(error, activity: "Updating smart album")
+        }
+    }
+
+    func deleteAlbum(_ album: AlbumRecord) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.deleteAlbum(album.id)
+            await reloadAdvancedManagement()
+            if activeLibraryQuery.albumID == album.id || activeLibraryQuery.smartAlbumCriteria == album.criteria {
+                await reloadLibraryAssets(query: .all)
+            }
+        } catch {
+            report(error, activity: "Deleting album")
+        }
+    }
+
+    func addAssets(_ assetIDs: [UUID], toAlbum album: AlbumRecord) async {
+        guard let catalogStore, album.kind == .album else { return }
+        do {
+            try await catalogStore.addAssets(assetIDs, toAlbum: album.id)
+            await reloadLibraryAssets(query: activeLibraryQuery)
+        } catch {
+            report(error, activity: "Adding assets to album")
+        }
+    }
+
+    func removeAssets(_ assetIDs: [UUID], fromAlbum album: AlbumRecord) async {
+        guard let catalogStore, album.kind == .album else { return }
+        do {
+            try await catalogStore.removeAssets(assetIDs, fromAlbum: album.id)
+            await reloadLibraryAssets(query: activeLibraryQuery)
+        } catch {
+            report(error, activity: "Removing assets from album")
+        }
+    }
+
+    func createStack(kind: AssetStackKind, title: String, assets: [LibraryAssetRecord]) async -> Bool {
+        guard let catalogStore else { return false }
+        let uniqueAssets = Dictionary(assets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values
+        guard uniqueAssets.count >= 2 else {
+            libraryError = "堆栈至少需要两个项目。"
+            return false
+        }
+        if kind == .rawJPEG, !isMatchingRAWJPEGPair(Array(uniqueAssets)) {
+            libraryError = "RAW + JPEG 堆栈需要选择同一文件夹、同名的一对 RAW 与 JPEG。"
+            return false
+        }
+        do {
+            _ = try await catalogStore.createStack(kind: kind, title: title, assetIDs: Array(uniqueAssets.map(\.id)))
+            await reloadAdvancedManagement()
+            return true
+        } catch {
+            report(error, activity: "Creating stack")
+            return false
+        }
+    }
+
+    func deleteStack(_ stack: AssetStackRecord) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.deleteStack(stack.id)
+            await reloadAdvancedManagement()
+            if activeLibraryQuery.stackID == stack.id {
+                await reloadLibraryAssets(query: .all)
+            }
+        } catch {
+            report(error, activity: "Deleting stack")
+        }
+    }
+
+    func removeAssets(_ assetIDs: [UUID], fromStack stack: AssetStackRecord) async {
+        guard let catalogStore else { return }
+        do {
+            try await catalogStore.removeAssets(assetIDs, fromStack: stack.id)
+            await reloadAdvancedManagement()
+            await reloadLibraryAssets(query: activeLibraryQuery)
+        } catch {
+            report(error, activity: "Removing assets from stack")
+        }
+    }
+
+    func startExactDuplicateScan() async -> UUID? {
+        guard let duplicateScanner else { return nil }
+        let task = await batchTaskCenter.enqueue(kind: .duplicateHashing, title: "查找精确重复项目")
+        await refreshBatchTasks()
+        let taskCenter = batchTaskCenter
+        let worker = Task { [weak self, duplicateScanner] in
+            do {
+                try await taskCenter.start(task.id)
+                await self?.refreshBatchTasks()
+                let report = try await duplicateScanner.scan { progress in
+                    try? await taskCenter.updateProgress(progress, for: task.id)
+                }
+                try await taskCenter.complete(task.id)
+                await self?.finishDuplicateScan(report, taskID: task.id)
+            } catch is CancellationError {
+                try? await taskCenter.cancel(task.id)
+                await self?.finishCancelledBatchTask(task.id)
+            } catch {
+                try? await taskCenter.fail(task.id)
+                await self?.finishFailedDuplicateTask(task.id, error: error)
+            }
+        }
+        batchWorkerTasks[task.id] = worker
+        return task.id
+    }
+
+    func moveAssetsToTrash(_ assets: [LibraryAssetRecord]) async -> TrashMoveReport? {
+        guard let mediaTrashService, !assets.isEmpty else { return nil }
+        do {
+            let report = try await mediaTrashService.moveToTrash(assets)
+            latestTrashMoveReport = report
+            if !report.movedAssetIDs.isEmpty {
+                await reloadLibraryAssets(query: activeLibraryQuery)
+            }
+            if !report.failures.isEmpty {
+                libraryError = report.failures.joined(separator: "\n")
+            }
+            return report
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(error, activity: "Moving media to Trash")
+            return nil
         }
     }
 
@@ -699,6 +917,12 @@ final class ApplicationModel: ObservableObject {
         await refreshBatchTasks()
     }
 
+    private func finishDuplicateScan(_ report: DuplicateScanReport, taskID: UUID) async {
+        latestDuplicateScanReport = report
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+    }
+
     private func finishCancelledBatchTask(_ taskID: UUID) async {
         batchWorkerTasks[taskID] = nil
         await refreshBatchTasks()
@@ -708,6 +932,12 @@ final class ApplicationModel: ObservableObject {
         batchWorkerTasks[taskID] = nil
         await refreshBatchTasks()
         report(error, activity: "Batch photo export")
+    }
+
+    private func finishFailedDuplicateTask(_ taskID: UUID, error: Error) async {
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+        report(error, activity: "Finding exact duplicates")
     }
 
     private func askForExportCollisionResolution(_ collision: ExportCollision) -> ExportCollisionResolution {
@@ -730,5 +960,17 @@ final class ApplicationModel: ObservableObject {
     private func uniquePhotos(from assets: [LibraryAssetRecord]) -> [LibraryAssetRecord] {
         var identifiers = Set<UUID>()
         return assets.filter { $0.mediaType == .photo && identifiers.insert($0.id).inserted }
+    }
+
+    private func isMatchingRAWJPEGPair(_ assets: [LibraryAssetRecord]) -> Bool {
+        guard assets.count == 2,
+              let raw = assets.first(where: { RAWFormat.isRAW($0.fileExtension) }),
+              let jpeg = assets.first(where: { ["jpg", "jpeg"].contains($0.fileExtension.lowercased()) }),
+              raw.rootID == jpeg.rootID
+        else { return false }
+        let rawURL = URL(filePath: raw.relativePath)
+        let jpegURL = URL(filePath: jpeg.relativePath)
+        return rawURL.deletingLastPathComponent().path(percentEncoded: false) == jpegURL.deletingLastPathComponent().path(percentEncoded: false)
+            && rawURL.deletingPathExtension().lastPathComponent.caseInsensitiveCompare(jpegURL.deletingPathExtension().lastPathComponent) == .orderedSame
     }
 }

@@ -39,6 +39,28 @@ struct MediaRootStore: Sendable {
         return root
     }
 
+    /// Replaces only the security-scoped root mapping. Existing media asset
+    /// records keep their root ID, so a subsequent scan can match unchanged
+    /// relative paths and preserve catalog-only organization and edits.
+    func relink(_ root: MediaRootRecord, to directoryURL: URL) async throws -> MediaRootRecord {
+        let values = try directoryURL.resourceValues(forKeys: [.isDirectoryKey, .volumeUUIDStringKey])
+        guard values.isDirectory == true else {
+            throw StudioError.invalidMediaRoot(path: directoryURL.path(percentEncoded: false))
+        }
+        let bookmarkData = try bookmarkStore.createBookmark(for: directoryURL)
+        var updatedRoot = root
+        updatedRoot.displayName = directoryURL.lastPathComponent.isEmpty
+            ? directoryURL.path(percentEncoded: false)
+            : directoryURL.lastPathComponent
+        updatedRoot.bookmarkData = bookmarkData
+        updatedRoot.lastKnownPath = directoryURL.path(percentEncoded: false)
+        updatedRoot.volumeIdentifier = values.volumeUUIDString
+        updatedRoot.availability = .online
+        updatedRoot.lastScanError = nil
+        try await catalogStore.saveMediaRoot(updatedRoot)
+        return updatedRoot
+    }
+
     func resolve(_ root: MediaRootRecord) async throws -> ResolvedMediaRoot {
         let resolvedBookmark = try bookmarkStore.resolve(root.bookmarkData)
         var updatedRoot = root

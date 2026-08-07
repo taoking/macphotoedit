@@ -24,6 +24,7 @@
 		61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */; };
 		6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */; };
 		636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */; };
+		653A7FF38CDE2B4E6D9F3540 /* AdvancedPhotoManagementServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */; };
 		6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */; };
 		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
 		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
@@ -34,6 +35,7 @@
 		96EEA8E33AAC98AD7D05C9B7 /* MediaScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */; };
 		9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */; };
 		A13F2F03A8A014501652E4DA /* PhotoImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */; };
+		A7F9DABE3A30B2467A371447 /* AdvancedPhotoManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A91FCF3D0A2A0077DCBC960D /* AdvancedPhotoManagementTests.swift */; };
 		A863D6FFD80094DFEF6F6E5B /* MediaScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */; };
 		B40F99FBC1AAD902AE5E45B8 /* LibraryCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */; };
 		B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */; };
@@ -78,6 +80,7 @@
 		2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImagePipeline.swift; sourceTree = "<group>"; };
 		34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBatchEditing.swift; sourceTree = "<group>"; };
 		3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatalogTests.swift; sourceTree = "<group>"; };
+		3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPhotoManagementServices.swift; sourceTree = "<group>"; };
 		3B9682F4368FE59D124D1D17 /* PhotoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditState.swift; sourceTree = "<group>"; };
 		4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScannerTests.swift; sourceTree = "<group>"; };
 		46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacPhotoStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -95,6 +98,7 @@
 		96506D27A280F2BF34DEFB8E /* PhotoExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoExportOptions.swift; sourceTree = "<group>"; };
 		9F7A4D7504F84F852D9D9998 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		9F86F312851CF430251B8EEA /* LibrarySidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebar.swift; sourceTree = "<group>"; };
+		A91FCF3D0A2A0077DCBC960D /* AdvancedPhotoManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPhotoManagementTests.swift; sourceTree = "<group>"; };
 		AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoaderTests.swift; sourceTree = "<group>"; };
 		AC889170459152139A872729 /* BackgroundTaskCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskCenter.swift; sourceTree = "<group>"; };
 		ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacPhotoStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -130,6 +134,7 @@
 		0654054828D3715C6AC7907B /* MacPhotoStudioTests */ = {
 			isa = PBXGroup;
 			children = (
+				A91FCF3D0A2A0077DCBC960D /* AdvancedPhotoManagementTests.swift */,
 				1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */,
 				DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */,
 				DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */,
@@ -211,6 +216,7 @@
 		9731BA73471F05FDCED64E26 /* Filesystem */ = {
 			isa = PBXGroup;
 			children = (
+				3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */,
 				1078ECBFC236980C141969F6 /* BookmarkStore.swift */,
 				163BA7295CE105D80B837A91 /* CatalogPaths.swift */,
 				FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */,
@@ -433,6 +439,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				653A7FF38CDE2B4E6D9F3540 /* AdvancedPhotoManagementServices.swift in Sources */,
 				CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */,
 				9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */,
 				574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */,
@@ -477,6 +484,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A7F9DABE3A30B2467A371447 /* AdvancedPhotoManagementTests.swift in Sources */,
 				EFA234327D9F661FDCCCF976 /* CatalogIndexingTests.swift in Sources */,
 				2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */,
 				013E530C73BD5679E53A8AA8 /* FoundationServicesTests.swift in Sources */,

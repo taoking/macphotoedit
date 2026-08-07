@@ -12,6 +12,7 @@ struct LibraryHomeView: View {
     @State private var previewAsset: LibraryAssetRecord?
     @State private var thumbnailSize: CGFloat = 180
     @State private var tagEditor: TagEditorContext?
+    @State private var albumEditor: AlbumEditorContext?
     @FocusState private var gridIsFocused: Bool
 
     var body: some View {
@@ -59,6 +60,9 @@ struct LibraryHomeView: View {
         .sheet(item: $tagEditor) { context in
             TagEditorSheet(context: context, model: model)
         }
+        .sheet(item: $albumEditor) { context in
+            AlbumEditorSheet(context: context, model: model)
+        }
         .sheet(item: $previewAsset) { asset in
             AssetPreviewSheet(asset: asset, model: model)
         }
@@ -75,10 +79,18 @@ struct LibraryHomeView: View {
                 selectMinimumRating: { rating in updateQuery { $0.minimumRating = rating } },
                 selectFlag: { flag in updateQuery { $0.flag = flag } },
                 selectTag: { tagID in updateQuery { $0.tagID = tagID } },
+                selectAlbum: selectAlbum,
+                selectStack: { stack in updateQuery { $0 = LibraryQuery(stackID: stack.id) } },
                 addTag: { tagEditor = TagEditorContext(tag: nil) },
                 editTag: { tagEditor = TagEditorContext(tag: $0) },
                 deleteTag: { tag in Task { await model.deleteTag(tag) } },
+                addAlbum: { albumEditor = AlbumEditorContext(album: nil, kind: .album) },
+                addSmartAlbum: { albumEditor = AlbumEditorContext(album: nil, kind: .smartAlbum) },
+                editAlbum: { albumEditor = AlbumEditorContext(album: $0, kind: $0.kind) },
+                deleteAlbum: { album in Task { await model.deleteAlbum(album) } },
+                deleteStack: { stack in Task { await model.deleteStack(stack) } },
                 rescanRoot: { rootID in Task { await model.startScan(for: rootID) } },
+                relinkRoot: model.presentRelinkPanel,
                 rawJPEGPairPreference: $rawJPEGPairPreferenceRaw
             )
             .frame(minWidth: 185, idealWidth: 230, maxWidth: 300)
@@ -98,6 +110,16 @@ struct LibraryHomeView: View {
                 setRating: setRating,
                 setFlag: setFlag,
                 addTag: addTagToSelection,
+                addToAlbum: { album in
+                    Task { await model.addAssets(Array(selectedAssetIDs), toAlbum: album) }
+                },
+                removeFromCurrentAlbum: removeSelectionFromCurrentAlbum,
+                createStack: { kind, title in
+                    Task { _ = await model.createStack(kind: kind, title: title, assets: selectedAssets) }
+                },
+                removeFromCurrentStack: removeSelectionFromCurrentStack,
+                scanDuplicates: { Task { _ = await model.startExactDuplicateScan() } },
+                moveToTrash: { assets in Task { _ = await model.moveAssetsToTrash(assets) } },
                 select: select,
                 moveSelection: moveSelection
             )
@@ -136,6 +158,10 @@ struct LibraryHomeView: View {
     private var selectedAsset: LibraryAssetRecord? {
         guard selectedAssetIDs.count == 1, let assetID = selectedAssetIDs.first else { return nil }
         return model.libraryAssets.first(where: { $0.id == assetID })
+    }
+
+    private var selectedAssets: [LibraryAssetRecord] {
+        visibleLibraryAssets.filter { selectedAssetIDs.contains($0.id) }
     }
 
     private var rawJPEGPairPreference: RAWJPEGPairPreference {
@@ -202,11 +228,42 @@ struct LibraryHomeView: View {
         guard !selectedAssetIDs.isEmpty else { return }
         Task { await model.addTag(tag, to: Array(selectedAssetIDs)) }
     }
+
+    private func selectAlbum(_ album: AlbumRecord) {
+        switch album.kind {
+        case .album:
+            updateQuery { $0 = LibraryQuery(albumID: album.id) }
+        case .smartAlbum:
+            updateQuery { $0 = LibraryQuery(smartAlbumCriteria: album.criteria ?? .all) }
+        }
+    }
+
+    private func removeSelectionFromCurrentAlbum() {
+        guard let albumID = query.albumID,
+              let album = model.albums.first(where: { $0.id == albumID }),
+              !selectedAssetIDs.isEmpty
+        else { return }
+        Task { await model.removeAssets(Array(selectedAssetIDs), fromAlbum: album) }
+    }
+
+    private func removeSelectionFromCurrentStack() {
+        guard let stackID = query.stackID,
+              let stack = model.assetStacks.first(where: { $0.id == stackID }),
+              !selectedAssetIDs.isEmpty
+        else { return }
+        Task { await model.removeAssets(Array(selectedAssetIDs), fromStack: stack) }
+    }
 }
 
 private struct TagEditorContext: Identifiable {
     let id = UUID()
     let tag: TagRecord?
+}
+
+private struct AlbumEditorContext: Identifiable {
+    let id = UUID()
+    let album: AlbumRecord?
+    let kind: AlbumKind
 }
 
 private struct TagEditorSheet: View {
@@ -248,6 +305,126 @@ private struct TagEditorSheet: View {
                 await model.renameTag(tag, to: proposedName)
             } else {
                 _ = await model.createTag(named: proposedName)
+            }
+            dismiss()
+        }
+    }
+}
+
+private struct AlbumEditorSheet: View {
+    let context: AlbumEditorContext
+    @ObservedObject var model: ApplicationModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var minimumRating: Int
+    @State private var useCaptureDate: Bool
+    @State private var captureDateFrom: Date
+    @State private var captureDateTo: Date
+    @State private var camera: String
+    @State private var lens: String
+    @State private var selectedTagID: UUID?
+    @State private var mediaType: MediaType?
+    @State private var editedFilter = -1
+    @State private var rawFilter = -1
+
+    init(context: AlbumEditorContext, model: ApplicationModel) {
+        self.context = context
+        self.model = model
+        let criteria = context.album?.criteria ?? .all
+        _name = State(initialValue: context.album?.name ?? "")
+        _minimumRating = State(initialValue: criteria.minimumRating ?? 0)
+        _useCaptureDate = State(initialValue: criteria.captureDateFrom != nil || criteria.captureDateTo != nil)
+        _captureDateFrom = State(initialValue: criteria.captureDateFrom ?? Calendar.current.date(byAdding: .year, value: -1, to: .now) ?? .now)
+        _captureDateTo = State(initialValue: criteria.captureDateTo ?? .now)
+        _camera = State(initialValue: criteria.camera ?? "")
+        _lens = State(initialValue: criteria.lens ?? "")
+        _selectedTagID = State(initialValue: criteria.tagID)
+        _mediaType = State(initialValue: criteria.mediaType)
+        _editedFilter = State(initialValue: criteria.isEdited.map { $0 ? 1 : 0 } ?? -1)
+        _rawFilter = State(initialValue: criteria.isRAW.map { $0 ? 1 : 0 } ?? -1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(context.album == nil ? (context.kind == .album ? "新建相册" : "新建智能相册") : "编辑\(context.kind == .album ? "相册" : "智能相册")")
+                .font(.headline)
+            TextField("名称", text: $name)
+                .textFieldStyle(.roundedBorder)
+            if context.kind == .smartAlbum {
+                Form {
+                    Picker("最低评分", selection: $minimumRating) {
+                        Text("不限").tag(0)
+                        ForEach(1...5, id: \.self) { rating in Text("\(rating) 星及以上").tag(rating) }
+                    }
+                    Toggle("按拍摄日期筛选", isOn: $useCaptureDate)
+                    if useCaptureDate {
+                        DatePicker("开始", selection: $captureDateFrom, displayedComponents: .date)
+                        DatePicker("结束", selection: $captureDateTo, in: captureDateFrom..., displayedComponents: .date)
+                    }
+                    TextField("相机包含", text: $camera)
+                    TextField("镜头包含", text: $lens)
+                    Picker("标签", selection: $selectedTagID) {
+                        Text("不限").tag(UUID?.none)
+                        ForEach(model.tags) { tag in Text(tag.name).tag(UUID?.some(tag.id)) }
+                    }
+                    Picker("媒体类型", selection: $mediaType) {
+                        Text("不限").tag(MediaType?.none)
+                        Text("照片").tag(MediaType?.some(.photo))
+                        Text("视频").tag(MediaType?.some(.video))
+                    }
+                    Picker("是否已编辑", selection: $editedFilter) {
+                        Text("不限").tag(-1)
+                        Text("已编辑").tag(1)
+                        Text("未编辑").tag(0)
+                    }
+                    Picker("是否 RAW", selection: $rawFilter) {
+                        Text("不限").tag(-1)
+                        Text("RAW").tag(1)
+                        Text("非 RAW").tag(0)
+                    }
+                }
+                .formStyle(.grouped)
+            } else {
+                Text("相册仅保存 Catalog 中的虚拟引用，不会移动或复制原始媒体文件。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("保存", action: save)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: context.kind == .smartAlbum ? 460 : 360)
+    }
+
+    private func save() {
+        let proposedName = name
+        let criteria = SmartAlbumCriteria(
+            minimumRating: minimumRating == 0 ? nil : minimumRating,
+            captureDateFrom: useCaptureDate ? captureDateFrom : nil,
+            captureDateTo: useCaptureDate ? Calendar.current.date(byAdding: .day, value: 1, to: captureDateTo) : nil,
+            camera: camera.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : camera,
+            lens: lens.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : lens,
+            tagID: selectedTagID,
+            mediaType: mediaType,
+            isEdited: editedFilter == -1 ? nil : editedFilter == 1,
+            isRAW: rawFilter == -1 ? nil : rawFilter == 1
+        )
+        Task {
+            if let album = context.album {
+                await model.renameAlbum(album, to: proposedName)
+                if context.kind == .smartAlbum {
+                    await model.updateSmartAlbum(album, criteria: criteria)
+                }
+            } else if context.kind == .smartAlbum {
+                _ = await model.createSmartAlbum(named: proposedName, criteria: criteria)
+            } else {
+                _ = await model.createAlbum(named: proposedName)
             }
             dismiss()
         }

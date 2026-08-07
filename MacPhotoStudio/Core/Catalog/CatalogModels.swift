@@ -143,6 +143,86 @@ struct TagRecord: Identifiable, Sendable, Equatable, Hashable {
     let createdAt: Date
 }
 
+enum AlbumKind: String, Codable, Sendable, CaseIterable, Hashable {
+    case album
+    case smartAlbum
+}
+
+struct SmartAlbumCriteria: Codable, Sendable, Equatable, Hashable {
+    var minimumRating: Int? = nil
+    var captureDateFrom: Date? = nil
+    var captureDateTo: Date? = nil
+    var camera: String? = nil
+    var lens: String? = nil
+    var tagID: UUID? = nil
+    var mediaType: MediaType? = nil
+    var isEdited: Bool? = nil
+    var isRAW: Bool? = nil
+
+    static let all = SmartAlbumCriteria()
+}
+
+struct AlbumRecord: Identifiable, Sendable, Equatable, Hashable {
+    let id: UUID
+    var name: String
+    let kind: AlbumKind
+    var criteria: SmartAlbumCriteria?
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+enum AssetStackKind: String, Codable, Sendable, CaseIterable, Hashable {
+    case burst
+    case rawJPEG
+    case user
+
+    var title: String {
+        switch self {
+        case .burst: "连拍"
+        case .rawJPEG: "RAW + JPEG"
+        case .user: "自定义"
+        }
+    }
+}
+
+struct AssetStackRecord: Identifiable, Sendable, Equatable, Hashable {
+    let id: UUID
+    var title: String
+    let kind: AssetStackKind
+    let createdAt: Date
+    var updatedAt: Date
+    var assetCount: Int
+}
+
+struct DuplicateHashCandidate: Identifiable, Sendable, Equatable, Hashable {
+    let id: UUID
+    let rootID: UUID
+    let relativePath: String
+    let fileSize: Int64
+    let modifiedAt: Date?
+}
+
+struct ExactDuplicateGroup: Identifiable, Sendable, Equatable {
+    let digest: String
+    let fileSize: Int64
+    let assets: [DuplicateHashCandidate]
+
+    var id: String { "\(fileSize)-\(digest)" }
+}
+
+struct DuplicateScanReport: Sendable, Equatable {
+    let candidateCount: Int
+    let hashedCount: Int
+    let reusedHashCount: Int
+    let groups: [ExactDuplicateGroup]
+    let failures: [String]
+}
+
+struct TrashMoveReport: Sendable, Equatable {
+    let movedAssetIDs: [UUID]
+    let failures: [String]
+}
+
 struct LibraryQuery: Sendable, Equatable {
     var rootID: UUID? = nil
     var searchText: String? = nil
@@ -154,6 +234,11 @@ struct LibraryQuery: Sendable, Equatable {
     var captureDateTo: Date? = nil
     var camera: String? = nil
     var lens: String? = nil
+    var albumID: UUID? = nil
+    var stackID: UUID? = nil
+    var smartAlbumCriteria: SmartAlbumCriteria? = nil
+    var isEdited: Bool? = nil
+    var isRAW: Bool? = nil
 
     static let all = LibraryQuery()
 }

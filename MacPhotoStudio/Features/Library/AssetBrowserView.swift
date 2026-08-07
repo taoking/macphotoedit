@@ -16,6 +16,12 @@ struct AssetBrowserView: View {
     let setRating: (Int) -> Void
     let setFlag: (AssetFlag) -> Void
     let addTag: (TagRecord) -> Void
+    let addToAlbum: (AlbumRecord) -> Void
+    let removeFromCurrentAlbum: () -> Void
+    let createStack: (AssetStackKind, String) -> Void
+    let removeFromCurrentStack: () -> Void
+    let scanDuplicates: () -> Void
+    let moveToTrash: ([LibraryAssetRecord]) -> Void
     let select: (UUID, NSEvent.ModifierFlags) -> Void
     let moveSelection: (Int) -> Void
     @State private var showingFilters = false
@@ -23,6 +29,9 @@ struct AssetBrowserView: View {
     @State private var showsPresetManager = false
     @State private var showsSelectivePaste = false
     @State private var showsBatchExport = false
+    @State private var showsStackCreator = false
+    @State private var showsDuplicateResults = false
+    @State private var showsTrashConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,6 +61,23 @@ struct AssetBrowserView: View {
         }
         .sheet(isPresented: $showsBatchExport) {
             BatchExportSheet(model: model, assets: selectedPhotoAssets)
+        }
+        .sheet(isPresented: $showsStackCreator) {
+            StackCreatorSheet(assets: selectedAssets, create: createStack)
+        }
+        .sheet(isPresented: $showsDuplicateResults) {
+            DuplicateResultsSheet(model: model)
+        }
+        .confirmationDialog(
+            "将所选原始文件移到废纸篓？",
+            isPresented: $showsTrashConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("移到废纸篓（\(selectedAssets.count) 项）", role: .destructive) {
+                moveToTrash(selectedAssets)
+            }
+        } message: {
+            Text("此操作会请求 macOS 将实际源文件移到废纸篓，不会永久删除。Catalog 中的评分、标签和编辑记录会保留，以便恢复文件后继续使用。")
         }
     }
 
@@ -117,6 +143,30 @@ struct AssetBrowserView: View {
                         Label("添加标签", systemImage: "tag")
                     }
                     Menu {
+                        let manualAlbums = model.albums.filter { $0.kind == .album }
+                        if manualAlbums.isEmpty {
+                            Text("请先在侧边栏创建相册")
+                        } else {
+                            ForEach(manualAlbums) { album in
+                                Button(album.name) { addToAlbum(album) }
+                            }
+                        }
+                    } label: {
+                        Label("添加到相册", systemImage: "rectangle.stack.badge.plus")
+                    }
+                    if query.albumID != nil {
+                        Button("从当前相册移除", role: .destructive, action: removeFromCurrentAlbum)
+                    }
+                    Button {
+                        showsStackCreator = true
+                    } label: {
+                        Label("创建堆栈", systemImage: "square.stack.3d.up")
+                    }
+                    .disabled(selectedAssets.count < 2)
+                    if query.stackID != nil {
+                        Button("从当前堆栈移除", role: .destructive, action: removeFromCurrentStack)
+                    }
+                    Menu {
                         Button("复制所有调整") {
                             guard let asset = selectedPhotoAssets.first else { return }
                             Task { _ = await model.copyPhotoEdits(from: asset.id) }
@@ -157,7 +207,24 @@ struct AssetBrowserView: View {
                     Text("已选择 \(selectedAssetIDs.count)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button(role: .destructive) {
+                        showsTrashConfirmation = true
+                    } label: {
+                        Label("移到废纸篓", systemImage: "trash")
+                    }
                 }
+                Button {
+                    scanDuplicates()
+                    showsDuplicateResults = true
+                } label: {
+                    Label("查找精确重复项", systemImage: "doc.on.doc")
+                }
+                Button {
+                    showsDuplicateResults = true
+                } label: {
+                    Label("重复项结果", systemImage: "list.bullet.rectangle")
+                }
+                .disabled(model.latestDuplicateScanReport == nil)
             }
         }
         .padding(.horizontal, 14)
@@ -219,11 +286,15 @@ struct AssetBrowserView: View {
     }
 
     private var hasActiveFilters: Bool {
-        query.searchText != nil || query.rootID != nil || query.mediaType != nil || query.minimumRating != nil || query.flag != nil || query.tagID != nil || query.captureDateFrom != nil || query.camera != nil || query.lens != nil
+        query != .all
     }
 
     private var selectedPhotoAssets: [LibraryAssetRecord] {
         assets.filter { selectedAssetIDs.contains($0.id) && $0.mediaType == .photo }
+    }
+
+    private var selectedAssets: [LibraryAssetRecord] {
+        assets.filter { selectedAssetIDs.contains($0.id) }
     }
 
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
@@ -266,6 +337,98 @@ struct AssetBrowserView: View {
         default:
             return .ignored
         }
+    }
+}
+
+private struct StackCreatorSheet: View {
+    let assets: [LibraryAssetRecord]
+    let create: (AssetStackKind, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var kind = AssetStackKind.user
+    @State private var title = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("创建堆栈")
+                .font(.headline)
+            Picker("堆栈类型", selection: $kind) {
+                ForEach(AssetStackKind.allCases, id: \.self) { kind in
+                    Text(kind.title).tag(kind)
+                }
+            }
+            TextField("堆栈名称（可选）", text: $title)
+                .textFieldStyle(.roundedBorder)
+            Text("将建立 \(assets.count) 个 Catalog 项目的虚拟堆栈；不会移动或合并原始文件。RAW + JPEG 类型仅接受同名的一对 RAW 与 JPEG。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("创建") {
+                    create(kind, title)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 410)
+    }
+}
+
+private struct DuplicateResultsSheet: View {
+    @ObservedObject var model: ApplicationModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("精确重复项")
+                    .font(.headline)
+                Spacer()
+                Button("完成") { dismiss() }
+            }
+            Text("先按文件大小分组，再以 SHA-256 内容哈希确认。相似图片不会出现在这里，也不会自动删除任何文件。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let report = model.latestDuplicateScanReport {
+                Text("候选 \(report.candidateCount) 个；新计算 \(report.hashedCount) 个；复用有效哈希 \(report.reusedHashCount) 个；确认组 \(report.groups.count) 组。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                List {
+                    ForEach(report.groups) { group in
+                        Section("\(ByteCountFormatter.string(fromByteCount: group.fileSize, countStyle: .file)) · \(group.assets.count) 个项目") {
+                            ForEach(group.assets) { asset in
+                                Text(asset.relativePath)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    if !report.failures.isEmpty {
+                        Section("无法验证") {
+                            ForEach(report.failures, id: \.self) { failure in
+                                Text(failure)
+                                    .foregroundStyle(.orange)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
+                .frame(minHeight: 240)
+                if report.groups.isEmpty {
+                    ContentUnavailableView("未发现已验证的精确重复项", systemImage: "checkmark.circle")
+                }
+            } else if model.batchTasks.contains(where: { $0.kind == .duplicateHashing && !$0.state.isTerminal }) {
+                ProgressView("正在按候选大小组计算 SHA-256…")
+                    .frame(maxWidth: .infinity, minHeight: 220)
+            } else {
+                ContentUnavailableView("尚未运行重复检测", systemImage: "doc.on.doc")
+            }
+        }
+        .padding(20)
+        .frame(width: 620, height: 540)
     }
 }
 

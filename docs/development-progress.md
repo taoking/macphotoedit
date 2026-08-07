@@ -247,3 +247,46 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 5 presets batch export`
+
+## Phase 6
+
+Status:
+- COMPLETED
+
+Implemented:
+- Added catalog schema v8 for standard albums, smart albums, album membership, stacks, and cached content hashes.
+- Implemented real virtual album membership and smart-album filtering for rating, date, camera, lens, tag, media type, edited state, and RAW state.
+- Added burst, RAW/JPEG-pair, and user stack catalog models and management flows.
+- Added same-size candidate selection followed by streamed SHA-256 content hashing for exact duplicate detection. Results are informational only and never delete media automatically.
+- Added root relinking that retains the original catalog root identity and all associated edits, ratings, tags, albums, and stack memberships.
+- Added an explicit, confirmed Move to Trash flow that calls macOS Trash APIs only after validating the selected media remains inside its catalog root; catalog metadata is retained as a missing asset.
+
+Tests:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' test`
+- PASS — 34 tests, 0 failures.
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' build`
+- PASS — `** BUILD SUCCEEDED **`.
+
+Acceptance:
+- PASS — standard and smart albums are virtual catalog references and do not copy source media.
+- PASS — smart-album criteria cover the Phase 6 requirements.
+- PASS — exact duplicates use size candidates plus cryptographic content hashes; no automatic deletion path exists.
+- PASS — stack types and missing-root relinking preserve catalog relationships and edits.
+- PASS — deletion requires explicit confirmation and moves only the selected in-root item to Trash.
+
+Regression:
+- PASS — all prior catalog, browsing, editing, RAW, preset, batch-export, and share tests pass in the full suite.
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — relink a genuinely moved external-media root and confirm retained edits, ratings, tags, albums, and stacks after reopening the app.
+- MANUAL VERIFICATION REQUIRED — move expendable user-selected media to macOS Trash, restore it, and validate macOS permission behavior.
+- MANUAL VERIFICATION REQUIRED — exercise duplicate hashing on a large removable-media library, including an unplugged root and scoped-access denial.
+
+Known Limitations:
+- Visual-similarity analysis is intentionally deferred; exact SHA-256 duplicate results are the only duplicate result shown and never trigger deletion.
+- Hashing requires the source root to be accessible. Per-item access or I/O failures are reported rather than treated as duplicates.
+
+Commit:
+- `feat: complete phase 6 advanced photo management`

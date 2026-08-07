@@ -234,6 +234,55 @@ enum CatalogMigrations {
                 CREATE INDEX IF NOT EXISTS photo_presets_favorite_index ON photo_presets(is_favorite, name COLLATE NOCASE);
                 """
             )
+        },
+        CatalogMigration(version: 8, name: "addAdvancedPhotoManagementSchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS albums (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    kind TEXT NOT NULL CHECK (kind IN ('album', 'smartAlbum')),
+                    criteria_json TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS album_assets (
+                    album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    added_at REAL NOT NULL,
+                    PRIMARY KEY (album_id, asset_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS asset_stacks (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL,
+                    kind TEXT NOT NULL CHECK (kind IN ('burst', 'rawJPEG', 'user')),
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS asset_stack_members (
+                    stack_id TEXT NOT NULL REFERENCES asset_stacks(id) ON DELETE CASCADE,
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    position INTEGER NOT NULL,
+                    PRIMARY KEY (stack_id, asset_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS asset_content_hashes (
+                    asset_id TEXT PRIMARY KEY NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    algorithm TEXT NOT NULL,
+                    file_size INTEGER NOT NULL,
+                    modified_at REAL,
+                    digest TEXT NOT NULL,
+                    computed_at REAL NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS album_assets_asset_id_index ON album_assets(asset_id);
+                CREATE INDEX IF NOT EXISTS asset_stack_members_asset_id_index ON asset_stack_members(asset_id);
+                CREATE INDEX IF NOT EXISTS asset_content_hashes_digest_index ON asset_content_hashes(algorithm, file_size, digest);
+                """
+            )
         }
     ]
 }

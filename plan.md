@@ -10,7 +10,7 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 3 — Photo Editing + LUT
 - [x] Phase 4 — RAW Editing
 - [x] Phase 5 — Presets + Batch + Export
-- [ ] Phase 6 — Advanced Photo Management
+- [x] Phase 6 — Advanced Photo Management
 - [ ] Phase 7 — Color Management + HDR
 - [ ] Phase 8 — Video Library
 - [ ] Phase 9 — Video Editing + LUT
