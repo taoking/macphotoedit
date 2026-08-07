@@ -3,6 +3,8 @@ import SwiftUI
 
 struct AssetBrowserView: View {
     @ObservedObject var model: ApplicationModel
+    let assets: [LibraryAssetRecord]
+    let groupedRAWAssetIDs: Set<UUID>
     @Binding var query: LibraryQuery
     @Binding var selectedAssetIDs: Set<UUID>
     @Binding var selectionAnchor: UUID?
@@ -22,7 +24,7 @@ struct AssetBrowserView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            if model.libraryAssets.isEmpty, !model.isLoadingLibraryAssets {
+            if assets.isEmpty, !model.isLoadingLibraryAssets {
                 emptyState
             } else {
                 grid
@@ -65,7 +67,7 @@ struct AssetBrowserView: View {
             }
 
             HStack(spacing: 8) {
-                Text("\(model.libraryAssets.count) 个已加载项目")
+                Text("\(assets.count) 个显示项目")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if model.hasMoreLibraryAssets {
@@ -112,10 +114,11 @@ struct AssetBrowserView: View {
                 columns: [GridItem(.adaptive(minimum: thumbnailSize, maximum: thumbnailSize + 26), spacing: 12)],
                 spacing: 14
             ) {
-                ForEach(model.libraryAssets) { asset in
+                ForEach(assets) { asset in
                     AssetThumbnailCell(
                         asset: asset,
                         selected: selectedAssetIDs.contains(asset.id),
+                        groupedRAWPair: groupedRAWAssetIDs.contains(asset.id),
                         displaySize: thumbnailSize,
                         thumbnailPixelSize: thumbnailSize <= 180 ? 256 : 512,
                         model: model,
@@ -123,7 +126,7 @@ struct AssetBrowserView: View {
                         preview: { previewAsset = asset }
                     )
                     .onAppear {
-                        if asset.id == model.libraryAssets.last?.id {
+                        if asset.id == assets.last?.id {
                             Task { await model.loadMoreLibraryAssets() }
                         }
                     }
@@ -196,7 +199,7 @@ struct AssetBrowserView: View {
             return .handled
         case " ":
             if selectedAssetIDs.count == 1, let selectedID = selectedAssetIDs.first {
-                previewAsset = model.libraryAssets.first(where: { $0.id == selectedID })
+                previewAsset = assets.first(where: { $0.id == selectedID })
                 return .handled
             }
             return .ignored
@@ -300,6 +303,7 @@ private enum DateScope: String, CaseIterable, Identifiable {
 private struct AssetThumbnailCell: View {
     let asset: LibraryAssetRecord
     let selected: Bool
+    let groupedRAWPair: Bool
     let displaySize: CGFloat
     let thumbnailPixelSize: Int
     @ObservedObject var model: ApplicationModel
@@ -329,6 +333,7 @@ private struct AssetThumbnailCell: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
                 HStack(spacing: 4) {
+                    if groupedRAWPair { Label("RAW+JPEG", systemImage: "rectangle.stack") }
                     if asset.flag == .pick { Image(systemName: "flag.fill") }
                     if asset.flag == .reject { Image(systemName: "flag.slash.fill") }
                     if asset.availability != .available { Image(systemName: "externaldrive.badge.xmark") }
@@ -366,6 +371,6 @@ private struct AssetThumbnailCell: View {
             image = NSImage(data: data)
         }
         .accessibilityLabel(asset.filename)
-        .accessibilityValue(selected ? "已选择" : "")
+        .accessibilityValue([selected ? "已选择" : nil, groupedRAWPair ? "RAW 与 JPEG 组合" : nil].compactMap { $0 }.joined(separator: "，"))
     }
 }

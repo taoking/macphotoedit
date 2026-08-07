@@ -13,6 +13,8 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
     case metadataExtractionFailed(path: String)
     case mediaRootNotFound(id: UUID)
     case invalidLUT(message: String)
+    case rawDecodingFailed(path: String)
+    case exportFailed(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -40,6 +42,10 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
             return "找不到媒体根目录：\(id.uuidString)"
         case .invalidLUT(let message):
             return "无效的 LUT：\(message)"
+        case .rawDecodingFailed(let path):
+            return "无法使用系统 RAW 解码器读取：\(path)"
+        case .exportFailed(let message):
+            return "无法导出媒体：\(message)"
         }
     }
 }

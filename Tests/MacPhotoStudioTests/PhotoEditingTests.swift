@@ -48,13 +48,20 @@ final class PhotoEditingTests: XCTestCase {
         state.hsl[.blue] = HSLAdjustment(hue: 0.3, saturation: -0.15, luminance: 0.2)
         state.curves[.red] = [CurvePoint(x: 0, y: 0.1), CurvePoint(x: 0.5, y: 0.65), CurvePoint(x: 1, y: 1)]
         try await firstStore.savePhotoEditState(state, for: asset.id)
+        var rawState = RAWEditState.identity
+        rawState.exposure = 0.75
+        rawState.temperature = 5_600
+        rawState.lensCorrectionEnabled = true
+        try await firstStore.saveRawEditState(rawState, for: asset.id)
 
         let reopenedStore = CatalogStore(databaseURL: paths.catalogDatabaseURL)
         try await reopenedStore.bootstrap()
         let version = try await reopenedStore.currentSchemaVersion()
         let restoredState = try await reopenedStore.photoEditState(for: asset.id)
-        XCTAssertEqual(version, 5)
+        XCTAssertEqual(version, 6)
         XCTAssertEqual(restoredState, state)
+        let restoredRAWState = try await reopenedStore.rawEditState(for: asset.id)
+        XCTAssertEqual(restoredRAWState, rawState)
     }
 
     func testCubeParserAcceptsIdentity17And33AndRejectsBadData() throws {
@@ -142,6 +149,43 @@ final class PhotoEditingTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sourceURL), originalData)
     }
 
+    func testRAWJPEGPairingMatchesOnlySameRootFolderAndStem() {
+        let rootID = UUID()
+        let alternateRootID = UUID()
+        let raw = libraryAsset(id: UUID(), rootID: rootID, relativePath: "DCIM/DSC00123.ARW")
+        let jpeg = libraryAsset(id: UUID(), rootID: rootID, relativePath: "DCIM/dsc00123.JPG")
+        let unrelatedFolderJPEG = libraryAsset(id: UUID(), rootID: rootID, relativePath: "Exports/DSC00123.JPG")
+        let unrelatedRootJPEG = libraryAsset(id: UUID(), rootID: alternateRootID, relativePath: "DCIM/DSC00123.JPG")
+        let ordinaryPhoto = libraryAsset(id: UUID(), rootID: rootID, relativePath: "DCIM/DSC00124.JPG")
+        let assets = [raw, jpeg, unrelatedFolderJPEG, unrelatedRootJPEG, ordinaryPhoto]
+
+        XCTAssertEqual(RAWJPEGPairing.visibleAssets(from: assets, preference: .showBoth).map(\.id), assets.map(\.id))
+        XCTAssertEqual(
+            RAWJPEGPairing.visibleAssets(from: assets, preference: .groupPairs).map(\.id),
+            [raw, unrelatedFolderJPEG, unrelatedRootJPEG, ordinaryPhoto].map(\.id)
+        )
+        XCTAssertEqual(
+            RAWJPEGPairing.visibleAssets(from: assets, preference: .preferRAW).map(\.id),
+            [raw, unrelatedFolderJPEG, unrelatedRootJPEG, ordinaryPhoto].map(\.id)
+        )
+        XCTAssertEqual(RAWJPEGPairing.pairedRAWAssetIDs(in: assets), [raw.id])
+        XCTAssertEqual(RAWJPEGPairing.pairedJPEGAssetIDs(in: assets), [jpeg.id])
+    }
+
+    func testImageFileExporterWritesNewJPEGHEIFAndTIFFFiles() throws {
+        let image = CIImage(color: CIColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 12, height: 8))
+        let context = CIContext(options: [.useSoftwareRenderer: true])
+        for format in RAWExportFormat.allCases {
+            let destination = temporaryDirectory.appending(path: "export.\(format.filenameExtension)")
+            try ImageFileExporter.write(image: image, context: context, to: destination, format: format)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
+            XCTAssertGreaterThan(try Data(contentsOf: destination).count, 0)
+            let source = try XCTUnwrap(CGImageSourceCreateWithURL(destination as CFURL, nil))
+            XCTAssertEqual(CGImageSourceGetType(source) as String?, format.contentType.identifier)
+        }
+    }
+
     private func identityCubeData(dimension: Int) -> Data {
         var lines = ["TITLE \"Identity \(dimension)\"", "LUT_3D_SIZE \(dimension)", "DOMAIN_MIN 0 0 0", "DOMAIN_MAX 1 1 1"]
         for blue in 0..<dimension {
@@ -185,5 +229,19 @@ final class PhotoEditingTests: XCTestCase {
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { throw StudioError.metadataExtractionFailed(path: "test fixture") }
         return result as Data
+    }
+
+    private func libraryAsset(id: UUID, rootID: UUID, relativePath: String) -> LibraryAssetRecord {
+        let fileExtension = URL(filePath: relativePath).pathExtension.lowercased()
+        return LibraryAssetRecord(
+            id: id, rootID: rootID, rootDisplayName: "Test root", rootPath: "/test",
+            relativePath: relativePath, mediaType: .photo, fileExtension: fileExtension,
+            fileSize: 1, createdAt: nil, modifiedAt: nil, availability: .available,
+            metadataState: .available, rating: 0, flag: .unflagged, width: nil, height: nil,
+            captureDate: nil, cameraMake: nil, cameraModel: nil, lensModel: nil,
+            focalLength: nil, aperture: nil, shutterSpeed: nil, iso: nil, orientation: nil,
+            colorProfile: nil, gpsLatitude: nil, gpsLongitude: nil, duration: nil,
+            frameRate: nil, codec: nil, videoCreationDate: nil
+        )
     }
 }

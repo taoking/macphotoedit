@@ -13,6 +13,7 @@ struct LibrarySidebar: View {
     let editTag: (TagRecord) -> Void
     let deleteTag: (TagRecord) -> Void
     let rescanRoot: (UUID) -> Void
+    @Binding var rawJPEGPairPreference: String
 
     var body: some View {
         List {
@@ -85,6 +86,15 @@ struct LibrarySidebar: View {
                 sidebarButton("已拒绝", systemImage: "flag.slash.fill", selected: query.flag == .reject) {
                     selectFlag(.reject)
                 }
+            }
+
+            Section("RAW + JPEG") {
+                Picker("显示方式", selection: $rawJPEGPairPreference) {
+                    ForEach(RAWJPEGPairPreference.allCases, id: \.rawValue) { preference in
+                        Text(preference.title).tag(preference.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
             }
 
             Section {

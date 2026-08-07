@@ -76,11 +76,165 @@ actor ExportRenderer {
     }
 }
 
+struct RAWRenderResult: Sendable {
+    let render: PhotoRenderResult
+    let capabilities: RAWCapabilities
+}
+
+enum RAWExportFormat: String, CaseIterable, Sendable, Identifiable {
+    case jpeg
+    case heif
+    case tiff
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .jpeg: "JPEG"
+        case .heif: "HEIF（HEIC）"
+        case .tiff: "TIFF"
+        }
+    }
+
+    var filenameExtension: String { self == .heif ? "heic" : rawValue }
+
+    var contentType: UTType {
+        switch self {
+        case .jpeg: .jpeg
+        // ImageIO exposes its writable HEIF implementation as public.heic.
+        // HEIC is the HEIF still-image profile used by macOS.
+        case .heif: .heic
+        case .tiff: .tiff
+        }
+    }
+
+    var isSupported: Bool {
+        let supportedTypes = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        return supportedTypes.contains(contentType.identifier)
+    }
+}
+
+/// Encodes a rendered image directly to a newly selected destination. It never
+/// writes beside, replaces, or otherwise changes the referenced source media.
+enum ImageFileExporter {
+    static func write(
+        image: CIImage,
+        context: CIContext,
+        to destinationURL: URL,
+        format: RAWExportFormat,
+        quality: Double = 0.92
+    ) throws {
+        try Task.checkCancellation()
+        guard format.isSupported else {
+            throw StudioError.exportFailed(message: "系统不支持 \(format.title) 编码。")
+        }
+        guard !FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false)) else {
+            throw StudioError.exportFailed(message: "目标文件已存在：\(destinationURL.lastPathComponent)")
+        }
+        let extent = image.extent.integral
+        guard !extent.isEmpty, let cgImage = context.createCGImage(image, from: extent) else {
+            throw StudioError.exportFailed(message: "无法生成输出图像。")
+        }
+        guard let destination = CGImageDestinationCreateWithURL(
+            destinationURL as CFURL,
+            format.contentType.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw StudioError.exportFailed(message: "系统不支持 \(format.title) 编码。")
+        }
+        var properties: [CFString: Any] = [:]
+        if format == .jpeg || format == .heif {
+            properties[kCGImageDestinationLossyCompressionQuality] = min(max(quality, 0), 1)
+        }
+        CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw StudioError.exportFailed(message: "无法写入 \(destinationURL.lastPathComponent)。")
+        }
+    }
+}
+
+/// Decodes RAW once through `CIRAWFilter`, then hands the result to the same
+/// standard photo pipeline used by JPEG/HEIC. Preview uses draft/scaled RAW;
+/// export always restarts the RAW decode at full resolution.
+actor RAWPreviewRenderer {
+    private let renderer = PreviewRenderer()
+
+    func render(
+        sourceURL: URL,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        lut: CubeLUT?,
+        maximumPixelSize: Int = 2_048
+    ) async throws -> RAWRenderResult {
+        try Task.checkCancellation()
+        let decoded = try RAWImagePipeline.decode(
+            sourceURL: sourceURL,
+            state: rawState,
+            maximumPixelSize: maximumPixelSize,
+            draft: true
+        )
+        try Task.checkCancellation()
+        let render = try await renderer.render(
+            source: decoded.image,
+            state: photoState,
+            lut: lut,
+            maximumPixelSize: maximumPixelSize
+        )
+        return RAWRenderResult(render: render, capabilities: decoded.capabilities)
+    }
+}
+
+actor RAWExportRenderer {
+    private let renderer = ExportRenderer()
+    private let context = RendererContextFactory.makeContext()
+
+    func render(
+        sourceURL: URL,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        lut: CubeLUT?
+    ) async throws -> RAWRenderResult {
+        try Task.checkCancellation()
+        let decoded = try RAWImagePipeline.decode(
+            sourceURL: sourceURL,
+            state: rawState,
+            maximumPixelSize: nil,
+            draft: false
+        )
+        try Task.checkCancellation()
+        let render = try await renderer.render(source: decoded.image, state: photoState, lut: lut)
+        return RAWRenderResult(render: render, capabilities: decoded.capabilities)
+    }
+
+    func export(
+        sourceURL: URL,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        lut: CubeLUT?,
+        destinationURL: URL,
+        format: RAWExportFormat
+    ) throws {
+        try Task.checkCancellation()
+        let decoded = try RAWImagePipeline.decode(
+            sourceURL: sourceURL,
+            state: rawState,
+            maximumPixelSize: nil,
+            draft: false
+        )
+        try Task.checkCancellation()
+        let output = PhotoImagePipeline.apply(photoState, to: decoded.image, lut: lut)
+        try ImageFileExporter.write(image: output, context: context, to: destinationURL, format: format)
+    }
+}
+
 actor PhotoEditingService {
     private let catalogStore: CatalogStore
     private let mediaRootStore: MediaRootStore
     private let previewRenderer: PreviewRenderer
     private let exportRenderer: ExportRenderer
+    private let rawPreviewRenderer: RAWPreviewRenderer
+    private let rawExportRenderer: RAWExportRenderer
     private let lutRepository: LUTRepository
 
     init(
@@ -88,12 +242,16 @@ actor PhotoEditingService {
         mediaRootStore: MediaRootStore,
         previewRenderer: PreviewRenderer = PreviewRenderer(),
         exportRenderer: ExportRenderer = ExportRenderer(),
+        rawPreviewRenderer: RAWPreviewRenderer = RAWPreviewRenderer(),
+        rawExportRenderer: RAWExportRenderer = RAWExportRenderer(),
         lutRepository: LUTRepository
     ) {
         self.catalogStore = catalogStore
         self.mediaRootStore = mediaRootStore
         self.previewRenderer = previewRenderer
         self.exportRenderer = exportRenderer
+        self.rawPreviewRenderer = rawPreviewRenderer
+        self.rawExportRenderer = rawExportRenderer
         self.lutRepository = lutRepository
     }
 
@@ -103,6 +261,14 @@ actor PhotoEditingService {
 
     func save(_ state: PhotoEditState, for assetID: UUID) async throws {
         try await catalogStore.savePhotoEditState(state, for: assetID)
+    }
+
+    func rawEditState(for assetID: UUID) async throws -> RAWEditState {
+        try await catalogStore.rawEditState(for: assetID) ?? .identity
+    }
+
+    func saveRaw(_ state: RAWEditState, for assetID: UUID) async throws {
+        try await catalogStore.saveRawEditState(state, for: assetID)
     }
 
     func lutLibrary() async throws -> LUTLibrary { try await lutRepository.library() }
@@ -117,6 +283,51 @@ actor PhotoEditingService {
 
     func renderExport(for asset: LibraryAssetRecord, state: PhotoEditState) async throws -> PhotoRenderResult {
         try await render(for: asset, state: state, maximumPixelSize: nil, preview: false)
+    }
+
+    func renderRAWPreview(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        maximumPixelSize: Int
+    ) async throws -> RAWRenderResult {
+        try await renderRAW(for: asset, rawState: rawState, photoState: photoState, maximumPixelSize: maximumPixelSize)
+    }
+
+    func renderRAWExport(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState
+    ) async throws -> RAWRenderResult {
+        try await renderRAW(for: asset, rawState: rawState, photoState: photoState, maximumPixelSize: nil)
+    }
+
+    func exportRAW(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        destinationURL: URL,
+        format: RAWExportFormat
+    ) async throws {
+        guard RAWFormat.isRAW(asset.fileExtension) else {
+            throw StudioError.rawDecodingFailed(path: asset.relativePath)
+        }
+        guard let root = try await catalogStore.mediaRoot(id: asset.rootID) else {
+            throw StudioError.mediaRootNotFound(id: asset.rootID)
+        }
+        let resolved = try await mediaRootStore.resolve(root)
+        let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
+        let selectedLUT = try await selectedLUT(for: photoState)
+        try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
+            try await self.rawExportRenderer.export(
+                sourceURL: sourceURL,
+                rawState: rawState,
+                photoState: photoState,
+                lut: selectedLUT,
+                destinationURL: destinationURL,
+                format: format
+            )
+        }
     }
 
     private func render(
@@ -150,6 +361,39 @@ actor PhotoEditingService {
             }
             return try await self.exportRenderer.render(sourceURL: sourceURL, state: state, lut: selectedLUT)
         }
+    }
+
+    private func renderRAW(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        maximumPixelSize: Int?
+    ) async throws -> RAWRenderResult {
+        guard RAWFormat.isRAW(asset.fileExtension) else {
+            throw StudioError.rawDecodingFailed(path: asset.relativePath)
+        }
+        guard let root = try await catalogStore.mediaRoot(id: asset.rootID) else {
+            throw StudioError.mediaRootNotFound(id: asset.rootID)
+        }
+        let resolved = try await mediaRootStore.resolve(root)
+        let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
+        let selectedLUT = try await selectedLUT(for: photoState)
+        return try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
+            if let maximumPixelSize {
+                return try await self.rawPreviewRenderer.render(
+                    sourceURL: sourceURL, rawState: rawState, photoState: photoState,
+                    lut: selectedLUT, maximumPixelSize: maximumPixelSize
+                )
+            }
+            return try await self.rawExportRenderer.render(
+                sourceURL: sourceURL, rawState: rawState, photoState: photoState, lut: selectedLUT
+            )
+        }
+    }
+
+    private func selectedLUT(for state: PhotoEditState) async throws -> CubeLUT? {
+        guard let application = state.lut else { return nil }
+        return try await lutRepository.lut(identifier: application.identifier)
     }
 }
 

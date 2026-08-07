@@ -11,6 +11,7 @@
 		01F5660411AFF757B419984B /* PhotoEditState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9682F4368FE59D124D1D17 /* PhotoEditState.swift */; };
 		0A976276A612EDABEAFCFB1E /* ThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */; };
 		0DA2AAFE91A2C30C21398B3A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */; };
+		1E5172512057B74B41A94AAF /* RAWEditState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */; };
 		238C42EF7EA4BA35AD57F9BD /* LibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F86F312851CF430251B8EEA /* LibrarySidebar.swift */; };
 		2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */; };
 		37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */; };
@@ -18,11 +19,14 @@
 		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
 		574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */; };
 		61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */; };
+		6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */; };
 		636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */; };
+		6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */; };
 		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
 		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
 		8355B475E67A478EEE96C013 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498BC16F3DE7AC336BA0153A /* CatalogModels.swift */; };
 		93182D4623D9E7A5F524457F /* PhotoEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075B4115D6DDB1C4F4FFA86C /* PhotoEditingTests.swift */; };
+		947ABC884FCF60218AEA81BB /* RAWImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */; };
 		96EEA8E33AAC98AD7D05C9B7 /* MediaScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */; };
 		9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */; };
 		A13F2F03A8A014501652E4DA /* PhotoImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */; };
@@ -57,11 +61,13 @@
 
 /* Begin PBXFileReference section */
 		075B4115D6DDB1C4F4FFA86C /* PhotoEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditingTests.swift; sourceTree = "<group>"; };
+		0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWPhotoEditorView.swift; sourceTree = "<group>"; };
 		0D77333C1FDB8A7645A978F7 /* StudioError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioError.swift; sourceTree = "<group>"; };
 		1078ECBFC236980C141969F6 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
 		12DE618A1E61690F787BD47B /* LUTRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTRepository.swift; sourceTree = "<group>"; };
 		163BA7295CE105D80B837A91 /* CatalogPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPaths.swift; sourceTree = "<group>"; };
 		1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogIndexingTests.swift; sourceTree = "<group>"; };
+		1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWEditState.swift; sourceTree = "<group>"; };
 		22D96CB051B42A5C5A85F23C /* CubeLUT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CubeLUT.swift; sourceTree = "<group>"; };
 		2325DD61230BAF602472DE97 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
 		2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImagePipeline.swift; sourceTree = "<group>"; };
@@ -76,6 +82,8 @@
 		67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationModel.swift; sourceTree = "<group>"; };
 		714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
 		78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoStudioApp.swift; sourceTree = "<group>"; };
+		828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWJPEGPairing.swift; sourceTree = "<group>"; };
+		894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWImagePipeline.swift; sourceTree = "<group>"; };
 		9F7A4D7504F84F852D9D9998 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		9F86F312851CF430251B8EEA /* LibrarySidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebar.swift; sourceTree = "<group>"; };
 		AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoaderTests.swift; sourceTree = "<group>"; };
@@ -189,6 +197,7 @@
 			isa = PBXGroup;
 			children = (
 				F8B675C1906F7A568C2C1BE2 /* PhotoEditorView.swift */,
+				0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */,
 			);
 			path = PhotoEditor;
 			sourceTree = "<group>";
@@ -201,6 +210,16 @@
 				CCFA2A76F34BD1613E82D401 /* PhotoRenderers.swift */,
 			);
 			path = Imaging;
+			sourceTree = "<group>";
+		};
+		A8C5F7AC429DC2A7B0C52BC9 /* RAW */ = {
+			isa = PBXGroup;
+			children = (
+				1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */,
+				894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */,
+				828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */,
+			);
+			path = RAW;
 			sourceTree = "<group>";
 		};
 		AC43840B308DA4BE8ED1D0C0 /* Tasks */ = {
@@ -284,6 +303,7 @@
 				E311746184976C44D68816B1 /* Logging */,
 				B5BD458AFB294B9F932D4724 /* LUT */,
 				F9D5FC7996FD9840A00A4454 /* Metadata */,
+				A8C5F7AC429DC2A7B0C52BC9 /* RAW */,
 				AC43840B308DA4BE8ED1D0C0 /* Tasks */,
 				FCBAE7A6E307C744290B789F /* Thumbnail */,
 			);
@@ -396,6 +416,10 @@
 				EAEA6DCAFCE2CA9EDBCA0E72 /* PhotoEditorView.swift in Sources */,
 				A13F2F03A8A014501652E4DA /* PhotoImagePipeline.swift in Sources */,
 				DBA26510024E937870AC7621 /* PhotoRenderers.swift in Sources */,
+				1E5172512057B74B41A94AAF /* RAWEditState.swift in Sources */,
+				947ABC884FCF60218AEA81BB /* RAWImagePipeline.swift in Sources */,
+				6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */,
+				6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */,
 				CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */,
 				DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */,
 				C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */,

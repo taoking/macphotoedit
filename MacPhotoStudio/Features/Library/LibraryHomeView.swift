@@ -5,6 +5,7 @@ struct LibraryHomeView: View {
     @ObservedObject var model: ApplicationModel
 
     @AppStorage("library.showsInspector") private var showsInspector = true
+    @AppStorage("library.rawJPEGPairPreference") private var rawJPEGPairPreferenceRaw = RAWJPEGPairPreference.showBoth.rawValue
     @State private var query = LibraryQuery.all
     @State private var selectedAssetIDs: Set<UUID> = []
     @State private var selectionAnchor: UUID?
@@ -49,6 +50,12 @@ struct LibraryHomeView: View {
                 Task { await model.loadTags(for: selectedAssetIDs.first) }
             }
         }
+        .onChange(of: rawJPEGPairPreferenceRaw) { _, _ in
+            selectedAssetIDs.formIntersection(Set(visibleLibraryAssets.map(\.id)))
+            if selectedAssetIDs.count != 1 {
+                Task { await model.loadTags(for: nil) }
+            }
+        }
         .sheet(item: $tagEditor) { context in
             TagEditorSheet(context: context, model: model)
         }
@@ -71,12 +78,15 @@ struct LibraryHomeView: View {
                 addTag: { tagEditor = TagEditorContext(tag: nil) },
                 editTag: { tagEditor = TagEditorContext(tag: $0) },
                 deleteTag: { tag in Task { await model.deleteTag(tag) } },
-                rescanRoot: { rootID in Task { await model.startScan(for: rootID) } }
+                rescanRoot: { rootID in Task { await model.startScan(for: rootID) } },
+                rawJPEGPairPreference: $rawJPEGPairPreferenceRaw
             )
             .frame(minWidth: 185, idealWidth: 230, maxWidth: 300)
 
             AssetBrowserView(
                 model: model,
+                assets: visibleLibraryAssets,
+                groupedRAWAssetIDs: rawJPEGPairPreference == .groupPairs ? RAWJPEGPairing.pairedRAWAssetIDs(in: model.libraryAssets) : [],
                 query: $query,
                 selectedAssetIDs: $selectedAssetIDs,
                 selectionAnchor: $selectionAnchor,
@@ -128,6 +138,14 @@ struct LibraryHomeView: View {
         return model.libraryAssets.first(where: { $0.id == assetID })
     }
 
+    private var rawJPEGPairPreference: RAWJPEGPairPreference {
+        RAWJPEGPairPreference(rawValue: rawJPEGPairPreferenceRaw) ?? .showBoth
+    }
+
+    private var visibleLibraryAssets: [LibraryAssetRecord] {
+        RAWJPEGPairing.visibleAssets(from: model.libraryAssets, preference: rawJPEGPairPreference)
+    }
+
     private func updateQuery(_ change: (inout LibraryQuery) -> Void) {
         var updated = query
         change(&updated)
@@ -136,13 +154,14 @@ struct LibraryHomeView: View {
 
     private func select(_ assetID: UUID, modifiers: NSEvent.ModifierFlags) {
         let normalizedModifiers = modifiers.intersection(.deviceIndependentFlagsMask)
-        guard let selectedIndex = model.libraryAssets.firstIndex(where: { $0.id == assetID }) else { return }
+        let assets = visibleLibraryAssets
+        guard let selectedIndex = assets.firstIndex(where: { $0.id == assetID }) else { return }
 
         if normalizedModifiers.contains(.shift), let selectionAnchor,
-           let anchorIndex = model.libraryAssets.firstIndex(where: { $0.id == selectionAnchor }) {
+           let anchorIndex = assets.firstIndex(where: { $0.id == selectionAnchor }) {
             let lower = min(anchorIndex, selectedIndex)
             let upper = max(anchorIndex, selectedIndex)
-            selectedAssetIDs = Set(model.libraryAssets[lower...upper].map(\.id))
+            selectedAssetIDs = Set(assets[lower...upper].map(\.id))
         } else if normalizedModifiers.contains(.command) {
             if selectedAssetIDs.contains(assetID) {
                 selectedAssetIDs.remove(assetID)
@@ -159,10 +178,11 @@ struct LibraryHomeView: View {
     }
 
     private func moveSelection(by offset: Int) {
-        guard !model.libraryAssets.isEmpty else { return }
-        let currentIndex = selectionAnchor.flatMap { id in model.libraryAssets.firstIndex(where: { $0.id == id }) } ?? 0
-        let nextIndex = min(max(0, currentIndex + offset), model.libraryAssets.count - 1)
-        let nextID = model.libraryAssets[nextIndex].id
+        let assets = visibleLibraryAssets
+        guard !assets.isEmpty else { return }
+        let currentIndex = selectionAnchor.flatMap { id in assets.firstIndex(where: { $0.id == id }) } ?? 0
+        let nextIndex = min(max(0, currentIndex + offset), assets.count - 1)
+        let nextID = assets[nextIndex].id
         selectedAssetIDs = [nextID]
         selectionAnchor = nextID
         Task { await model.loadTags(for: nextID) }
@@ -240,6 +260,7 @@ private struct AssetPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var image: NSImage?
     @State private var editorAsset: LibraryAssetRecord?
+    @State private var rawEditorAsset: LibraryAssetRecord?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -248,7 +269,9 @@ private struct AssetPreviewSheet: View {
                     .lineLimit(1)
                 Spacer()
                 if asset.mediaType == .photo {
-                    Button("编辑") { editorAsset = asset }
+                    Button("编辑") {
+                        if RAWFormat.isRAW(asset.fileExtension) { rawEditorAsset = asset } else { editorAsset = asset }
+                    }
                 }
                 Button("完成") { dismiss() }
             }
@@ -276,6 +299,9 @@ private struct AssetPreviewSheet: View {
         }
         .sheet(item: $editorAsset) { editorAsset in
             PhotoEditorView(asset: editorAsset, model: model)
+        }
+        .sheet(item: $rawEditorAsset) { rawEditorAsset in
+            RAWPhotoEditorView(asset: rawEditorAsset, model: model)
         }
     }
 }

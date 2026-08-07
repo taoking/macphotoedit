@@ -317,6 +317,27 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
+    func rawEditState(for assetID: UUID) async -> RAWEditState? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.rawEditState(for: assetID)
+        } catch {
+            report(error, activity: "Loading RAW edit state")
+            return nil
+        }
+    }
+
+    func saveRAWEditState(_ state: RAWEditState, for assetID: UUID) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.saveRaw(state, for: assetID)
+            return true
+        } catch {
+            report(error, activity: "Saving RAW edit state")
+            return false
+        }
+    }
+
     func renderPhotoPreview(
         for asset: LibraryAssetRecord,
         state: PhotoEditState,
@@ -334,6 +355,50 @@ final class ApplicationModel: ObservableObject {
         } catch {
             report(error, activity: "Rendering photo preview")
             return nil
+        }
+    }
+
+    func renderRAWPreview(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        maximumPixelSize: Int = 2_048
+    ) async -> RAWRenderResult? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.renderRAWPreview(
+                for: asset, rawState: rawState, photoState: photoState, maximumPixelSize: maximumPixelSize
+            )
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(error, activity: "Rendering RAW preview")
+            return nil
+        }
+    }
+
+    func exportRAW(
+        for asset: LibraryAssetRecord,
+        rawState: RAWEditState,
+        photoState: PhotoEditState,
+        destinationURL: URL,
+        format: RAWExportFormat
+    ) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.exportRAW(
+                for: asset,
+                rawState: rawState,
+                photoState: photoState,
+                destinationURL: destinationURL,
+                format: format
+            )
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            report(error, activity: "Exporting RAW")
+            return false
         }
     }
 

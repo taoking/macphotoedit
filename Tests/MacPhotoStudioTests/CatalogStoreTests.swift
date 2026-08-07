@@ -22,7 +22,7 @@ final class CatalogStoreTests: XCTestCase {
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: paths.catalogDatabaseURL.path(percentEncoded: false)))
         let version = try await store.currentSchemaVersion()
-        XCTAssertEqual(version, 5)
+        XCTAssertEqual(version, 6)
     }
 
     func testBootstrapIsIdempotent() async throws {
@@ -34,6 +34,6 @@ final class CatalogStoreTests: XCTestCase {
         try await secondStore.bootstrap()
 
         let version = try await secondStore.currentSchemaVersion()
-        XCTAssertEqual(version, 5)
+        XCTAssertEqual(version, 6)
     }
 }
