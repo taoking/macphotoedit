@@ -58,7 +58,7 @@ final class PhotoEditingTests: XCTestCase {
         try await reopenedStore.bootstrap()
         let version = try await reopenedStore.currentSchemaVersion()
         let restoredState = try await reopenedStore.photoEditState(for: asset.id)
-        XCTAssertEqual(version, 8)
+        XCTAssertEqual(version, 9)
         XCTAssertEqual(restoredState, state)
         let restoredRAWState = try await reopenedStore.rawEditState(for: asset.id)
         XCTAssertEqual(restoredRAWState, rawState)
@@ -469,7 +469,9 @@ final class PhotoEditingTests: XCTestCase {
             captureDate: nil, cameraMake: nil, cameraModel: nil, lensModel: nil,
             focalLength: nil, aperture: nil, shutterSpeed: nil, iso: nil, orientation: nil,
             colorProfile: nil, gpsLatitude: nil, gpsLongitude: nil, duration: nil,
-            frameRate: nil, codec: nil, videoCreationDate: nil
+            frameRate: nil, codec: nil, videoCreationDate: nil, audioTrackCount: nil,
+            videoColorPrimaries: nil, videoTransferFunction: nil, videoYCbCrMatrix: nil,
+            videoIsHDR: nil
         )
     }
 }

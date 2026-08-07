@@ -39,12 +39,23 @@ final class LibraryCatalogTests: XCTestCase {
             duration: 8,
             frameRate: 30,
             codec: "hvc1",
-            creationDate: date
+            creationDate: date,
+            audioTrackCount: 2,
+            colorPrimaries: "ITU_R_2020",
+            transferFunction: "SMPTE_ST_2084_PQ",
+            yCbCrMatrix: "ITU_R_2020",
+            isHDR: true
         )))
         try await scan([photo, video], root: root, store: store)
 
         let initialAssets = try await store.libraryAssets(query: .all, limit: 10, offset: 0)
         let photoRecord = try XCTUnwrap(initialAssets.first(where: { $0.relativePath == photo.relativePath }))
+        let videoRecord = try XCTUnwrap(initialAssets.first(where: { $0.relativePath == video.relativePath }))
+        XCTAssertEqual(videoRecord.audioTrackCount, 2)
+        XCTAssertEqual(videoRecord.videoColorPrimaries, "ITU_R_2020")
+        XCTAssertEqual(videoRecord.videoTransferFunction, "SMPTE_ST_2084_PQ")
+        XCTAssertEqual(videoRecord.videoYCbCrMatrix, "ITU_R_2020")
+        XCTAssertEqual(videoRecord.videoIsHDR, true)
         try await store.updateRating(5, for: [photoRecord.id])
         try await store.updateFlag(.pick, for: [photoRecord.id])
         let tag = try await store.createTag(named: "星空")

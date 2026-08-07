@@ -92,6 +92,11 @@ struct VideoMetadata: Sendable, Equatable {
     var frameRate: Double?
     var codec: String?
     var creationDate: Date?
+    var audioTrackCount: Int? = nil
+    var colorPrimaries: String? = nil
+    var transferFunction: String? = nil
+    var yCbCrMatrix: String? = nil
+    var isHDR: Bool? = nil
 }
 
 enum ExtractedMetadata: Sendable, Equatable {
@@ -276,6 +281,11 @@ struct LibraryAssetRecord: Identifiable, Sendable, Equatable {
     let frameRate: Double?
     let codec: String?
     let videoCreationDate: Date?
+    let audioTrackCount: Int?
+    let videoColorPrimaries: String?
+    let videoTransferFunction: String?
+    let videoYCbCrMatrix: String?
+    let videoIsHDR: Bool?
 
     var filename: String {
         URL(filePath: relativePath).lastPathComponent

@@ -557,6 +557,10 @@ private struct AssetThumbnailCell: View {
 
                 HStack(spacing: 4) {
                     if groupedRAWPair { Label("RAW+JPEG", systemImage: "rectangle.stack") }
+                    if asset.mediaType == .video, let duration = asset.duration {
+                        Text(videoDurationText(duration))
+                    }
+                    if asset.videoIsHDR == true { Text("HDR") }
                     if asset.flag == .pick { Image(systemName: "flag.fill") }
                     if asset.flag == .reject { Image(systemName: "flag.slash.fill") }
                     if asset.availability != .available { Image(systemName: "externaldrive.badge.xmark") }
@@ -595,5 +599,10 @@ private struct AssetThumbnailCell: View {
         }
         .accessibilityLabel(asset.filename)
         .accessibilityValue([selected ? "已选择" : nil, groupedRAWPair ? "RAW 与 JPEG 组合" : nil].compactMap { $0 }.joined(separator: "，"))
+    }
+
+    private func videoDurationText(_ duration: Double) -> String {
+        let seconds = max(0, Int(duration.rounded(.down)))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 }

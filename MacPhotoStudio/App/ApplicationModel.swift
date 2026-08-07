@@ -35,6 +35,7 @@ final class ApplicationModel: ObservableObject {
     private var mediaRootStore: MediaRootStore?
     private var scanCoordinator: ScanCoordinator?
     private var thumbnailLoader: ThumbnailLoader?
+    private var videoFilmstripLoader: VideoFilmstripLoader?
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
     private var duplicateScanner: ExactDuplicateScanner?
@@ -63,6 +64,10 @@ final class ApplicationModel: ObservableObject {
             self.scanCoordinator = scanCoordinator
             self.thumbnailLoader = ThumbnailLoader(
                 diskStore: ThumbnailStore(directoryURL: paths.thumbnailsDirectory),
+                mediaRootStore: mediaRootStore
+            )
+            self.videoFilmstripLoader = VideoFilmstripLoader(
+                diskStore: VideoFilmstripStore(directoryURL: paths.videoFilmstripsDirectory),
                 mediaRootStore: mediaRootStore
             )
             self.photoEditingService = PhotoEditingService(
@@ -256,6 +261,65 @@ final class ApplicationModel: ObservableObject {
             AppLogger.app.debug("Thumbnail unavailable for \(asset.relativePath, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    func videoFilmstripData(for asset: LibraryAssetRecord) async -> [Data]? {
+        guard let videoFilmstripLoader,
+              let root = mediaRoots.first(where: { $0.id == asset.rootID })
+        else { return nil }
+        do {
+            return try await videoFilmstripLoader.filmstripData(for: asset, root: root)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            AppLogger.app.debug("Filmstrip unavailable for \(asset.relativePath, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func makeVideoPlaybackSession(for asset: LibraryAssetRecord) async -> VideoPlaybackSession? {
+        guard asset.mediaType == .video else { return nil }
+        guard asset.availability == .available else {
+            libraryError = "视频当前不可访问。"
+            return nil
+        }
+        guard let mediaRootStore,
+              let root = mediaRoots.first(where: { $0.id == asset.rootID })
+        else { return nil }
+
+        do {
+            let resolvedRoot = try await mediaRootStore.resolve(root)
+            guard let sourceURL = safeMediaURL(for: asset, in: resolvedRoot.directoryURL) else {
+                libraryError = "视频路径无效，已拒绝在资料库根目录外打开。"
+                return nil
+            }
+            let exists = try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolvedRoot.directoryURL) {
+                FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false))
+            }
+            guard exists else {
+                libraryError = "找不到视频原文件。"
+                return nil
+            }
+            return VideoPlaybackSession(
+                sourceURL: sourceURL,
+                securityScopedRootURL: resolvedRoot.directoryURL,
+                duration: asset.duration,
+                frameRate: asset.frameRate
+            )
+        } catch {
+            report(error, activity: "Preparing video playback")
+            return nil
+        }
+    }
+
+    private func safeMediaURL(for asset: LibraryAssetRecord, in rootURL: URL) -> URL? {
+        let normalizedRoot = rootURL.standardizedFileURL
+        let sourceURL = normalizedRoot.appending(path: asset.relativePath).standardizedFileURL
+        let rootPath = normalizedRoot.path(percentEncoded: false).hasSuffix("/")
+            ? normalizedRoot.path(percentEncoded: false)
+            : normalizedRoot.path(percentEncoded: false) + "/"
+        guard sourceURL.path(percentEncoded: false).hasPrefix(rootPath) else { return nil }
+        return sourceURL
     }
 
     func setRating(_ rating: Int, for assetIDs: [UUID]) async {

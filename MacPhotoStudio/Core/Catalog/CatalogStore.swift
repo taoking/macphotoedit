@@ -249,7 +249,8 @@ actor CatalogStore {
                 p.width, p.height, p.capture_date, p.camera_make, p.camera_model,
                 p.lens_model, p.focal_length, p.aperture, p.shutter_speed, p.iso,
                 p.orientation, p.color_profile, p.gps_latitude, p.gps_longitude,
-                v.width, v.height, v.duration, v.frame_rate, v.codec, v.creation_date
+                v.width, v.height, v.duration, v.frame_rate, v.codec, v.creation_date,
+                v.audio_track_count, v.color_primaries, v.transfer_function, v.ycbcr_matrix, v.is_hdr
             FROM media_assets a
             JOIN media_roots r ON r.id = a.root_id
             LEFT JOIN photo_metadata p ON p.asset_id = a.id
@@ -777,15 +778,21 @@ actor CatalogStore {
         try connection.execute(
             """
             INSERT INTO video_metadata (
-                asset_id, width, height, duration, frame_rate, codec, creation_date
-            ) VALUES ((SELECT id FROM media_assets WHERE root_id = ? AND relative_path = ?), ?, ?, ?, ?, ?, ?)
+                asset_id, width, height, duration, frame_rate, codec, creation_date,
+                audio_track_count, color_primaries, transfer_function, ycbcr_matrix, is_hdr
+            ) VALUES ((SELECT id FROM media_assets WHERE root_id = ? AND relative_path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(asset_id) DO UPDATE SET
                 width = excluded.width, height = excluded.height, duration = excluded.duration,
-                frame_rate = excluded.frame_rate, codec = excluded.codec, creation_date = excluded.creation_date;
+                frame_rate = excluded.frame_rate, codec = excluded.codec, creation_date = excluded.creation_date,
+                audio_track_count = excluded.audio_track_count, color_primaries = excluded.color_primaries,
+                transfer_function = excluded.transfer_function, ycbcr_matrix = excluded.ycbcr_matrix,
+                is_hdr = excluded.is_hdr;
             """,
             bindings: assetIdentityBindings(for: asset) + [
                 sql(metadata.width), sql(metadata.height), sql(metadata.duration), sql(metadata.frameRate),
-                sql(metadata.codec), sql(metadata.creationDate)
+                sql(metadata.codec), sql(metadata.creationDate), sql(metadata.audioTrackCount),
+                sql(metadata.colorPrimaries), sql(metadata.transferFunction), sql(metadata.yCbCrMatrix),
+                metadata.isHDR.map { .integer($0 ? 1 : 0) } ?? .null
             ]
         )
     }
@@ -964,7 +971,9 @@ actor CatalogStore {
             orientation: row.integer(at: 24).map(Int.init), colorProfile: row.text(at: 25),
             gpsLatitude: row.real(at: 26), gpsLongitude: row.real(at: 27),
             duration: row.real(at: 30), frameRate: row.real(at: 31), codec: row.text(at: 32),
-            videoCreationDate: date(from: row.real(at: 33))
+            videoCreationDate: date(from: row.real(at: 33)), audioTrackCount: row.integer(at: 34).map(Int.init),
+            videoColorPrimaries: row.text(at: 35), videoTransferFunction: row.text(at: 36),
+            videoYCbCrMatrix: row.text(at: 37), videoIsHDR: row.integer(at: 38).map { $0 != 0 }
         )
     }
 

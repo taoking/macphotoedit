@@ -335,3 +335,46 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 7 color management hdr`
+
+## Phase 8
+
+Status:
+- COMPLETED
+
+Implemented:
+- Catalog v9 扩展 `video_metadata`：持久化并读取音轨数量、色彩原色、传递函数、YCbCr 矩阵与可检测 HDR 标记；既有 duration、codec、尺寸、帧率与创建日期保持兼容。
+- `MediaMetadataExtractor` 以 AVFoundation 读取视频/音频轨和首个视频 format description；只在 HLG、PQ/ST 2084 或 BT.2100 线索存在时标记 HDR，缺失元数据保持 unknown，绝不猜测。
+- 统一资料库 Inspector 与 Grid 视频卡片展示扩展元数据、时长和 HDR 标记；既有 All/Photos/RAW/Videos/Edited 筛选、评分、Flag、Tag、普通/智能 Album 复用同一真实 Catalog 路径。
+- 视频海报帧继续由 `AVAssetImageGenerator` 生成并进入现有缩略图缓存；新增五帧、可取消、逐帧容错的 AVFoundation 胶片条与 Application Support 缓存。缓存键包含文件大小和修改时间，重新扫描到源文件变化时不会复用旧帧。
+- 新增 `VideoPreviewSheet` 与 `VideoPlaybackSession`，使用系统 `AVPlayer`/`AVKit.VideoPlayer` 提供播放/暂停、精确 seek、按 Catalog 帧率逐帧前后移动、音量/静音、0.5×/1×/1.5×/2×速率和原生窗口全屏。会话只在预览期间持有 security-scoped root access，并拒绝根目录外路径。
+- 新增 [video-library.md](video-library.md)，明确元数据/HDR 检测、缓存、播放和 Phase 9 编辑边界。
+
+Tests:
+- `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 40 tests, 0 failures。覆盖 v9 migration、扩展视频元数据 Catalog 往返、资料库筛选/评分/Flag/Tag/Album 回归、胶片条采样、派生缓存持久化与源变更 cache-version 隔离，以及所有既有 Phase 0–7 测试。
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `** BUILD SUCCEEDED **`。
+
+Acceptance:
+- PASS — duration、codec、dimensions、frame rate、audio tracks、color properties 与 HDR indication 均由 AVFoundation 提取模型、SQLite v9 与 Inspector 实际路径保存/展示；持久化往返测试覆盖新增字段。
+- PASS — 视频使用 AVAssetImageGenerator 的真实海报缩略图路径；胶片条按时间轴采样、以 JPEG 派生缓存保存，并对源文件变更自动换用新缓存键，不复制原视频。
+- PASS — 视频双击/Space 预览会进入原生 AVPlayer 视图；代码提供 play/pause、seek、frame stepping、volume、fullscreen 与 playback rate，未使用 Web video player。
+- PASS — 视频仍由统一 LibraryQuery、Catalog 评分/Flag/Tag/Album 机制管理；Phase 9 的 trim、调色、LUT、合成和导出没有被提前伪实现。
+
+Regression:
+- PASS — 全量 40 项测试通过；Phase 0–7 的 Catalog、扫描、离线/书签、照片/RAW 编辑、LUT、预设/批量导出、相册/堆栈/重复检测、ColorSync/HDR still 路径均未回归。
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — 在用户授权的本地与外置盘真实 MOV/MP4/M4V（H.264、HEVC、含/不含音轨、不同帧率、旋转视频）上检查海报、五帧胶片条、播放/暂停、拖动、逐帧、音量、倍率、全屏和关闭预览后的权限释放。
+- MANUAL VERIFICATION REQUIRED — 使用真实 HLG/PQ/BT.2100 视频在实际 macOS 环境确认 AVFoundation 暴露的 color extensions 与 HDR 标记；本阶段的 HDR 仅为检测/显示，非 HDR 视频编辑或输出验证。
+- MANUAL VERIFICATION REQUIRED — 在实际 large/offline video library 中确认胶片条生成/磁盘缓存性能、断开外置卷后的缓存读取和受保护目录的 security-scoped bookmark 行为。
+
+Known Limitations:
+- HDR indication 依赖容器/轨道 format description 是否包含 AVFoundation 可见的颜色扩展；未带这些扩展的 HDR 文件会显示为 unknown，而不是被错误标为 SDR/HDR。
+- 胶片条是五张 JPEG 派生缓存，旧 cache-version 文件由应用缓存目录自然管理；不存储或修改任何原视频。
+- 视频 edit state、trim/crop/rotation/speed、LUT/调色、mute/audio gain、composition 和 H.264/HEVC export 均严格留待 Phase 9/10。
+
+Commit:
+- `feat: complete phase 8 video library`

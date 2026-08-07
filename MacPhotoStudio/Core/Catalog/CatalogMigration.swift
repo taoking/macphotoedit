@@ -283,6 +283,23 @@ enum CatalogMigrations {
                 CREATE INDEX IF NOT EXISTS asset_content_hashes_digest_index ON asset_content_hashes(algorithm, file_size, digest);
                 """
             )
+        },
+        CatalogMigration(version: 9, name: "addVideoLibraryMetadata") { connection in
+            if try !connection.hasColumn(named: "audio_track_count", inTable: "video_metadata") {
+                try connection.execute("ALTER TABLE video_metadata ADD COLUMN audio_track_count INTEGER;")
+            }
+            if try !connection.hasColumn(named: "color_primaries", inTable: "video_metadata") {
+                try connection.execute("ALTER TABLE video_metadata ADD COLUMN color_primaries TEXT;")
+            }
+            if try !connection.hasColumn(named: "transfer_function", inTable: "video_metadata") {
+                try connection.execute("ALTER TABLE video_metadata ADD COLUMN transfer_function TEXT;")
+            }
+            if try !connection.hasColumn(named: "ycbcr_matrix", inTable: "video_metadata") {
+                try connection.execute("ALTER TABLE video_metadata ADD COLUMN ycbcr_matrix TEXT;")
+            }
+            if try !connection.hasColumn(named: "is_hdr", inTable: "video_metadata") {
+                try connection.execute("ALTER TABLE video_metadata ADD COLUMN is_hdr INTEGER CHECK (is_hdr IN (0, 1));")
+            }
         }
     ]
 }

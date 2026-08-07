@@ -54,6 +54,7 @@ struct MediaMetadataExtractor: Sendable {
             creationDate = nil
         }
         let tracks = try await asset.loadTracks(withMediaType: .video)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         let videoTrack = tracks.first
 
         let naturalSize = try await videoTrack?.load(.naturalSize)
@@ -62,6 +63,7 @@ struct MediaMetadataExtractor: Sendable {
         let codec = formatDescriptions?.first.map { formatDescription in
             fourCharacterCode(CMFormatDescriptionGetMediaSubType(formatDescription))
         }
+        let colorProperties = formatDescriptions?.first.map(videoColorProperties)
 
         return VideoMetadata(
             width: naturalSize.map { Int(abs($0.width)) },
@@ -69,8 +71,33 @@ struct MediaMetadataExtractor: Sendable {
             duration: duration.isNumeric ? CMTimeGetSeconds(duration) : nil,
             frameRate: frameRate.map(Double.init),
             codec: codec,
-            creationDate: creationDate
+            creationDate: creationDate,
+            audioTrackCount: audioTracks.count,
+            colorPrimaries: colorProperties?.colorPrimaries,
+            transferFunction: colorProperties?.transferFunction,
+            yCbCrMatrix: colorProperties?.yCbCrMatrix,
+            isHDR: isHDR(transferFunction: colorProperties?.transferFunction, colorPrimaries: colorProperties?.colorPrimaries)
         )
+    }
+
+    private func videoColorProperties(_ formatDescription: CMFormatDescription) -> VideoColorProperties {
+        let extensions = (CMFormatDescriptionGetExtensions(formatDescription) as? [CFString: Any]) ?? [:]
+        return VideoColorProperties(
+            colorPrimaries: string(extensions[kCMFormatDescriptionExtension_ColorPrimaries]),
+            transferFunction: string(extensions[kCMFormatDescriptionExtension_TransferFunction]),
+            yCbCrMatrix: string(extensions[kCMFormatDescriptionExtension_YCbCrMatrix])
+        )
+    }
+
+    private func isHDR(transferFunction: String?, colorPrimaries: String?) -> Bool? {
+        guard transferFunction != nil || colorPrimaries != nil else { return nil }
+        let properties = [transferFunction, colorPrimaries]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        return properties.contains("hlg")
+            || properties.contains("2084")
+            || properties.contains("pq")
+            || properties.contains("2100")
     }
 
     private func number(_ value: Any?) -> Double? {
@@ -124,4 +151,10 @@ struct MediaMetadataExtractor: Sendable {
             ? String(format: "%08X", code)
             : text
     }
+}
+
+private struct VideoColorProperties: Sendable {
+    let colorPrimaries: String?
+    let transferFunction: String?
+    let yCbCrMatrix: String?
 }

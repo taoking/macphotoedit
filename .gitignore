@@ -16,6 +16,7 @@ catalog.sqlite
 catalog.sqlite-shm
 catalog.sqlite-wal
 thumbnails/
+video-filmstrips/
 previews/
 logs/
 

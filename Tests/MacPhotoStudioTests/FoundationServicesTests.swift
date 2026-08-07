@@ -19,6 +19,7 @@ final class FoundationServicesTests: XCTestCase {
         let expectedDirectories = [
             paths.catalogDirectory,
             paths.thumbnailsDirectory,
+            paths.videoFilmstripsDirectory,
             paths.previewsDirectory,
             paths.lutDirectory,
             paths.presetsDirectory,

@@ -64,7 +64,11 @@ struct LibraryHomeView: View {
             AlbumEditorSheet(context: context, model: model)
         }
         .sheet(item: $previewAsset) { asset in
-            AssetPreviewSheet(asset: asset, model: model)
+            if asset.mediaType == .video {
+                VideoPreviewSheet(asset: asset, applicationModel: model)
+            } else {
+                AssetPreviewSheet(asset: asset, model: model)
+            }
         }
     }
 

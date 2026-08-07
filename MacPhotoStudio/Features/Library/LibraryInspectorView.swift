@@ -149,6 +149,11 @@ struct LibraryInspectorView: View {
             if let duration = asset.duration { InspectorRow("时长", duration.formatted(.number.precision(.fractionLength(1))) + " 秒") }
             if let frameRate = asset.frameRate { InspectorRow("帧率", frameRate.formatted(.number.precision(.fractionLength(2))) + " fps") }
             if let codec = asset.codec { InspectorRow("Codec", codec) }
+            if let audioTrackCount = asset.audioTrackCount { InspectorRow("音轨", "\(audioTrackCount)") }
+            if let colorPrimaries = asset.videoColorPrimaries { InspectorRow("色彩原色", colorPrimaries) }
+            if let transferFunction = asset.videoTransferFunction { InspectorRow("传递函数", transferFunction) }
+            if let yCbCrMatrix = asset.videoYCbCrMatrix { InspectorRow("YCbCr 矩阵", yCbCrMatrix) }
+            if let videoIsHDR = asset.videoIsHDR { InspectorRow("HDR", videoIsHDR ? "是（检测到 HLG/PQ/BT.2100 标记）" : "否") }
         }
     }
 
