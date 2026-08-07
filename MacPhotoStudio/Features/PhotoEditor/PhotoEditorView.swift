@@ -88,6 +88,28 @@ final class PhotoEditorViewModel: ObservableObject {
         }
     }
 
+    func importTechnicalLUT(metadata: TechnicalLUTMetadata) {
+        let panel = NSOpenPanel()
+        panel.title = "导入 Technical .cube LUT"
+        panel.message = "必须声明 LUT 的输入与输出色彩空间；导入只复制已验证的 LUT，不会修改原始 .cube 文件。"
+        panel.prompt = "导入 Technical LUT"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "cube")!]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            guard let lut = await applicationModel.importLUT(
+                from: url,
+                kind: .technical,
+                technicalMetadata: metadata
+            ) else { return }
+            await reloadLUTs()
+            state.technicalLUT = LUTApplication(identifier: lut.id)
+            stateDidChange()
+        }
+    }
+
     func renameSelectedLUT(to title: String) async {
         guard let identifier = state.lut?.identifier,
               await applicationModel.renameLUT(identifier: identifier, to: title) else { return }
@@ -98,6 +120,14 @@ final class PhotoEditorViewModel: ObservableObject {
         guard let identifier = state.lut?.identifier,
               await applicationModel.deleteLUT(identifier: identifier) else { return }
         state.lut = nil
+        await reloadLUTs()
+        stateDidChange()
+    }
+
+    func deleteTechnicalLUT() async {
+        guard let identifier = state.technicalLUT?.identifier,
+              await applicationModel.deleteLUT(identifier: identifier) else { return }
+        state.technicalLUT = nil
         await reloadLUTs()
         stateDidChange()
     }
@@ -177,6 +207,10 @@ struct PhotoEditorView: View {
     @State private var showsOriginal = false
     @State private var sideBySide = false
     @State private var lutRename = ""
+    @State private var technicalInputSpace: PhotoColorSpace = .sRGB
+    @State private var technicalInputTransfer: PhotoTransferFunction = .sRGB
+    @State private var technicalOutputSpace: PhotoColorSpace = .rec709
+    @State private var technicalOutputTransfer: PhotoTransferFunction = .rec709
 
     init(asset: LibraryAssetRecord, model: ApplicationModel) {
         self.asset = asset
@@ -238,7 +272,11 @@ struct PhotoEditorView: View {
     private func editorImage(_ image: NSImage?, label: String) -> some View {
         Group {
             if let image {
-                Image(nsImage: image).resizable().scaledToFit().padding(14)
+                ExtendedRangeImageView(
+                    image: image,
+                    enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr
+                )
+                .padding(14)
             } else {
                 ContentUnavailableView("\(label)预览不可用", systemImage: "photo")
                     .foregroundStyle(.white)
@@ -272,6 +310,8 @@ struct PhotoEditorView: View {
                 transformSection
                 hslSection
                 curvesSection
+                colorManagementSection
+                technicalLUTSection
                 lutSection
             }
             .padding(14)
@@ -329,16 +369,16 @@ struct PhotoEditorView: View {
     }
 
     private var lutSection: some View {
-        adjustmentSection("LUT") {
+        adjustmentSection("Creative LUT") {
             Picker("LUT", selection: Binding<UUID?>(get: { editor.state.lut?.identifier }, set: { identifier in
                 editor.state.lut = identifier.map { LUTApplication(identifier: $0, strength: editor.state.lut?.strength ?? 1) }
             })) {
                 Text("无").tag(UUID?.none)
                 Divider()
-                ForEach(editor.luts.filter { !$0.isImported }) { lut in
+                ForEach(editor.luts.filter { !$0.isImported && $0.kind == .creative }) { lut in
                     Text("内置 · \(lut.title)").tag(Optional(lut.id))
                 }
-                ForEach(editor.luts.filter(\.isImported)) { lut in
+                ForEach(editor.luts.filter { $0.isImported && $0.kind == .creative }) { lut in
                     Text("导入 · \(lut.title)").tag(Optional(lut.id))
                 }
             }
@@ -366,8 +406,92 @@ struct PhotoEditorView: View {
                     Button("改名") { Task { await editor.renameSelectedLUT(to: lutRename) } }
                 }
             }
-            Text("内置 \(editor.luts.filter { !$0.isImported }.count) · 导入 \(editor.luts.filter(\.isImported).count) · 收藏 \(editor.luts.filter(\.isFavorite).count)")
+            Text("创意 \(editor.luts.filter { $0.kind == .creative }.count) · Technical \(editor.luts.filter { $0.kind == .technical }.count) · 收藏 \(editor.luts.filter(\.isFavorite).count)")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var colorManagementSection: some View {
+        adjustmentSection("Color Management") {
+            Picker("输出色彩空间", selection: $editor.state.colorPipeline.outputColorSpace) {
+                ForEach(PhotoColorSpace.outputSpaces) { colorSpace in
+                    Text(colorSpace.title).tag(colorSpace)
+                }
+            }
+            .pickerStyle(.menu)
+            Picker("预览动态范围", selection: $editor.state.colorPipeline.dynamicRange) {
+                ForEach(PhotoDynamicRange.allCases) { range in
+                    Text(range.title).tag(range)
+                }
+            }
+            .pickerStyle(.menu)
+            Text(editor.state.colorPipeline.dynamicRange == .hdr
+                ? "HDR 预览保留扩展范围；SDR 屏幕由系统色调映射。当前 ImageIO 导出仅允许真实 SDR，避免伪 HDR 文件。"
+                : "SDR 输出由 ColorSync 转换到所选输出色彩空间。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var technicalLUTSection: some View {
+        adjustmentSection("Technical Transform") {
+            Picker("Technical LUT", selection: Binding<UUID?>(
+                get: { editor.state.technicalLUT?.identifier },
+                set: { identifier in
+                    editor.state.technicalLUT = identifier.map {
+                        LUTApplication(identifier: $0, strength: editor.state.technicalLUT?.strength ?? 1)
+                    }
+                }
+            )) {
+                Text("无").tag(UUID?.none)
+                ForEach(editor.luts.filter { $0.kind == .technical }) { lut in
+                    let contract = lut.technicalMetadata.map { "\($0.input.title) → \($0.output.title)" } ?? "缺少元数据"
+                    Text("\(lut.title) · \(contract)").tag(Optional(lut.id))
+                }
+            }
+            .pickerStyle(.menu)
+            if editor.state.technicalLUT != nil {
+                slider("Technical 强度", value: Binding(
+                    get: { editor.state.technicalLUT?.strength ?? 1 },
+                    set: { editor.state.technicalLUT?.strength = $0 }
+                ), range: 0...1)
+                if let selected = editor.luts.first(where: { $0.id == editor.state.technicalLUT?.identifier }) {
+                    HStack {
+                        Button { Task { await editor.toggleFavorite(for: selected) } } label: {
+                            Image(systemName: selected.isFavorite ? "star.fill" : "star")
+                        }
+                        if selected.isImported {
+                            Button(role: .destructive) { Task { await editor.deleteTechnicalLUT() } } label: {
+                                Image(systemName: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+            Group {
+                Picker("输入色彩空间", selection: $technicalInputSpace) {
+                    ForEach(PhotoColorSpace.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("输入传递函数", selection: $technicalInputTransfer) {
+                    ForEach(PhotoTransferFunction.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("输出色彩空间", selection: $technicalOutputSpace) {
+                    ForEach(PhotoColorSpace.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("输出传递函数", selection: $technicalOutputTransfer) {
+                    ForEach(PhotoTransferFunction.allCases) { Text($0.title).tag($0) }
+                }
+            }
+            .pickerStyle(.menu)
+            Button("导入 Technical .cube") {
+                editor.importTechnicalLUT(metadata: TechnicalLUTMetadata(
+                    input: PhotoColorDescriptor(colorSpace: technicalInputSpace, transferFunction: technicalInputTransfer),
+                    output: PhotoColorDescriptor(colorSpace: technicalOutputSpace, transferFunction: technicalOutputTransfer)
+                ))
+            }
+            Text("Technical LUT 只会在源色彩空间和传递函数与其声明完全匹配时运行；不能作为 Creative LUT 使用。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

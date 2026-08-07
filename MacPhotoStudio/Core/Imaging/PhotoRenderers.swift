@@ -25,6 +25,7 @@ struct PhotoRenderResult: Sendable {
     let pixelWidth: Int
     let pixelHeight: Int
     let histogram: PreviewHistogram?
+    let colorPipeline: ColorPipelinePlan?
 }
 
 /// Preview rendering is isolated from export rendering. It keeps one Metal-backed
@@ -36,25 +37,42 @@ actor PreviewRenderer {
         sourceURL: URL,
         state: PhotoEditState,
         lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB,
         maximumPixelSize: Int = 2_048
     ) throws -> PhotoRenderResult {
         guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
             throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
         }
-        return try render(source: source, state: state, lut: lut, maximumPixelSize: maximumPixelSize)
+        return try render(
+            source: source,
+            state: state,
+            lut: lut,
+            technicalLUT: technicalLUT,
+            sourceColor: sourceColor,
+            maximumPixelSize: maximumPixelSize
+        )
     }
 
     func render(
         source: CIImage,
         state: PhotoEditState,
         lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB,
         maximumPixelSize: Int = 2_048
     ) throws -> PhotoRenderResult {
         try Task.checkCancellation()
         let preview = PhotoImagePipeline.previewImage(from: source, maximumPixelSize: max(128, maximumPixelSize))
         try Task.checkCancellation()
-        let edited = PhotoImagePipeline.apply(state, to: preview, lut: lut)
-        return try RendererOutput.make(from: edited, context: context, calculateHistogram: true)
+        let output = try PhotoColorPipeline.apply(
+            source: preview,
+            state: state,
+            sourceColor: sourceColor,
+            technicalLUT: technicalLUT,
+            creativeLUT: lut
+        )
+        return try RendererOutput.make(from: output.image, context: context, calculateHistogram: true, pipeline: output.plan)
     }
 }
 
@@ -63,16 +81,35 @@ actor PreviewRenderer {
 actor ExportRenderer {
     private let context = RendererContextFactory.makeContext()
 
-    func render(sourceURL: URL, state: PhotoEditState, lut: CubeLUT?) throws -> PhotoRenderResult {
+    func render(
+        sourceURL: URL,
+        state: PhotoEditState,
+        lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB
+    ) throws -> PhotoRenderResult {
         guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
             throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
         }
-        return try render(source: source, state: state, lut: lut)
+        return try render(source: source, state: state, lut: lut, technicalLUT: technicalLUT, sourceColor: sourceColor)
     }
 
-    func render(source: CIImage, state: PhotoEditState, lut: CubeLUT?) throws -> PhotoRenderResult {
+    func render(
+        source: CIImage,
+        state: PhotoEditState,
+        lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB
+    ) throws -> PhotoRenderResult {
         try Task.checkCancellation()
-        return try RendererOutput.make(from: PhotoImagePipeline.apply(state, to: source, lut: lut), context: context, calculateHistogram: false)
+        let output = try PhotoColorPipeline.apply(
+            source: source,
+            state: state,
+            sourceColor: sourceColor,
+            technicalLUT: technicalLUT,
+            creativeLUT: lut
+        )
+        return try RendererOutput.make(from: output.image, context: context, calculateHistogram: false, pipeline: output.plan)
     }
 }
 
@@ -113,6 +150,9 @@ enum ImageFileExporter {
         guard options.format.isSupported else {
             throw StudioError.exportFailed(message: "系统不支持 \(options.format.title) 编码。")
         }
+        if options.dynamicRange == .hdr, !HDRPhotoCapabilities.supportsHDRExport {
+            throw StudioError.exportFailed(message: "此 macOS ImageIO 导出路径无法可靠写入 HDR gain map；请导出 SDR 色调映射结果，避免生成被误标为 HDR 的文件。")
+        }
         if let sourceURL,
            sourceURL.standardizedFileURL.resolvingSymlinksInPath() == destinationURL.standardizedFileURL.resolvingSymlinksInPath() {
             throw StudioError.exportFailed(message: "导出目标不能覆盖原始媒体文件：\(destinationURL.lastPathComponent)")
@@ -122,7 +162,12 @@ enum ImageFileExporter {
             throw StudioError.exportFailed(message: "目标文件已存在：\(destinationURL.lastPathComponent)")
         }
         let extent = image.extent.integral
-        guard !extent.isEmpty, let cgImage = context.createCGImage(image, from: extent) else {
+        guard !extent.isEmpty, let cgImage = context.createCGImage(
+            image,
+            from: extent,
+            format: .RGBA8,
+            colorSpace: options.outputColorSpace.cgColorSpace
+        ) else {
             throw StudioError.exportFailed(message: "无法生成输出图像。")
         }
         let directoryURL = destinationURL.deletingLastPathComponent()
@@ -180,6 +225,10 @@ enum ImageFileExporter {
         }
         // Pixels have already been normalized with ImageIO/Core Image orientation.
         properties[kCGImagePropertyOrientation] = 1
+        // The rendered CGImage owns the requested output colour space. Retaining
+        // a copied source profile here could make a Display P3/Rec.709 export be
+        // tagged as its original source profile, so it is removed deliberately.
+        properties.removeValue(forKey: kCGImagePropertyProfileName)
         if removesGPS {
             properties.removeValue(forKey: kCGImagePropertyGPSDictionary)
         }
@@ -196,6 +245,8 @@ actor PhotoFileExportRenderer {
         sourceURL: URL,
         state: PhotoEditState,
         lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB,
         destinationURL: URL,
         options: PhotoExportOptions,
         allowsOverwrite: Bool
@@ -204,7 +255,17 @@ actor PhotoFileExportRenderer {
         guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
             throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
         }
-        var output = PhotoImagePipeline.apply(state, to: source, lut: lut)
+        var outputSettings = state.colorPipeline
+        outputSettings.outputColorSpace = options.outputColorSpace
+        outputSettings.dynamicRange = options.dynamicRange
+        var output = try PhotoColorPipeline.apply(
+            source: source,
+            state: state,
+            sourceColor: sourceColor,
+            technicalLUT: technicalLUT,
+            creativeLUT: lut,
+            settings: outputSettings
+        ).image
         if let maximumPixelSize = options.resize.maximumPixelSize {
             output = PhotoImagePipeline.previewImage(from: output, maximumPixelSize: maximumPixelSize)
         }
@@ -230,6 +291,7 @@ actor RAWPreviewRenderer {
         rawState: RAWEditState,
         photoState: PhotoEditState,
         lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
         maximumPixelSize: Int = 2_048
     ) async throws -> RAWRenderResult {
         try Task.checkCancellation()
@@ -244,6 +306,7 @@ actor RAWPreviewRenderer {
             source: decoded.image,
             state: photoState,
             lut: lut,
+            technicalLUT: technicalLUT,
             maximumPixelSize: maximumPixelSize
         )
         return RAWRenderResult(render: render, capabilities: decoded.capabilities)
@@ -258,7 +321,8 @@ actor RAWExportRenderer {
         sourceURL: URL,
         rawState: RAWEditState,
         photoState: PhotoEditState,
-        lut: CubeLUT?
+        lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil
     ) async throws -> RAWRenderResult {
         try Task.checkCancellation()
         let decoded = try RAWImagePipeline.decode(
@@ -268,7 +332,12 @@ actor RAWExportRenderer {
             draft: false
         )
         try Task.checkCancellation()
-        let render = try await renderer.render(source: decoded.image, state: photoState, lut: lut)
+        let render = try await renderer.render(
+            source: decoded.image,
+            state: photoState,
+            lut: lut,
+            technicalLUT: technicalLUT
+        )
         return RAWRenderResult(render: render, capabilities: decoded.capabilities)
     }
 
@@ -277,6 +346,7 @@ actor RAWExportRenderer {
         rawState: RAWEditState,
         photoState: PhotoEditState,
         lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
         destinationURL: URL,
         options: PhotoExportOptions,
         allowsOverwrite: Bool = false
@@ -289,7 +359,17 @@ actor RAWExportRenderer {
             draft: false
         )
         try Task.checkCancellation()
-        var output = PhotoImagePipeline.apply(photoState, to: decoded.image, lut: lut)
+        var outputSettings = photoState.colorPipeline
+        outputSettings.outputColorSpace = options.outputColorSpace
+        outputSettings.dynamicRange = options.dynamicRange
+        var output = try PhotoColorPipeline.apply(
+            source: decoded.image,
+            state: photoState,
+            sourceColor: .sRGB,
+            technicalLUT: technicalLUT,
+            creativeLUT: lut,
+            settings: outputSettings
+        ).image
         if let maximumPixelSize = options.resize.maximumPixelSize {
             output = PhotoImagePipeline.previewImage(from: output, maximumPixelSize: maximumPixelSize)
         }
@@ -381,7 +461,13 @@ actor PhotoEditingService {
     }
 
     func lutLibrary() async throws -> LUTLibrary { try await lutRepository.library() }
-    func importLUT(from url: URL) async throws -> CubeLUT { try await lutRepository.importLUT(from: url) }
+    func importLUT(
+        from url: URL,
+        kind: LUTKind = .creative,
+        technicalMetadata: TechnicalLUTMetadata? = nil
+    ) async throws -> CubeLUT {
+        try await lutRepository.importLUT(from: url, kind: kind, technicalMetadata: technicalMetadata)
+    }
     func renameLUT(identifier: UUID, to title: String) async throws { try await lutRepository.renameImportedLUT(identifier: identifier, to: title) }
     func deleteLUT(identifier: UUID) async throws { try await lutRepository.deleteImportedLUT(identifier: identifier) }
     func setLUTFavorite(_ isFavorite: Bool, identifier: UUID) async throws { try await lutRepository.setFavorite(isFavorite, identifier: identifier) }
@@ -426,13 +512,14 @@ actor PhotoEditingService {
         }
         let resolved = try await mediaRootStore.resolve(root)
         let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
-        let selectedLUT = try await selectedLUT(for: photoState)
+        let selectedLUTs = try await selectedLUTs(for: photoState)
         try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
             try await self.rawExportRenderer.export(
                 sourceURL: sourceURL,
                 rawState: rawState,
                 photoState: photoState,
-                lut: selectedLUT,
+                lut: selectedLUTs.creative,
+                technicalLUT: selectedLUTs.technical,
                 destinationURL: destinationURL,
                 options: PhotoExportOptions(format: format)
             )
@@ -455,7 +542,8 @@ actor PhotoEditingService {
             throw StudioError.mediaRootNotFound(id: asset.rootID)
         }
         let photoState = try await editState(for: asset.id)
-        let selectedLUT = try await selectedLUT(for: photoState)
+        let selectedLUTs = try await selectedLUTs(for: photoState)
+        let sourceColor = PhotoColorDescriptor.inferred(fromProfileName: asset.colorProfile)
         let resolved = try await mediaRootStore.resolve(root)
         let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
 
@@ -466,7 +554,8 @@ actor PhotoEditingService {
                     sourceURL: sourceURL,
                     rawState: rawState,
                     photoState: photoState,
-                    lut: selectedLUT,
+                    lut: selectedLUTs.creative,
+                    technicalLUT: selectedLUTs.technical,
                     destinationURL: destinationURL,
                     options: options,
                     allowsOverwrite: allowsOverwrite
@@ -475,7 +564,9 @@ actor PhotoEditingService {
                 try await self.photoFileExportRenderer.export(
                     sourceURL: sourceURL,
                     state: photoState,
-                    lut: selectedLUT,
+                    lut: selectedLUTs.creative,
+                    technicalLUT: selectedLUTs.technical,
+                    sourceColor: sourceColor,
                     destinationURL: destinationURL,
                     options: options,
                     allowsOverwrite: allowsOverwrite
@@ -554,22 +645,26 @@ actor PhotoEditingService {
         }
         let resolved = try await mediaRootStore.resolve(root)
         let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
-        let selectedLUT: CubeLUT?
-        if let application = state.lut {
-            selectedLUT = try await lutRepository.lut(identifier: application.identifier)
-        } else {
-            selectedLUT = nil
-        }
+        let selectedLUTs = try await selectedLUTs(for: state)
+        let sourceColor = PhotoColorDescriptor.inferred(fromProfileName: asset.colorProfile)
         return try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
             if let maximumPixelSize {
                 return try await self.previewRenderer.render(
                     sourceURL: sourceURL,
                     state: state,
-                    lut: selectedLUT,
+                    lut: selectedLUTs.creative,
+                    technicalLUT: selectedLUTs.technical,
+                    sourceColor: sourceColor,
                     maximumPixelSize: maximumPixelSize
                 )
             }
-            return try await self.exportRenderer.render(sourceURL: sourceURL, state: state, lut: selectedLUT)
+            return try await self.exportRenderer.render(
+                sourceURL: sourceURL,
+                state: state,
+                lut: selectedLUTs.creative,
+                technicalLUT: selectedLUTs.technical,
+                sourceColor: sourceColor
+            )
         }
     }
 
@@ -587,23 +682,53 @@ actor PhotoEditingService {
         }
         let resolved = try await mediaRootStore.resolve(root)
         let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
-        let selectedLUT = try await selectedLUT(for: photoState)
+        let selectedLUTs = try await selectedLUTs(for: photoState)
         return try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
             if let maximumPixelSize {
                 return try await self.rawPreviewRenderer.render(
                     sourceURL: sourceURL, rawState: rawState, photoState: photoState,
-                    lut: selectedLUT, maximumPixelSize: maximumPixelSize
+                    lut: selectedLUTs.creative,
+                    technicalLUT: selectedLUTs.technical,
+                    maximumPixelSize: maximumPixelSize
                 )
             }
             return try await self.rawExportRenderer.render(
-                sourceURL: sourceURL, rawState: rawState, photoState: photoState, lut: selectedLUT
+                sourceURL: sourceURL,
+                rawState: rawState,
+                photoState: photoState,
+                lut: selectedLUTs.creative,
+                technicalLUT: selectedLUTs.technical
             )
         }
     }
 
-    private func selectedLUT(for state: PhotoEditState) async throws -> CubeLUT? {
-        guard let application = state.lut else { return nil }
-        return try await lutRepository.lut(identifier: application.identifier)
+    private func selectedLUTs(for state: PhotoEditState) async throws -> (technical: CubeLUT?, creative: CubeLUT?) {
+        let technical: CubeLUT?
+        if let application = state.technicalLUT {
+            guard let lut = try await lutRepository.lut(identifier: application.identifier) else {
+                throw StudioError.invalidLUT(message: "找不到已选择的 Technical LUT。")
+            }
+            guard lut.kind == .technical, lut.technicalMetadata != nil else {
+                throw StudioError.invalidLUT(message: "已选择的 Technical LUT 缺少色彩元数据。")
+            }
+            technical = lut
+        } else {
+            technical = nil
+        }
+
+        let creative: CubeLUT?
+        if let application = state.lut {
+            guard let lut = try await lutRepository.lut(identifier: application.identifier) else {
+                throw StudioError.invalidLUT(message: "找不到已选择的创意 LUT。")
+            }
+            guard lut.kind == .creative else {
+                throw StudioError.invalidLUT(message: "Technical LUT 不能被作为创意 LUT 使用。")
+            }
+            creative = lut
+        } else {
+            creative = nil
+        }
+        return (technical, creative)
     }
 
     private func uniquePhotoAssets(_ assets: [LibraryAssetRecord]) -> [LibraryAssetRecord] {
@@ -622,19 +747,34 @@ private enum RendererContextFactory {
 }
 
 private enum RendererOutput {
-    static func make(from image: CIImage, context: CIContext, calculateHistogram: Bool) throws -> PhotoRenderResult {
+    static func make(
+        from image: CIImage,
+        context: CIContext,
+        calculateHistogram: Bool,
+        pipeline: ColorPipelinePlan
+    ) throws -> PhotoRenderResult {
         try Task.checkCancellation()
         let extent = image.extent.integral
-        guard !extent.isEmpty, let cgImage = context.createCGImage(image, from: extent) else {
+        let format: CIFormat = pipeline.dynamicRange == .hdr ? .RGBAh : .RGBA8
+        guard !extent.isEmpty, let cgImage = context.createCGImage(
+            image,
+            from: extent,
+            format: format,
+            colorSpace: pipeline.output.colorSpace.cgColorSpace
+        ) else {
             throw StudioError.metadataExtractionFailed(path: "无法渲染编辑预览")
         }
-        let data = try jpegData(from: cgImage)
+        // TIFF retains a half-float extended-range preview. The AppKit view opts
+        // into EDR display; on an SDR monitor this remains a system tone-mapped
+        // preview rather than clipping the working image earlier in the graph.
+        let data = try pipeline.dynamicRange == .hdr ? tiffData(from: cgImage) : jpegData(from: cgImage)
         let histogram = calculateHistogram ? makeHistogram(image: image, extent: extent, context: context) : nil
         return PhotoRenderResult(
             imageData: data,
             pixelWidth: cgImage.width,
             pixelHeight: cgImage.height,
-            histogram: histogram
+            histogram: histogram,
+            colorPipeline: pipeline
         )
     }
 
@@ -646,6 +786,18 @@ private enum RendererOutput {
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
             throw StudioError.metadataExtractionFailed(path: "无法完成 JPEG 预览编码")
+        }
+        return data as Data
+    }
+
+    private static func tiffData(from image: CGImage) throws -> Data {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, "public.tiff" as CFString, 1, nil) else {
+            throw StudioError.metadataExtractionFailed(path: "无法编码 HDR TIFF 预览")
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw StudioError.metadataExtractionFailed(path: "无法完成 HDR TIFF 预览")
         }
         return data as Data
     }

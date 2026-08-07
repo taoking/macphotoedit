@@ -141,7 +141,7 @@ struct RAWPhotoEditorView: View {
             .padding(12)
             Divider()
             HSplitView {
-                ZStack { Color.black; if let image = editor.image { Image(nsImage: image).resizable().scaledToFit().padding() } else { ContentUnavailableView("RAW 预览不可用", systemImage: "camera.aperture") } }
+                ZStack { Color.black; if let image = editor.image { ExtendedRangeImageView(image: image, enablesExtendedRange: editor.photoState.colorPipeline.dynamicRange == .hdr).padding() } else { ContentUnavailableView("RAW 预览不可用", systemImage: "camera.aperture") } }
                     .frame(minWidth: 560, minHeight: 520)
                 ScrollView { VStack(alignment: .leading, spacing: 12) {
                     Text("RAW 解码参数").font(.headline)
@@ -157,6 +157,8 @@ struct RAWPhotoEditorView: View {
                     if editor.capabilities.localToneMap { control("局部色调", editor.optionalBinding(\.localToneMap, default: 0), 0...1) }
                     if editor.capabilities.lensCorrection { Toggle("镜头校正", isOn: editor.optionalBoolBinding(\.lensCorrectionEnabled)) }
                     if editor.capabilities.highlightRecovery { Toggle("高光恢复", isOn: editor.optionalBoolBinding(\.highlightRecoveryEnabled)) }
+                    colorManagementSection
+                    technicalLUTSection
                     creativeLUTSection
                     if let message = editor.exportMessage {
                         Label(message, systemImage: "checkmark.circle")
@@ -183,10 +185,10 @@ struct RAWPhotoEditorView: View {
                 }
             )) {
                 Text("无").tag(UUID?.none)
-                ForEach(editor.luts.filter { !$0.isImported }) { lut in
+                ForEach(editor.luts.filter { !$0.isImported && $0.kind == .creative }) { lut in
                     Text("内置 · \(lut.title)").tag(Optional(lut.id))
                 }
-                ForEach(editor.luts.filter(\.isImported)) { lut in
+                ForEach(editor.luts.filter { $0.isImported && $0.kind == .creative }) { lut in
                     Text("导入 · \(lut.title)").tag(Optional(lut.id))
                 }
             }
@@ -200,6 +202,53 @@ struct RAWPhotoEditorView: View {
             Button("导入 .cube", action: editor.importLUT)
                 .buttonStyle(.borderless)
         }
+    }
+
+    private var technicalLUTSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Technical Transform").font(.headline)
+            Picker("Technical LUT", selection: Binding<UUID?>(
+                get: { editor.photoState.technicalLUT?.identifier },
+                set: { identifier in
+                    editor.photoState.technicalLUT = identifier.map {
+                        LUTApplication(identifier: $0, strength: editor.photoState.technicalLUT?.strength ?? 1)
+                    }
+                }
+            )) {
+                Text("无").tag(UUID?.none)
+                ForEach(editor.luts.filter { $0.kind == .technical }) { lut in
+                    let contract = lut.technicalMetadata.map { "\($0.input.title) → \($0.output.title)" } ?? "缺少元数据"
+                    Text("\(lut.title) · \(contract)").tag(Optional(lut.id))
+                }
+            }
+            .pickerStyle(.menu)
+            if editor.photoState.technicalLUT != nil {
+                control("Technical 强度", Binding(
+                    get: { editor.photoState.technicalLUT?.strength ?? 1 },
+                    set: { editor.photoState.technicalLUT?.strength = $0 }
+                ), 0...1)
+            }
+            Text("Technical LUT 必须在普通照片编辑器中带色彩元数据导入；RAW 解码后也会执行相同的严格校验。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var colorManagementSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Color Management").font(.headline)
+            Picker("输出色彩空间", selection: $editor.photoState.colorPipeline.outputColorSpace) {
+                ForEach(PhotoColorSpace.outputSpaces) { Text($0.title).tag($0) }
+            }
+            Picker("预览动态范围", selection: $editor.photoState.colorPipeline.dynamicRange) {
+                ForEach(PhotoDynamicRange.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.menu)
+            Text("RAW 解码后的标准照片管线与普通照片相同：HDR 预览保留扩展范围；导出仍只允许可验证的 SDR 输出。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .pickerStyle(.menu)
     }
     private func control(_ title: String, _ binding: Binding<Double>, _ range: ClosedRange<Double>) -> some View {
         VStack(alignment: .leading, spacing: 2) { HStack { Text(title); Spacer(); Text(binding.wrappedValue, format: .number.precision(.fractionLength(2))).foregroundStyle(.secondary) }.font(.caption); Slider(value: binding, in: range) }

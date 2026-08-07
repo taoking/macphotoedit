@@ -190,6 +190,7 @@ struct BatchExportSheet: View {
     @State private var keepsMetadata = true
     @State private var removesGPS = false
     @State private var collisionPolicy: ExportCollisionPolicy = .rename
+    @State private var outputColorSpace: PhotoColorSpace = .sRGB
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -220,6 +221,11 @@ struct BatchExportSheet: View {
                         Text(policy.title).tag(policy)
                     }
                 }
+                Picker("输出色彩空间", selection: $outputColorSpace) {
+                    ForEach(PhotoColorSpace.outputSpaces) { colorSpace in
+                        Text(colorSpace.title).tag(colorSpace)
+                    }
+                }
                 Toggle("调整尺寸", isOn: $useResize)
                 if useResize {
                     Stepper("最长边：\(maximumPixelSize) px", value: $maximumPixelSize, in: 256...12_000, step: 128)
@@ -236,6 +242,11 @@ struct BatchExportSheet: View {
                 Toggle("保留元数据", isOn: $keepsMetadata)
                 Toggle("移除 GPS 位置", isOn: $removesGPS)
                     .disabled(!keepsMetadata)
+                if !HDRPhotoCapabilities.supportsHDRExport {
+                    Text("此 macOS 的安全 ImageIO 路径不提供可靠 HDR gain-map 写入；批量导出会执行真实 SDR 色调映射，而不会伪标为 HDR。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             HStack {
                 Spacer()
@@ -271,7 +282,9 @@ struct BatchExportSheet: View {
             namingRule: namingRule,
             keepsMetadata: keepsMetadata,
             removesGPS: keepsMetadata && removesGPS,
-            collisionPolicy: collisionPolicy
+            collisionPolicy: collisionPolicy,
+            outputColorSpace: outputColorSpace,
+            dynamicRange: .sdr
         )
         Task {
             if await model.startBatchExport(assets: assets, outputDirectoryURL: outputDirectoryURL, options: options) != nil {

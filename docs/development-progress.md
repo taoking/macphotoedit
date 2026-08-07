@@ -290,3 +290,48 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 6 advanced photo management`
+
+## Phase 7
+
+Status:
+- COMPLETED
+
+Implemented:
+- Added an explicit documented colour pipeline: Source Color Space → Extended Linear working space → Technical Transform → Creative Adjustments → Creative LUT → Output Transform → Display/Export.
+- Added serializable source/output colour descriptors for sRGB, Display P3, Rec.709, Rec.2020, linear spaces and sRGB/linear/Rec.709/S-Log3/HLG/PQ transfer functions. Render boundaries request the selected output `CGColorSpace` so ColorSync performs the output conversion.
+- Split Creative and Technical LUTs. Technical LUT import now requires persistent input/output colour-space and transfer-function metadata; selection is rejected unless the source descriptor exactly matches, and Technical LUTs cannot enter the Creative LUT slot.
+- Preserved legacy Phase 3–6 edit-state JSON while adding `technicalLUT` and colour-pipeline state. Standard photo and RAW editors expose the same output/HDR and technical-transform state.
+- Added extended-range HDR preview rendering as half-float TIFF into an AppKit EDR-enabled layer. SDR paths apply `CIToneMapHeadroom` with a highlight-compression fallback.
+- Added selectable SDR output colour space to batch export and cleared copied source profile metadata so the rendered output CGImage owns its selected output profile.
+- Deliberately reject HDR still export on the current portable ImageIO path because it lacks a cross-version reliable gain-map writer; the app never writes an 8-bit file while claiming it is HDR.
+- Added [color-pipeline.md](color-pipeline.md) documenting the ordering, LUT safety contract and HDR/SDR behavior.
+
+Tests:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 38 tests, 0 failures. Includes legacy edit-state compatibility, Technical LUT persistence, colour-contract rejection, HDR preview TIFF path, false-HDR export rejection, and all Phase 0–6 regressions.
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `** BUILD SUCCEEDED **`.
+
+Acceptance:
+- PASS — code and documentation explicitly model the required source/working/technical/creative/output order.
+- PASS — Technical LUT input/output metadata is persistent and strictly validated; `S-Log3 → Rec.709` cannot be treated as an ordinary Creative LUT or applied to an sRGB source.
+- PASS — sRGB, Display P3, Rec.709, Rec.2020 and linear/extended working descriptors are represented; preview/export target output colour spaces through ColorSync.
+- PASS — HDR preview uses an EDR-capable AppKit layer and half-float payload; SDR output has a dedicated tone-mapping path and existing SDR tests pass.
+- PASS — HDR export is unavailable through the current system ImageIO capability and therefore fails explicitly rather than producing a false HDR file.
+
+Regression:
+- PASS — full 38-test suite passes: catalog/indexing/library management, editing/LUT/RAW, presets/batch export, duplicate safety, relink and Trash workflows remain covered.
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — on a real HDR-capable Mac display, compare SDR and HDR editor previews with a user-authorized HDR still image; verify EDR headroom, window movement between HDR/SDR displays and system tone mapping.
+- MANUAL VERIFICATION REQUIRED — use user-authorized sRGB, Display P3, Rec.709, Rec.2020, S-Log3, HLG and PQ media plus correctly declared Technical LUTs to confirm actual ICC/profile detection and intended visual transforms.
+- MANUAL VERIFICATION REQUIRED — when a future macOS ImageIO gain-map writer is available, validate it against real HDR reference stills before changing `supportsHDRExport`; current implementation intentionally rejects that export.
+
+Known Limitations:
+- The cross-version ImageIO API path available to this project does not provide a reliable HDR gain-map writer, so HDR still export is deliberately disabled rather than mocked. SDR JPEG/HEIF/TIFF export remains real and selectable by output colour space.
+- Automatic tests use generated pixels and cannot measure physical display luminance, monitor ICC calibration, user-media ICC quality, or camera Log metadata fidelity.
+
+Commit:
+- `feat: complete phase 7 color management hdr`

@@ -828,10 +828,18 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
-    func importLUT(from url: URL) async -> CubeLUT? {
+    func importLUT(
+        from url: URL,
+        kind: LUTKind = .creative,
+        technicalMetadata: TechnicalLUTMetadata? = nil
+    ) async -> CubeLUT? {
         guard let photoEditingService else { return nil }
         do {
-            return try await photoEditingService.importLUT(from: url)
+            return try await photoEditingService.importLUT(
+                from: url,
+                kind: kind,
+                technicalMetadata: technicalMetadata
+            )
         } catch {
             report(error, activity: "Importing LUT")
             return nil

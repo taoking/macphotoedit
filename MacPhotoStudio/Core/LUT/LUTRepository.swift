@@ -15,6 +15,7 @@ private struct StoredLUT: Codable, Sendable {
     var id: UUID
     var title: String
     var kind: LUTKind
+    var technicalMetadata: TechnicalLUTMetadata?
     var fileName: String
     var isFavorite: Bool
 }
@@ -50,7 +51,12 @@ actor LUTRepository {
             do {
                 var lut = try CubeLUTParser.parse(url: url, identifier: entry.id, imported: true)
                 lut.title = entry.title
-                lut.kind = entry.kind
+                // Phase 3–6 stored imported LUTs as creative by default. A
+                // legacy technical entry without an explicit colour contract is
+                // deliberately downgraded to creative instead of being allowed
+                // to masquerade as a safe technical conversion.
+                lut.kind = entry.kind == .technical && entry.technicalMetadata != nil ? .technical : .creative
+                lut.technicalMetadata = lut.kind == .technical ? entry.technicalMetadata : nil
                 lut.isFavorite = entry.isFavorite
                 imported.append(lut)
             } catch {
@@ -64,10 +70,19 @@ actor LUTRepository {
         try library().all.first(where: { $0.id == identifier })
     }
 
-    func importLUT(from sourceURL: URL) throws -> CubeLUT {
+    func importLUT(
+        from sourceURL: URL,
+        kind: LUTKind = .creative,
+        technicalMetadata: TechnicalLUTMetadata? = nil
+    ) throws -> CubeLUT {
         try ensureDirectory()
+        if kind == .technical, technicalMetadata == nil {
+            throw StudioError.invalidLUT(message: "导入 Technical LUT 前必须声明输入色彩空间、输出色彩空间和传递函数。")
+        }
         let id = UUID()
         var lut = try CubeLUTParser.parse(url: sourceURL, identifier: id, imported: true)
+        lut.kind = kind
+        lut.technicalMetadata = kind == .technical ? technicalMetadata : nil
         let destinationName = "\(id.uuidString).cube"
         let destinationURL = directoryURL.appending(path: destinationName)
         // Persist validated bytes only after parsing. The user-selected source is read,
@@ -75,7 +90,14 @@ actor LUTRepository {
         try Data(contentsOf: sourceURL).write(to: destinationURL, options: .atomic)
         lut.sourceURL = destinationURL
         var entries = try readIndex()
-        entries.append(StoredLUT(id: id, title: lut.title, kind: lut.kind, fileName: destinationName, isFavorite: false))
+        entries.append(StoredLUT(
+            id: id,
+            title: lut.title,
+            kind: lut.kind,
+            technicalMetadata: lut.technicalMetadata,
+            fileName: destinationName,
+            isFavorite: false
+        ))
         try writeIndex(entries)
         return lut
     }
@@ -104,7 +126,14 @@ actor LUTRepository {
             throw StudioError.invalidLUT(message: "未找到 LUT。")
         }
         let builtin = Self.builtInLUTs.first(where: { $0.id == identifier })!
-        entries.append(StoredLUT(id: builtin.id, title: builtin.title, kind: builtin.kind, fileName: "", isFavorite: isFavorite))
+        entries.append(StoredLUT(
+            id: builtin.id,
+            title: builtin.title,
+            kind: builtin.kind,
+            technicalMetadata: builtin.technicalMetadata,
+            fileName: "",
+            isFavorite: isFavorite
+        ))
         try writeIndex(entries)
     }
 
@@ -170,11 +199,12 @@ actor LUTRepository {
         return CubeLUT(
             id: identifier,
             title: title,
-            kind: .technical,
+            kind: .creative,
             dimension: dimension,
             domainMinimum: SIMD3<Float>(repeating: 0),
             domainMaximum: SIMD3<Float>(repeating: 1),
             values: values,
+            technicalMetadata: nil,
             sourceURL: nil,
             isImported: false,
             isFavorite: false

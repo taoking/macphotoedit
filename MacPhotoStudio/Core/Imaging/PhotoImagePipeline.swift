@@ -17,6 +17,15 @@ struct PhotoImagePipeline {
     }
 
     static func apply(_ state: PhotoEditState, to source: CIImage, lut: CubeLUT? = nil) -> CIImage {
+        var image = applyCreativeAdjustments(state, to: source)
+        if let lut, let application = state.lut { image = LUTProcessor.apply(lut, to: image, strength: application.clampedStrength) }
+        return applyTransform(image, using: state.transform)
+    }
+
+    /// Phase 7 composes this stage between a validated technical transform and
+    /// a validated creative LUT. It stays public within the module so the old
+    /// `apply` API remains source-compatible for Phase 3–6 callers and tests.
+    static func applyCreativeAdjustments(_ state: PhotoEditState, to source: CIImage) -> CIImage {
         var image = source
         if state.light.exposure != 0 {
             image = image.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: state.light.exposure])
@@ -54,11 +63,10 @@ struct PhotoImagePipeline {
         if state.curves.hasAdjustments {
             image = ToneCurveCube.apply(image, curves: state.curves)
         }
-        if let lut, let application = state.lut { image = LUTProcessor.apply(lut, to: image, strength: application.clampedStrength) }
-        return transform(image, using: state.transform)
+        return image
     }
 
-    private static func transform(_ image: CIImage, using transform: TransformAdjustments) -> CIImage {
+    static func applyTransform(_ image: CIImage, using transform: TransformAdjustments) -> CIImage {
         let crop = transform.crop.clamped
         let extent = image.extent
         let cropped = image.cropped(to: CGRect(x: extent.minX + extent.width * crop.x, y: extent.minY + extent.height * crop.y, width: extent.width * crop.width, height: extent.height * crop.height))

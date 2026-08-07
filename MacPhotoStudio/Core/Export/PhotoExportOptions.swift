@@ -112,6 +112,12 @@ struct PhotoExportOptions: Codable, Sendable, Equatable {
     var keepsMetadata: Bool
     var removesGPS: Bool
     var collisionPolicy: ExportCollisionPolicy
+    var outputColorSpace: PhotoColorSpace
+    var dynamicRange: PhotoDynamicRange
+
+    private enum CodingKeys: String, CodingKey {
+        case format, resize, quality, namingRule, keepsMetadata, removesGPS, collisionPolicy, outputColorSpace, dynamicRange
+    }
 
     init(
         format: PhotoExportFormat = .jpeg,
@@ -120,7 +126,9 @@ struct PhotoExportOptions: Codable, Sendable, Equatable {
         namingRule: PhotoExportNamingRule = .editedName,
         keepsMetadata: Bool = true,
         removesGPS: Bool = false,
-        collisionPolicy: ExportCollisionPolicy = .rename
+        collisionPolicy: ExportCollisionPolicy = .rename,
+        outputColorSpace: PhotoColorSpace = .sRGB,
+        dynamicRange: PhotoDynamicRange = .sdr
     ) {
         self.format = format
         self.resize = resize
@@ -129,6 +137,23 @@ struct PhotoExportOptions: Codable, Sendable, Equatable {
         self.keepsMetadata = keepsMetadata
         self.removesGPS = removesGPS
         self.collisionPolicy = collisionPolicy
+        self.outputColorSpace = outputColorSpace
+        self.dynamicRange = dynamicRange
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            format: try container.decodeIfPresent(PhotoExportFormat.self, forKey: .format) ?? .jpeg,
+            resize: try container.decodeIfPresent(PhotoExportResize.self, forKey: .resize) ?? .original,
+            quality: try container.decodeIfPresent(Double.self, forKey: .quality) ?? 0.92,
+            namingRule: try container.decodeIfPresent(PhotoExportNamingRule.self, forKey: .namingRule) ?? .editedName,
+            keepsMetadata: try container.decodeIfPresent(Bool.self, forKey: .keepsMetadata) ?? true,
+            removesGPS: try container.decodeIfPresent(Bool.self, forKey: .removesGPS) ?? false,
+            collisionPolicy: try container.decodeIfPresent(ExportCollisionPolicy.self, forKey: .collisionPolicy) ?? .rename,
+            outputColorSpace: try container.decodeIfPresent(PhotoColorSpace.self, forKey: .outputColorSpace) ?? .sRGB,
+            dynamicRange: try container.decodeIfPresent(PhotoDynamicRange.self, forKey: .dynamicRange) ?? .sdr
+        )
     }
 }
 

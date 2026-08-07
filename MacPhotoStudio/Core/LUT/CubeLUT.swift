@@ -15,6 +15,7 @@ struct CubeLUT: Identifiable, Sendable, Equatable {
     var domainMinimum: SIMD3<Float>
     var domainMaximum: SIMD3<Float>
     var values: [SIMD3<Float>]
+    var technicalMetadata: TechnicalLUTMetadata?
     var sourceURL: URL?
     var isImported: Bool
     var isFavorite: Bool
@@ -94,6 +95,7 @@ enum CubeLUTParser {
             domainMinimum: domainMinimum,
             domainMaximum: domainMaximum,
             values: values,
+            technicalMetadata: nil,
             sourceURL: sourceURL,
             isImported: imported,
             isFavorite: false

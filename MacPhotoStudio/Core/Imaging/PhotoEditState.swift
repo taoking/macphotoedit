@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct PhotoEditState: Codable, Sendable, Equatable {
-    var version = 1
+    var version = 2
     var light = LightAdjustments()
     var color = ColorAdjustments()
     var detail = DetailAdjustments()
@@ -10,7 +10,35 @@ struct PhotoEditState: Codable, Sendable, Equatable {
     var transform = TransformAdjustments()
     var hsl = HSLAdjustments()
     var curves = ToneCurves()
+    /// Creative LUT retained under its original property name for persisted
+    /// Phase 3–6 edit states and presets.
     var lut: LUTApplication?
+    /// Technical transforms are intentionally separate from creative looks.
+    /// A repository LUT must carry matching input/output metadata before the
+    /// renderer permits it to run.
+    var technicalLUT: LUTApplication?
+    var colorPipeline = PhotoColorPipelineSettings.sdr
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case version, light, color, detail, effects, transform, hsl, curves, lut, technicalLUT, colorPipeline
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        light = try container.decodeIfPresent(LightAdjustments.self, forKey: .light) ?? LightAdjustments()
+        color = try container.decodeIfPresent(ColorAdjustments.self, forKey: .color) ?? ColorAdjustments()
+        detail = try container.decodeIfPresent(DetailAdjustments.self, forKey: .detail) ?? DetailAdjustments()
+        effects = try container.decodeIfPresent(EffectAdjustments.self, forKey: .effects) ?? EffectAdjustments()
+        transform = try container.decodeIfPresent(TransformAdjustments.self, forKey: .transform) ?? TransformAdjustments()
+        hsl = try container.decodeIfPresent(HSLAdjustments.self, forKey: .hsl) ?? HSLAdjustments()
+        curves = try container.decodeIfPresent(ToneCurves.self, forKey: .curves) ?? ToneCurves()
+        lut = try container.decodeIfPresent(LUTApplication.self, forKey: .lut)
+        technicalLUT = try container.decodeIfPresent(LUTApplication.self, forKey: .technicalLUT)
+        colorPipeline = try container.decodeIfPresent(PhotoColorPipelineSettings.self, forKey: .colorPipeline) ?? .sdr
+    }
 
     static let identity = PhotoEditState()
 }
