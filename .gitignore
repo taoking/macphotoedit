@@ -1,0 +1,28 @@
+# macOS and Xcode user state
+.DS_Store
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+
+# Swift Package Manager/Xcode transient state
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/configuration/
+
+# Local catalog and generated media cache (never source-controlled)
+catalog.sqlite
+catalog.sqlite-shm
+catalog.sqlite-wal
+thumbnails/
+previews/
+logs/
+
+# User media and common generated artifacts
+*.photoslibrary/
+*.arw
+*.dng
+*.mov
+*.mp4
+*.m4v

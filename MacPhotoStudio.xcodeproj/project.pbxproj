@@ -1,0 +1,547 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		013E530C73BD5679E53A8AA8 /* FoundationServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */; };
+		0DA2AAFE91A2C30C21398B3A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */; };
+		2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */; };
+		37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */; };
+		4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */; };
+		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
+		61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */; };
+		636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */; };
+		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
+		9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */; };
+		B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */; };
+		CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7A4D7504F84F852D9D9998 /* AppLogger.swift */; };
+		CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */; };
+		DBD3A8A56734244DA9BC4425 /* StudioError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D77333C1FDB8A7645A978F7 /* StudioError.swift */; };
+		DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC889170459152139A872729 /* BackgroundTaskCenter.swift */; };
+		EAFB0A090487A7C9CD30EB73 /* CatalogPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163BA7295CE105D80B837A91 /* CatalogPaths.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3F881E341BD9CE99540B6B9E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D17E1751F82EB3DEC0D852A4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9BC4143F4497B478AB1AB465;
+			remoteInfo = MacPhotoStudio;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0D77333C1FDB8A7645A978F7 /* StudioError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioError.swift; sourceTree = "<group>"; };
+		1078ECBFC236980C141969F6 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		163BA7295CE105D80B837A91 /* CatalogPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPaths.swift; sourceTree = "<group>"; };
+		46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacPhotoStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A6EFD92551C7575799B149B /* ThumbnailStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailStore.swift; sourceTree = "<group>"; };
+		67733C2CD6E46F2FA7319BCE /* MacPhotoStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacPhotoStudio.entitlements; sourceTree = "<group>"; };
+		67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationModel.swift; sourceTree = "<group>"; };
+		714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
+		78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoStudioApp.swift; sourceTree = "<group>"; };
+		9F7A4D7504F84F852D9D9998 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		AC889170459152139A872729 /* BackgroundTaskCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskCenter.swift; sourceTree = "<group>"; };
+		ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacPhotoStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigration.swift; sourceTree = "<group>"; };
+		D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteConnection.swift; sourceTree = "<group>"; };
+		DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStoreTests.swift; sourceTree = "<group>"; };
+		DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationServicesTests.swift; sourceTree = "<group>"; };
+		EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryHomeView.swift; sourceTree = "<group>"; };
+		FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRootStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		230C9F4CDA715FD262382F52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0DA2AAFE91A2C30C21398B3A /* libsqlite3.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0654054828D3715C6AC7907B /* MacPhotoStudioTests */ = {
+			isa = PBXGroup;
+			children = (
+				DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */,
+				DE4E03C0CEE7D6E1FB180D26 /* FoundationServicesTests.swift */,
+			);
+			name = MacPhotoStudioTests;
+			path = Tests/MacPhotoStudioTests;
+			sourceTree = "<group>";
+		};
+		07D3FDDB27397DB0FCBB4275 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */,
+				ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0E6EEDA90ED933CB11EF5472 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */,
+				714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */,
+				D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		27BF195BDC8D4753BE4D030B /* Errors */ = {
+			isa = PBXGroup;
+			children = (
+				0D77333C1FDB8A7645A978F7 /* StudioError.swift */,
+			);
+			path = Errors;
+			sourceTree = "<group>";
+		};
+		6A232D18E11F711B2FC13F7E /* MacPhotoStudio */ = {
+			isa = PBXGroup;
+			children = (
+				67733C2CD6E46F2FA7319BCE /* MacPhotoStudio.entitlements */,
+				7112B7AB76E2701CAE3A5E4F /* App */,
+				FA3A576C8405594CA81998B5 /* Core */,
+				D6A0E516DE609051529E7B03 /* Features */,
+			);
+			path = MacPhotoStudio;
+			sourceTree = "<group>";
+		};
+		7112B7AB76E2701CAE3A5E4F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */,
+				78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		9731BA73471F05FDCED64E26 /* Filesystem */ = {
+			isa = PBXGroup;
+			children = (
+				1078ECBFC236980C141969F6 /* BookmarkStore.swift */,
+				163BA7295CE105D80B837A91 /* CatalogPaths.swift */,
+				FB57D52C2BD1DE1BEA63E554 /* MediaRootStore.swift */,
+			);
+			path = Filesystem;
+			sourceTree = "<group>";
+		};
+		AC43840B308DA4BE8ED1D0C0 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				AC889170459152139A872729 /* BackgroundTaskCenter.swift */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
+		B80E1EE2B612916265DFB447 = {
+			isa = PBXGroup;
+			children = (
+				6A232D18E11F711B2FC13F7E /* MacPhotoStudio */,
+				0654054828D3715C6AC7907B /* MacPhotoStudioTests */,
+				D17DEF7886CADA603260CE4E /* Frameworks */,
+				07D3FDDB27397DB0FCBB4275 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D17DEF7886CADA603260CE4E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D6A0E516DE609051529E7B03 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				D87B1CA34369E2CBA757BBCB /* Library */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		D87B1CA34369E2CBA757BBCB /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				EB7251D6D7F06DED153EC0D1 /* LibraryHomeView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		E311746184976C44D68816B1 /* Logging */ = {
+			isa = PBXGroup;
+			children = (
+				9F7A4D7504F84F852D9D9998 /* AppLogger.swift */,
+			);
+			path = Logging;
+			sourceTree = "<group>";
+		};
+		FA3A576C8405594CA81998B5 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				0E6EEDA90ED933CB11EF5472 /* Catalog */,
+				27BF195BDC8D4753BE4D030B /* Errors */,
+				9731BA73471F05FDCED64E26 /* Filesystem */,
+				E311746184976C44D68816B1 /* Logging */,
+				AC43840B308DA4BE8ED1D0C0 /* Tasks */,
+				FCBAE7A6E307C744290B789F /* Thumbnail */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		FCBAE7A6E307C744290B789F /* Thumbnail */ = {
+			isa = PBXGroup;
+			children = (
+				4A6EFD92551C7575799B149B /* ThumbnailStore.swift */,
+			);
+			path = Thumbnail;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		12629D21B16A524F0E892687 /* MacPhotoStudioTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0C13D7F01234C4652F38853D /* Build configuration list for PBXNativeTarget "MacPhotoStudioTests" */;
+			buildPhases = (
+				D1C8FD864CEFE6162F9E1AA9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1583539E9F1457349C13144C /* PBXTargetDependency */,
+			);
+			name = MacPhotoStudioTests;
+			packageProductDependencies = (
+			);
+			productName = MacPhotoStudioTests;
+			productReference = ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9BC4143F4497B478AB1AB465 /* MacPhotoStudio */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10E25DF9A82E8B01FCCC082 /* Build configuration list for PBXNativeTarget "MacPhotoStudio" */;
+			buildPhases = (
+				AB480E822FC26C9B1DCA9D4F /* Sources */,
+				230C9F4CDA715FD262382F52 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacPhotoStudio;
+			packageProductDependencies = (
+			);
+			productName = MacPhotoStudio;
+			productReference = 46A98006E5E2ACB7EDB1CBBC /* MacPhotoStudio.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D17E1751F82EB3DEC0D852A4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 7195361EC48B19C489C39DD8 /* Build configuration list for PBXProject "MacPhotoStudio" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = B80E1EE2B612916265DFB447;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 07D3FDDB27397DB0FCBB4275 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9BC4143F4497B478AB1AB465 /* MacPhotoStudio */,
+				12629D21B16A524F0E892687 /* MacPhotoStudioTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AB480E822FC26C9B1DCA9D4F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */,
+				9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */,
+				DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */,
+				48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */,
+				4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */,
+				EAFB0A090487A7C9CD30EB73 /* CatalogPaths.swift in Sources */,
+				61E5E3A800C6B0ED03A6AE09 /* CatalogStore.swift in Sources */,
+				636D8952A6E6364515ED947C /* LibraryHomeView.swift in Sources */,
+				37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */,
+				B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */,
+				CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */,
+				DBD3A8A56734244DA9BC4425 /* StudioError.swift in Sources */,
+				7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1C8FD864CEFE6162F9E1AA9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */,
+				013E530C73BD5679E53A8AA8 /* FoundationServicesTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1583539E9F1457349C13144C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9BC4143F4497B478AB1AB465 /* MacPhotoStudio */;
+			targetProxy = 3F881E341BD9CE99540B6B9E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3701791585FAD159BDDE4592 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MacPhotoStudio/MacPhotoStudio.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Mac Photo Studio";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.macphotostudio.app;
+				PRODUCT_NAME = MacPhotoStudio;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		659C63C9FD43693292B884F9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.macphotostudio.tests;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacPhotoStudio.app/Contents/MacOS/MacPhotoStudio";
+			};
+			name = Debug;
+		};
+		757DCF0A78B289C18F27223E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7AB64DB4BD946EB99105CC39 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A175C0B88BAA649FE647CCEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MacPhotoStudio/MacPhotoStudio.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Mac Photo Studio";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.macphotostudio.app;
+				PRODUCT_NAME = MacPhotoStudio;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
+		EC4B94170EF9EF68AE923E01 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.macphotostudio.tests;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacPhotoStudio.app/Contents/MacOS/MacPhotoStudio";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C13D7F01234C4652F38853D /* Build configuration list for PBXNativeTarget "MacPhotoStudioTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				659C63C9FD43693292B884F9 /* Debug */,
+				EC4B94170EF9EF68AE923E01 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7195361EC48B19C489C39DD8 /* Build configuration list for PBXProject "MacPhotoStudio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7AB64DB4BD946EB99105CC39 /* Debug */,
+				757DCF0A78B289C18F27223E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A10E25DF9A82E8B01FCCC082 /* Build configuration list for PBXNativeTarget "MacPhotoStudio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3701791585FAD159BDDE4592 /* Debug */,
+				A175C0B88BAA649FE647CCEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D17E1751F82EB3DEC0D852A4 /* Project object */;
+}
