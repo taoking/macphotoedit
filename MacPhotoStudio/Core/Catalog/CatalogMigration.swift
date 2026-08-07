@@ -190,6 +190,20 @@ enum CatalogMigrations {
                 CREATE INDEX IF NOT EXISTS asset_tags_tag_id_index ON asset_tags(tag_id);
                 """
             )
+        },
+        CatalogMigration(version: 5, name: "addPhotoEditStateSchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS photo_edit_states (
+                    asset_id TEXT PRIMARY KEY NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    state_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS photo_edit_states_updated_at_index ON photo_edit_states(updated_at);
+                """
+            )
         }
     ]
 }

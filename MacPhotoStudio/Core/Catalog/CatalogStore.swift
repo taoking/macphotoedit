@@ -347,6 +347,40 @@ actor CatalogStore {
         }
     }
 
+    func photoEditState(for assetID: UUID) throws -> PhotoEditState? {
+        let rows = try requireConnection().query(
+            "SELECT state_json FROM photo_edit_states WHERE asset_id = ? LIMIT 1;",
+            bindings: [.text(assetID.uuidString)]
+        )
+        guard let json = rows.first?.text(at: 0) else { return nil }
+        do {
+            return try JSONDecoder().decode(PhotoEditState.self, from: Data(json.utf8))
+        } catch {
+            throw StudioError.databaseExecutionFailed(message: "Unable to decode photo edit state: \(error.localizedDescription)")
+        }
+    }
+
+    func savePhotoEditState(_ state: PhotoEditState, for assetID: UUID, now: Date = .now) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let json: String
+        do {
+            json = String(decoding: try encoder.encode(state), as: UTF8.self)
+        } catch {
+            throw StudioError.databaseExecutionFailed(message: "Unable to encode photo edit state: \(error.localizedDescription)")
+        }
+        try requireConnection().execute(
+            """
+            INSERT INTO photo_edit_states (asset_id, state_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                state_json = excluded.state_json,
+                updated_at = excluded.updated_at;
+            """,
+            bindings: [.text(assetID.uuidString), .text(json), .real(now.timeIntervalSince1970), .real(now.timeIntervalSince1970)]
+        )
+    }
+
     private func upsert(_ asset: ScannedMediaAsset, scanID: UUID, using connection: SQLiteConnection) throws {
         try connection.execute(
             """

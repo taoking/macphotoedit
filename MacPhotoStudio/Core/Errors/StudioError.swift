@@ -12,6 +12,7 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
     case directoryEnumerationFailed(path: String)
     case metadataExtractionFailed(path: String)
     case mediaRootNotFound(id: UUID)
+    case invalidLUT(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +38,8 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
             return "无法读取媒体元数据：\(path)"
         case .mediaRootNotFound(let id):
             return "找不到媒体根目录：\(id.uuidString)"
+        case .invalidLUT(let message):
+            return "无效的 LUT：\(message)"
         }
     }
 }

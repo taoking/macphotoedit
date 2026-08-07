@@ -27,6 +27,7 @@ final class ApplicationModel: ObservableObject {
     private var mediaRootStore: MediaRootStore?
     private var scanCoordinator: ScanCoordinator?
     private var thumbnailLoader: ThumbnailLoader?
+    private var photoEditingService: PhotoEditingService?
     private var activeLibraryQuery = LibraryQuery.all
     private var nextAssetOffset = 0
     private var libraryRequestID = UUID()
@@ -49,6 +50,11 @@ final class ApplicationModel: ObservableObject {
             self.thumbnailLoader = ThumbnailLoader(
                 diskStore: ThumbnailStore(directoryURL: paths.thumbnailsDirectory),
                 mediaRootStore: mediaRootStore
+            )
+            self.photoEditingService = PhotoEditingService(
+                catalogStore: catalogStore,
+                mediaRootStore: mediaRootStore,
+                lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
             )
             startupState = .ready(paths)
             await refreshLibrary(validateRoots: true)
@@ -287,6 +293,100 @@ final class ApplicationModel: ObservableObject {
             selectedAssetTags = try await catalogStore.tags(for: assetID)
         } catch {
             report(error, activity: "Loading asset tags")
+        }
+    }
+
+    func photoEditState(for assetID: UUID) async -> PhotoEditState? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.editState(for: assetID)
+        } catch {
+            report(error, activity: "Loading photo edit state")
+            return nil
+        }
+    }
+
+    func savePhotoEditState(_ state: PhotoEditState, for assetID: UUID) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.save(state, for: assetID)
+            return true
+        } catch {
+            report(error, activity: "Saving photo edit state")
+            return false
+        }
+    }
+
+    func renderPhotoPreview(
+        for asset: LibraryAssetRecord,
+        state: PhotoEditState,
+        maximumPixelSize: Int = 2_048
+    ) async -> PhotoRenderResult? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.renderPreview(
+                for: asset,
+                state: state,
+                maximumPixelSize: maximumPixelSize
+            )
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report(error, activity: "Rendering photo preview")
+            return nil
+        }
+    }
+
+    func photoLUTLibrary() async -> LUTLibrary? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.lutLibrary()
+        } catch {
+            report(error, activity: "Loading LUT library")
+            return nil
+        }
+    }
+
+    func importLUT(from url: URL) async -> CubeLUT? {
+        guard let photoEditingService else { return nil }
+        do {
+            return try await photoEditingService.importLUT(from: url)
+        } catch {
+            report(error, activity: "Importing LUT")
+            return nil
+        }
+    }
+
+    func renameLUT(identifier: UUID, to title: String) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.renameLUT(identifier: identifier, to: title)
+            return true
+        } catch {
+            report(error, activity: "Renaming LUT")
+            return false
+        }
+    }
+
+    func deleteLUT(identifier: UUID) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.deleteLUT(identifier: identifier)
+            return true
+        } catch {
+            report(error, activity: "Deleting LUT")
+            return false
+        }
+    }
+
+    func setLUTFavorite(_ isFavorite: Bool, identifier: UUID) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            try await photoEditingService.setLUTFavorite(isFavorite, identifier: identifier)
+            return true
+        } catch {
+            report(error, activity: "Updating LUT favorite")
+            return false
         }
     }
 

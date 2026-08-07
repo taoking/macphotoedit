@@ -70,7 +70,8 @@ final class LibraryCatalogTests: XCTestCase {
         XCTAssertEqual(filtered.map(\.id), [photoRecord.id])
         XCTAssertEqual(filtered.first?.gpsLatitude, 42.1)
         let assignedTags = try await store.tags(for: photoRecord.id)
-        XCTAssertEqual(assignedTags, [tag])
+        XCTAssertEqual(assignedTags.map(\.id), [tag.id])
+        XCTAssertEqual(assignedTags.map(\.name), [tag.name])
 
         try await store.renameTag(tag.id, to: "极光")
         let renamedTags = try await store.tags()

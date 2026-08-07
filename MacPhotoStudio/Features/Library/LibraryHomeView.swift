@@ -239,6 +239,7 @@ private struct AssetPreviewSheet: View {
     @ObservedObject var model: ApplicationModel
     @Environment(\.dismiss) private var dismiss
     @State private var image: NSImage?
+    @State private var editorAsset: LibraryAssetRecord?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -246,6 +247,9 @@ private struct AssetPreviewSheet: View {
                 Label(asset.filename, systemImage: asset.mediaType == .photo ? "photo" : "film")
                     .lineLimit(1)
                 Spacer()
+                if asset.mediaType == .photo {
+                    Button("编辑") { editorAsset = asset }
+                }
                 Button("完成") { dismiss() }
             }
             .padding(.horizontal)
@@ -269,6 +273,9 @@ private struct AssetPreviewSheet: View {
         .task(id: asset.id) {
             guard let data = await model.thumbnailData(for: asset, maximumPixelSize: 512), !Task.isCancelled else { return }
             image = NSImage(data: data)
+        }
+        .sheet(item: $editorAsset) { editorAsset in
+            PhotoEditorView(asset: editorAsset, model: model)
         }
     }
 }
