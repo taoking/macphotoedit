@@ -58,7 +58,7 @@ final class PhotoEditingTests: XCTestCase {
         try await reopenedStore.bootstrap()
         let version = try await reopenedStore.currentSchemaVersion()
         let restoredState = try await reopenedStore.photoEditState(for: asset.id)
-        XCTAssertEqual(version, 6)
+        XCTAssertEqual(version, 7)
         XCTAssertEqual(restoredState, state)
         let restoredRAWState = try await reopenedStore.rawEditState(for: asset.id)
         XCTAssertEqual(restoredRAWState, rawState)
@@ -186,6 +186,212 @@ final class PhotoEditingTests: XCTestCase {
         }
     }
 
+    func testPresetPersistsImportsExportsAndNeverOverwritesCrop() async throws {
+        let paths = try CatalogPaths.create(in: temporaryDirectory)
+        let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await store.bootstrap()
+        let repository = PresetRepository(catalogStore: store)
+
+        var sourceState = PhotoEditState.identity
+        sourceState.light.exposure = 1.4
+        sourceState.color.vibrance = 0.25
+        sourceState.transform.crop = NormalizedCrop(x: 0.1, y: 0.2, width: 0.6, height: 0.5)
+        let created = try await repository.create(named: "旅行", content: sourceState.presetContent)
+        try await repository.setFavorite(true, for: created)
+        try await repository.rename(created, to: "旅行暖调")
+        let storedPresets = try await repository.presets()
+        let renamed = try XCTUnwrap(storedPresets.first)
+        XCTAssertEqual(renamed.name, "旅行暖调")
+        XCTAssertTrue(renamed.isFavorite)
+
+        let exportURL = temporaryDirectory.appending(path: "travel.mpspreset")
+        try await repository.export(renamed, to: exportURL)
+        let exportedBytes = try Data(contentsOf: exportURL)
+        let imported = try await repository.importPreset(from: exportURL)
+        XCTAssertEqual(try Data(contentsOf: exportURL), exportedBytes)
+        XCTAssertEqual(imported.name, "旅行暖调 (2)")
+        XCTAssertEqual(imported.content, renamed.content)
+
+        var targetState = PhotoEditState.identity
+        targetState.transform.crop = NormalizedCrop(x: 0.25, y: 0.3, width: 0.5, height: 0.4)
+        let pasted = targetState.applying(imported.content)
+        XCTAssertEqual(pasted.light.exposure, 1.4)
+        XCTAssertEqual(pasted.color.vibrance, 0.25)
+        XCTAssertEqual(pasted.transform.crop, targetState.transform.crop)
+
+        try await repository.delete(imported)
+        let presetsAfterDelete = try await repository.presets()
+        XCTAssertEqual(presetsAfterDelete.count, 1)
+    }
+
+    func testBatchPresetApplyContinuesAfterInvalidAssetAndOnlyChangesCatalogState() async throws {
+        let paths = try CatalogPaths.create(in: temporaryDirectory)
+        let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await store.bootstrap()
+        let root = MediaRootRecord(
+            id: UUID(), displayName: "Test", bookmarkData: Data("bookmark".utf8),
+            lastKnownPath: temporaryDirectory.path(percentEncoded: false), volumeIdentifier: nil,
+            availability: .online, createdAt: .now, lastScannedAt: nil, lastScanError: nil
+        )
+        try await store.saveMediaRoot(root)
+        let scanID = UUID()
+        try await store.beginScan(rootID: root.id, scanID: scanID)
+        try await store.applyScanBatch([ScannedMediaAsset(
+            rootID: root.id, relativePath: "target.png", fileResourceIdentifier: "target", mediaType: .photo,
+            fileExtension: "png", fileSize: 1, createdAt: .now, modifiedAt: .now, metadata: .unavailable
+        )], scanID: scanID)
+        try await store.finishScan(rootID: root.id, scanID: scanID)
+        let catalogAssets = try await store.libraryAssets(query: .all, limit: 1, offset: 0)
+        let asset = try XCTUnwrap(catalogAssets.first)
+        var original = PhotoEditState.identity
+        original.transform.crop = NormalizedCrop(x: 0.2, y: 0.2, width: 0.5, height: 0.5)
+        try await store.savePhotoEditState(original, for: asset.id)
+
+        var presetState = PhotoEditState.identity
+        presetState.light.exposure = 1
+        let service = PhotoEditingService(
+            catalogStore: store,
+            mediaRootStore: MediaRootStore(catalogStore: store),
+            lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
+        )
+        let report = try await service.applyPresetContent(presetState.presetContent, to: [asset.id, UUID()])
+        XCTAssertEqual(report.attempted, 2)
+        XCTAssertEqual(report.succeeded, 1)
+        XCTAssertEqual(report.failed, 1)
+        let updatedState = try await store.photoEditState(for: asset.id)
+        let updated = try XCTUnwrap(updatedState)
+        XCTAssertEqual(updated.light.exposure, 1)
+        XCTAssertEqual(updated.transform.crop, original.transform.crop)
+    }
+
+    func testBatchExportResizesRemovesGPSRenamesCollisionsAndContinuesAfterFailure() async throws {
+        let sourceURL = temporaryDirectory.appending(path: "source.jpg")
+        let gps: [CFString: Any] = [
+            kCGImagePropertyGPSLatitude: 31.2304,
+            kCGImagePropertyGPSLatitudeRef: "N",
+            kCGImagePropertyGPSLongitude: 121.4737,
+            kCGImagePropertyGPSLongitudeRef: "E"
+        ]
+        let sourceData = try jpegData(
+            width: 80,
+            height: 40,
+            color: CGColor(red: 0.1, green: 0.5, blue: 0.8, alpha: 1),
+            properties: [kCGImagePropertyGPSDictionary: gps]
+        )
+        try sourceData.write(to: sourceURL)
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(sourceURL as CFURL, nil))
+        let sourceProperties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+        XCTAssertNotNil(sourceProperties[kCGImagePropertyGPSDictionary])
+
+        let paths = try CatalogPaths.create(in: temporaryDirectory)
+        let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await store.bootstrap()
+        let mediaRootStore = MediaRootStore(catalogStore: store)
+        let root = try await mediaRootStore.add(directoryURL: temporaryDirectory)
+        let scanID = UUID()
+        try await store.beginScan(rootID: root.id, scanID: scanID)
+        try await store.applyScanBatch([
+            ScannedMediaAsset(
+                rootID: root.id, relativePath: "source.jpg", fileResourceIdentifier: "source", mediaType: .photo,
+                fileExtension: "jpg", fileSize: Int64(sourceData.count), createdAt: .now, modifiedAt: .now, metadata: .unavailable
+            ),
+            ScannedMediaAsset(
+                rootID: root.id, relativePath: "missing.jpg", fileResourceIdentifier: "missing", mediaType: .photo,
+                fileExtension: "jpg", fileSize: 1, createdAt: .now, modifiedAt: .now, metadata: .unavailable
+            )
+        ], scanID: scanID)
+        try await store.finishScan(rootID: root.id, scanID: scanID)
+        let assets = try await store.libraryAssets(query: .all, limit: 10, offset: 0)
+        let outputDirectory = temporaryDirectory.appending(path: "exports", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let service = PhotoEditingService(
+            catalogStore: store,
+            mediaRootStore: mediaRootStore,
+            lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
+        )
+        let options = PhotoExportOptions(
+            format: .jpeg,
+            resize: .maximum(16),
+            quality: 0.8,
+            namingRule: .editedName,
+            keepsMetadata: true,
+            removesGPS: true
+        )
+
+        let sourceAsset = try XCTUnwrap(assets.first(where: { $0.relativePath == "source.jpg" }))
+        let preservedMetadataURL = outputDirectory.appending(path: "preserved.jpeg")
+        try await service.exportPhoto(
+            for: sourceAsset,
+            destinationURL: preservedMetadataURL,
+            options: PhotoExportOptions(format: .jpeg, keepsMetadata: true, removesGPS: false)
+        )
+        let preservedSource = try XCTUnwrap(CGImageSourceCreateWithURL(preservedMetadataURL as CFURL, nil))
+        let preservedProperties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(preservedSource, 0, nil) as? [CFString: Any])
+        XCTAssertNotNil(preservedProperties[kCGImagePropertyGPSDictionary])
+
+        do {
+            try await service.exportPhoto(
+                for: sourceAsset,
+                destinationURL: sourceURL,
+                options: PhotoExportOptions(format: .jpeg),
+                allowsOverwrite: true
+            )
+            XCTFail("Export must never overwrite referenced source media")
+        } catch {
+            XCTAssertEqual(try Data(contentsOf: sourceURL), sourceData)
+        }
+
+        let firstReport = try await service.batchExport(assets: assets, outputDirectoryURL: outputDirectory, options: options)
+        XCTAssertEqual(firstReport.attempted, 2)
+        XCTAssertEqual(firstReport.succeeded, 1)
+        XCTAssertEqual(firstReport.failed, 1)
+        XCTAssertEqual(firstReport.skipped, 0)
+        let firstExport = outputDirectory.appending(path: "source-edited.jpeg")
+        let exportedImageSource = try XCTUnwrap(CGImageSourceCreateWithURL(firstExport as CFURL, nil))
+        let exportedProperties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(exportedImageSource, 0, nil) as? [CFString: Any])
+        XCTAssertNil(exportedProperties[kCGImagePropertyGPSDictionary])
+        XCTAssertEqual(exportedProperties[kCGImagePropertyPixelWidth] as? Int, 16)
+        XCTAssertEqual(exportedProperties[kCGImagePropertyPixelHeight] as? Int, 8)
+        XCTAssertEqual(try Data(contentsOf: sourceURL), sourceData)
+
+        let secondReport = try await service.batchExport(assets: assets, outputDirectoryURL: outputDirectory, options: options)
+        XCTAssertEqual(secondReport.succeeded, 1)
+        XCTAssertEqual(secondReport.failed, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputDirectory.appending(path: "source-edited (2).jpeg").path(percentEncoded: false)))
+    }
+
+    func testExportCollisionPoliciesRequireExplicitOverwriteAndDefaultToRename() async throws {
+        let destination = temporaryDirectory.appending(path: "photo-edited.jpg")
+        try Data("existing".utf8).write(to: destination)
+        let assetID = UUID()
+
+        let renamed = try await ExportDestinationResolver.destination(
+            initialURL: destination,
+            sourceAssetID: assetID,
+            policy: .rename,
+            resolver: nil
+        )
+        XCTAssertEqual(renamed.url?.lastPathComponent, "photo-edited (2).jpg")
+        XCTAssertFalse(renamed.allowsOverwrite)
+
+        let skipped = try await ExportDestinationResolver.destination(
+            initialURL: destination,
+            sourceAssetID: assetID,
+            policy: .skip,
+            resolver: nil
+        )
+        XCTAssertNil(skipped.url)
+
+        let overwritten = try await ExportDestinationResolver.destination(
+            initialURL: destination,
+            sourceAssetID: assetID,
+            policy: .overwrite,
+            resolver: nil
+        )
+        XCTAssertEqual(overwritten.url, destination)
+        XCTAssertTrue(overwritten.allowsOverwrite)
+    }
+
     private func identityCubeData(dimension: Int) -> Data {
         var lines = ["TITLE \"Identity \(dimension)\"", "LUT_3D_SIZE \(dimension)", "DOMAIN_MIN 0 0 0", "DOMAIN_MAX 1 1 1"]
         for blue in 0..<dimension {
@@ -227,6 +433,28 @@ final class PhotoEditingTests: XCTestCase {
             throw StudioError.metadataExtractionFailed(path: "test fixture")
         }
         CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { throw StudioError.metadataExtractionFailed(path: "test fixture") }
+        return result as Data
+    }
+
+    private func jpegData(
+        width: Int,
+        height: Int,
+        color: CGColor,
+        properties: [CFString: Any]
+    ) throws -> Data {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            throw StudioError.metadataExtractionFailed(path: "test fixture")
+        }
+        context.setFillColor(color)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else { throw StudioError.metadataExtractionFailed(path: "test fixture") }
+        let result = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(result, UTType.jpeg.identifier as CFString, 1, nil) else {
+            throw StudioError.metadataExtractionFailed(path: "test fixture")
+        }
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw StudioError.metadataExtractionFailed(path: "test fixture") }
         return result as Data
     }

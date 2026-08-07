@@ -81,39 +81,6 @@ struct RAWRenderResult: Sendable {
     let capabilities: RAWCapabilities
 }
 
-enum RAWExportFormat: String, CaseIterable, Sendable, Identifiable {
-    case jpeg
-    case heif
-    case tiff
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .jpeg: "JPEG"
-        case .heif: "HEIF（HEIC）"
-        case .tiff: "TIFF"
-        }
-    }
-
-    var filenameExtension: String { self == .heif ? "heic" : rawValue }
-
-    var contentType: UTType {
-        switch self {
-        case .jpeg: .jpeg
-        // ImageIO exposes its writable HEIF implementation as public.heic.
-        // HEIC is the HEIF still-image profile used by macOS.
-        case .heif: .heic
-        case .tiff: .tiff
-        }
-    }
-
-    var isSupported: Bool {
-        let supportedTypes = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
-        return supportedTypes.contains(contentType.identifier)
-    }
-}
-
 /// Encodes a rendered image directly to a newly selected destination. It never
 /// writes beside, replaces, or otherwise changes the referenced source media.
 enum ImageFileExporter {
@@ -124,33 +91,131 @@ enum ImageFileExporter {
         format: RAWExportFormat,
         quality: Double = 0.92
     ) throws {
+        try write(
+            image: image,
+            context: context,
+            sourceURL: nil,
+            to: destinationURL,
+            options: PhotoExportOptions(format: format, quality: quality),
+            allowsOverwrite: false
+        )
+    }
+
+    static func write(
+        image: CIImage,
+        context: CIContext,
+        sourceURL: URL?,
+        to destinationURL: URL,
+        options: PhotoExportOptions,
+        allowsOverwrite: Bool
+    ) throws {
         try Task.checkCancellation()
-        guard format.isSupported else {
-            throw StudioError.exportFailed(message: "系统不支持 \(format.title) 编码。")
+        guard options.format.isSupported else {
+            throw StudioError.exportFailed(message: "系统不支持 \(options.format.title) 编码。")
         }
-        guard !FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false)) else {
+        if let sourceURL,
+           sourceURL.standardizedFileURL.resolvingSymlinksInPath() == destinationURL.standardizedFileURL.resolvingSymlinksInPath() {
+            throw StudioError.exportFailed(message: "导出目标不能覆盖原始媒体文件：\(destinationURL.lastPathComponent)")
+        }
+        let destinationExists = FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false))
+        guard !destinationExists || allowsOverwrite else {
             throw StudioError.exportFailed(message: "目标文件已存在：\(destinationURL.lastPathComponent)")
         }
         let extent = image.extent.integral
         guard !extent.isEmpty, let cgImage = context.createCGImage(image, from: extent) else {
             throw StudioError.exportFailed(message: "无法生成输出图像。")
         }
+        let directoryURL = destinationURL.deletingLastPathComponent()
+        let temporaryURL = directoryURL.appending(path: ".mps-export-\(UUID().uuidString)").appendingPathExtension("tmp")
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
         guard let destination = CGImageDestinationCreateWithURL(
-            destinationURL as CFURL,
-            format.contentType.identifier as CFString,
+            temporaryURL as CFURL,
+            options.format.contentType.identifier as CFString,
             1,
             nil
         ) else {
-            throw StudioError.exportFailed(message: "系统不支持 \(format.title) 编码。")
+            throw StudioError.exportFailed(message: "系统不支持 \(options.format.title) 编码。")
         }
-        var properties: [CFString: Any] = [:]
-        if format == .jpeg || format == .heif {
-            properties[kCGImageDestinationLossyCompressionQuality] = min(max(quality, 0), 1)
+        var properties = outputProperties(
+            sourceURL: sourceURL,
+            keepsMetadata: options.keepsMetadata,
+            removesGPS: options.removesGPS
+        )
+        if options.format == .jpeg || options.format == .heif {
+            properties[kCGImageDestinationLossyCompressionQuality] = options.quality
         }
         CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
             throw StudioError.exportFailed(message: "无法写入 \(destinationURL.lastPathComponent)。")
         }
+        try Task.checkCancellation()
+        if FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false)) {
+            guard allowsOverwrite else {
+                throw StudioError.exportFailed(message: "目标文件已存在：\(destinationURL.lastPathComponent)")
+            }
+            do {
+                _ = try FileManager.default.replaceItemAt(destinationURL, withItemAt: temporaryURL)
+            } catch {
+                throw StudioError.exportFailed(message: "无法替换已明确选择覆盖的文件：\(destinationURL.lastPathComponent)")
+            }
+        } else {
+            do {
+                try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+            } catch {
+                throw StudioError.exportFailed(message: "无法保存 \(destinationURL.lastPathComponent)：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private static func outputProperties(
+        sourceURL: URL?,
+        keepsMetadata: Bool,
+        removesGPS: Bool
+    ) -> [CFString: Any] {
+        guard keepsMetadata,
+              let sourceURL,
+              let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+              var properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return [:]
+        }
+        // Pixels have already been normalized with ImageIO/Core Image orientation.
+        properties[kCGImagePropertyOrientation] = 1
+        if removesGPS {
+            properties.removeValue(forKey: kCGImagePropertyGPSDictionary)
+        }
+        return properties
+    }
+}
+
+/// Full-resolution ordinary-photo encoder. It owns a dedicated CIContext, so a
+/// batch releases each image before it advances to the next asset.
+actor PhotoFileExportRenderer {
+    private let context = RendererContextFactory.makeContext()
+
+    func export(
+        sourceURL: URL,
+        state: PhotoEditState,
+        lut: CubeLUT?,
+        destinationURL: URL,
+        options: PhotoExportOptions,
+        allowsOverwrite: Bool
+    ) throws {
+        try Task.checkCancellation()
+        guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
+            throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
+        }
+        var output = PhotoImagePipeline.apply(state, to: source, lut: lut)
+        if let maximumPixelSize = options.resize.maximumPixelSize {
+            output = PhotoImagePipeline.previewImage(from: output, maximumPixelSize: maximumPixelSize)
+        }
+        try ImageFileExporter.write(
+            image: output,
+            context: context,
+            sourceURL: sourceURL,
+            to: destinationURL,
+            options: options,
+            allowsOverwrite: allowsOverwrite
+        )
     }
 }
 
@@ -213,7 +278,8 @@ actor RAWExportRenderer {
         photoState: PhotoEditState,
         lut: CubeLUT?,
         destinationURL: URL,
-        format: RAWExportFormat
+        options: PhotoExportOptions,
+        allowsOverwrite: Bool = false
     ) throws {
         try Task.checkCancellation()
         let decoded = try RAWImagePipeline.decode(
@@ -223,8 +289,18 @@ actor RAWExportRenderer {
             draft: false
         )
         try Task.checkCancellation()
-        let output = PhotoImagePipeline.apply(photoState, to: decoded.image, lut: lut)
-        try ImageFileExporter.write(image: output, context: context, to: destinationURL, format: format)
+        var output = PhotoImagePipeline.apply(photoState, to: decoded.image, lut: lut)
+        if let maximumPixelSize = options.resize.maximumPixelSize {
+            output = PhotoImagePipeline.previewImage(from: output, maximumPixelSize: maximumPixelSize)
+        }
+        try ImageFileExporter.write(
+            image: output,
+            context: context,
+            sourceURL: sourceURL,
+            to: destinationURL,
+            options: options,
+            allowsOverwrite: allowsOverwrite
+        )
     }
 }
 
@@ -233,6 +309,7 @@ actor PhotoEditingService {
     private let mediaRootStore: MediaRootStore
     private let previewRenderer: PreviewRenderer
     private let exportRenderer: ExportRenderer
+    private let photoFileExportRenderer: PhotoFileExportRenderer
     private let rawPreviewRenderer: RAWPreviewRenderer
     private let rawExportRenderer: RAWExportRenderer
     private let lutRepository: LUTRepository
@@ -242,6 +319,7 @@ actor PhotoEditingService {
         mediaRootStore: MediaRootStore,
         previewRenderer: PreviewRenderer = PreviewRenderer(),
         exportRenderer: ExportRenderer = ExportRenderer(),
+        photoFileExportRenderer: PhotoFileExportRenderer = PhotoFileExportRenderer(),
         rawPreviewRenderer: RAWPreviewRenderer = RAWPreviewRenderer(),
         rawExportRenderer: RAWExportRenderer = RAWExportRenderer(),
         lutRepository: LUTRepository
@@ -250,6 +328,7 @@ actor PhotoEditingService {
         self.mediaRootStore = mediaRootStore
         self.previewRenderer = previewRenderer
         self.exportRenderer = exportRenderer
+        self.photoFileExportRenderer = photoFileExportRenderer
         self.rawPreviewRenderer = rawPreviewRenderer
         self.rawExportRenderer = rawExportRenderer
         self.lutRepository = lutRepository
@@ -269,6 +348,36 @@ actor PhotoEditingService {
 
     func saveRaw(_ state: RAWEditState, for assetID: UUID) async throws {
         try await catalogStore.saveRawEditState(state, for: assetID)
+    }
+
+    /// Applies only the preset-safe adjustment groups. This intentionally runs
+    /// sequentially: it keeps memory bounded and writes Catalog state only.
+    func applyPresetContent(
+        _ content: PhotoPresetContent,
+        to assetIDs: [UUID],
+        components: Set<PhotoEditComponent> = PhotoEditComponent.allPresetComponents,
+        reportProgress: (@Sendable (Double) async -> Void)? = nil
+    ) async throws -> BatchEditReport {
+        var seenIDs = Set<UUID>()
+        let uniqueIDs = assetIDs.filter { seenIDs.insert($0).inserted }
+        var succeeded = 0
+        var failures: [BatchItemFailure] = []
+        for (index, assetID) in uniqueIDs.enumerated() {
+            try Task.checkCancellation()
+            do {
+                let current = try await catalogStore.photoEditState(for: assetID) ?? .identity
+                try await catalogStore.savePhotoEditState(current.applying(content, components: components), for: assetID)
+                succeeded += 1
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failures.append(BatchItemFailure(assetID: assetID, message: error.localizedDescription))
+            }
+            if let reportProgress {
+                await reportProgress(Double(index + 1) / Double(max(uniqueIDs.count, 1)))
+            }
+        }
+        return BatchEditReport(attempted: uniqueIDs.count, succeeded: succeeded, failures: failures)
     }
 
     func lutLibrary() async throws -> LUTLibrary { try await lutRepository.library() }
@@ -325,9 +434,110 @@ actor PhotoEditingService {
                 photoState: photoState,
                 lut: selectedLUT,
                 destinationURL: destinationURL,
-                format: format
+                options: PhotoExportOptions(format: format)
             )
         }
+    }
+
+    /// Writes one rendered photo to the caller-selected directory. The source
+    /// remains referenced and read-only; only a temporary output file is ever
+    /// created, then atomically moved into the requested destination.
+    func exportPhoto(
+        for asset: LibraryAssetRecord,
+        destinationURL: URL,
+        options: PhotoExportOptions,
+        allowsOverwrite: Bool = false
+    ) async throws {
+        guard asset.mediaType == .photo else {
+            throw StudioError.exportFailed(message: "只能导出照片：\(asset.filename)")
+        }
+        guard let root = try await catalogStore.mediaRoot(id: asset.rootID) else {
+            throw StudioError.mediaRootNotFound(id: asset.rootID)
+        }
+        let photoState = try await editState(for: asset.id)
+        let selectedLUT = try await selectedLUT(for: photoState)
+        let resolved = try await mediaRootStore.resolve(root)
+        let sourceURL = resolved.directoryURL.appending(path: asset.relativePath)
+
+        try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
+            if RAWFormat.isRAW(asset.fileExtension) {
+                let rawState = try await self.rawEditState(for: asset.id)
+                try await self.rawExportRenderer.export(
+                    sourceURL: sourceURL,
+                    rawState: rawState,
+                    photoState: photoState,
+                    lut: selectedLUT,
+                    destinationURL: destinationURL,
+                    options: options,
+                    allowsOverwrite: allowsOverwrite
+                )
+            } else {
+                try await self.photoFileExportRenderer.export(
+                    sourceURL: sourceURL,
+                    state: photoState,
+                    lut: selectedLUT,
+                    destinationURL: destinationURL,
+                    options: options,
+                    allowsOverwrite: allowsOverwrite
+                )
+            }
+        }
+    }
+
+    /// Bounded-memory batch export. Each source is decoded, rendered and
+    /// released before the next begins; a bad asset is reported without losing
+    /// the rest of the batch.
+    func batchExport(
+        assets: [LibraryAssetRecord],
+        outputDirectoryURL: URL,
+        options: PhotoExportOptions,
+        collisionResolver: (@Sendable (ExportCollision) async -> ExportCollisionResolution)? = nil,
+        reportProgress: (@Sendable (Double) async -> Void)? = nil
+    ) async throws -> BatchExportReport {
+        let uniqueAssets = uniquePhotoAssets(assets)
+        var succeeded = 0
+        var skipped = 0
+        var failures: [BatchExportItemFailure] = []
+
+        for (index, asset) in uniqueAssets.enumerated() {
+            try Task.checkCancellation()
+            let baseName = options.namingRule.baseFilename(for: asset, sequenceNumber: index + 1)
+            let requestedURL = outputDirectoryURL
+                .appending(path: baseName)
+                .appendingPathExtension(options.format.filenameExtension)
+            do {
+                let destination = try await ExportDestinationResolver.destination(
+                    initialURL: requestedURL,
+                    sourceAssetID: asset.id,
+                    policy: options.collisionPolicy,
+                    resolver: collisionResolver
+                )
+                if let destinationURL = destination.url {
+                    try await exportPhoto(
+                        for: asset,
+                        destinationURL: destinationURL,
+                        options: options,
+                        allowsOverwrite: destination.allowsOverwrite
+                    )
+                    succeeded += 1
+                } else {
+                    skipped += 1
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failures.append(BatchExportItemFailure(assetID: asset.id, message: error.localizedDescription))
+            }
+            if let reportProgress {
+                await reportProgress(Double(index + 1) / Double(max(uniqueAssets.count, 1)))
+            }
+        }
+        return BatchExportReport(
+            attempted: uniqueAssets.count,
+            succeeded: succeeded,
+            skipped: skipped,
+            failures: failures
+        )
     }
 
     private func render(
@@ -394,6 +604,11 @@ actor PhotoEditingService {
     private func selectedLUT(for state: PhotoEditState) async throws -> CubeLUT? {
         guard let application = state.lut else { return nil }
         return try await lutRepository.lut(identifier: application.identifier)
+    }
+
+    private func uniquePhotoAssets(_ assets: [LibraryAssetRecord]) -> [LibraryAssetRecord] {
+        var seenIDs = Set<UUID>()
+        return assets.filter { $0.mediaType == .photo && seenIDs.insert($0.id).inserted }
     }
 }
 

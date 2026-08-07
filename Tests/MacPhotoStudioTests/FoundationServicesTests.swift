@@ -56,4 +56,20 @@ final class FoundationServicesTests: XCTestCase {
         XCTAssertEqual(cancelledTask?.state, .cancelled)
         XCTAssertEqual(cancelledTask?.progress, 0.4)
     }
+
+    func testPhotoExportTaskCompletesWithProgressAndBatchKindIsSupported() async throws {
+        let center = BackgroundTaskCenter()
+        let exportTask = await center.enqueue(kind: .photoExport, title: "导出照片")
+        let editTask = await center.enqueue(kind: .photoBatchEdit, title: "批量粘贴")
+
+        try await center.start(exportTask.id)
+        try await center.updateProgress(0.5, for: exportTask.id)
+        try await center.complete(exportTask.id)
+
+        let completedExport = await center.task(for: exportTask.id)
+        let queuedEdit = await center.task(for: editTask.id)
+        XCTAssertEqual(completedExport?.state, .completed)
+        XCTAssertEqual(completedExport?.progress, 1)
+        XCTAssertEqual(queuedEdit?.state, .queued)
+    }
 }

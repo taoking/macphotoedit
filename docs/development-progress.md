@@ -205,3 +205,45 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 4 raw editing`
+
+## Phase 5
+
+Status: COMPLETED
+
+Implemented:
+- Catalog v7 `photo_presets`：预设以 JSON 保存 Light、Color、HSL、Curves、Detail、Effects 与 LUT（含强度），明确不含 Crop/旋转/翻转；提供创建、重命名、删除、收藏与独立 JSON import/export，导入不会修改外部预设文件。
+- 资料库多选“编辑”菜单具备 Copy All、Paste All、Selective Paste、从选中照片创建预设、应用预设、预设管理和批量导出入口。批量粘贴/应用只顺序更新 Catalog EditState，不生成输出文件，且每张保留自己的 Transform/Crop。
+- 通用 `PhotoExportOptions` 与实际全分辨率文件导出：JPEG、HEIF（macOS HEIC profile）、TIFF；支持最长边 resize、JPEG/HEIF quality、原名/Edited/连续编号、选择输出文件夹、保留元数据及可选 GPS 移除。
+- 统一 Background Task Center 增加照片批量调整/导出任务，显示 queued/running/completed/failed/cancelled 状态、进度、取消入口和最近一份成功/跳过/失败报告。导出严格顺序执行，单项失败会记录后继续下一项。
+- 输出冲突支持 overwrite、skip、rename、ask；默认 `rename`。写入先编码临时文件再移动；只有用户明确选择覆盖才替换目标，且无论何种选择都拒绝覆盖引用的原始媒体文件。
+
+Tests:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`
+- PASS — 30 tests, 0 failures：Phase 0–4 全量回归、v7 preset migration/持久化/rename/favorite/import/export、Crop 不随 preset/copy 覆盖、批量应用单项失败继续且只写 Catalog、JPEG/HEIF/TIFF ImageIO 编码、导出 resize/quality/metadata/GPS 移除与保留、默认重命名、显式覆盖/跳过策略、源文件不可覆盖、缺失单项不终止整批、导出任务状态。
+
+Build:
+- `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`
+- PASS — `BUILD SUCCEEDED`。
+
+Acceptance:
+- PASS — Preset 覆盖计划要求的全部可复制调色组且不含 Transform；Catalog v7 持久化、JSON import/export、UI 管理和收藏路径均已存在。
+- PASS — 多选 Copy/Paste/Selective Paste/Apply Preset 已接入实际 Catalog 写入；自动化验证无效 asset 不会阻断后续项且目标 Crop 仍保持不变。
+- PASS — Batch Export 实际逐张读取/渲染/释放内存，生成 JPEG、HEIF（HEIC）和 TIFF；UI 可设置尺寸、质量、命名、输出目录、metadata/GPS 与全部冲突策略。
+- PASS — 输出先落地临时文件；默认冲突命名为 `name (2)`，覆盖只能由显式选择触发；自动化验证源 JPEG 的字节不变、导出到源路径即使请求 overwrite 也被拒绝。
+- PASS — 任务中心可展示、取消 batch edit/export，并在每项失败后继续；最终报告包含 succeeded/skipped/failed 计数及失败项。
+
+Regression:
+- PASS — 同一 30 项测试集回归覆盖 Phase 0 Catalog/目录/任务、Phase 1 bookmark/扫描/增量/离线、Phase 2 分页/评分/Flag/Tag/缩略图、Phase 3 照片编辑/LUT、Phase 4 RAW 模型/格式输出，以及本阶段全部功能。
+
+Manual Verification:
+- MANUAL VERIFICATION REQUIRED — 在真实 sandbox App 中用用户授权的 JPEG、HEIC、TIFF、DNG/ARW、外置硬盘目录和实际输出文件夹，验证导出权限、预设面板、拖放/键鼠多选、任务取消、ask 冲突对话框与 overwrite/skip/rename 结果。
+- MANUAL VERIFICATION REQUIRED — 用真实 24MP/48MP 照片和 100+ 张批量导出观察逐张内存峰值、GPU 响应、取消时机、EXIF/色彩描述文件保留与 GPS 移除；自动化使用小型临时 JPEG，不能替代硬件/用户媒体测量。
+- MANUAL VERIFICATION REQUIRED — 在 HEIF/HEIC 和真实 RAW 的原始元数据上确认系统 ImageIO 可写性、metadata 保留兼容性和视觉质量；不同 macOS/相机可能提供不同编码与 RAW 能力。
+
+Known Limitations:
+- 批量导出任务在本阶段为当前运行期任务，应用重启后不恢复未完成队列；视频导出、视频命名策略和视频任务会在后续视频 Phase 增量实现。
+- HEIF 由 macOS 当前可用的 HEIC ImageIO encoder 提供；不可用时 UI 会禁用该格式并在服务层返回明确错误，不会伪造输出。
+- 自动化无真实用户 RAW/HEIC/外置卷 fixture，相关权限、性能、相机兼容性与显示器视觉检查保留为上述人工验收。
+
+Commit:
+- `feat: complete phase 5 presets batch export`

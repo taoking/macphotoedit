@@ -6,6 +6,7 @@ enum BackgroundTaskKind: String, Sendable, CaseIterable {
     case thumbnailGeneration
     case previewGeneration
     case duplicateHashing
+    case photoBatchEdit
     case photoExport
     case videoExport
 }

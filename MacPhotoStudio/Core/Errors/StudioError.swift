@@ -15,6 +15,7 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
     case invalidLUT(message: String)
     case rawDecodingFailed(path: String)
     case exportFailed(message: String)
+    case invalidPreset(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -46,6 +47,8 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
             return "无法使用系统 RAW 解码器读取：\(path)"
         case .exportFailed(let message):
             return "无法导出媒体：\(message)"
+        case .invalidPreset(let message):
+            return "无效的预设：\(message)"
         }
     }
 }

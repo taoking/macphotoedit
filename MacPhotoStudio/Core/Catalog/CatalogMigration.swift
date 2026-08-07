@@ -218,6 +218,22 @@ enum CatalogMigrations {
                 CREATE INDEX IF NOT EXISTS raw_edit_states_updated_at_index ON raw_edit_states(updated_at);
                 """
             )
+        },
+        CatalogMigration(version: 7, name: "addPhotoPresetSchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS photo_presets (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    content_json TEXT NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1)),
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS photo_presets_favorite_index ON photo_presets(is_favorite, name COLLATE NOCASE);
+                """
+            )
         }
     ]
 }

@@ -17,6 +17,10 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var libraryAssets: [LibraryAssetRecord] = []
     @Published private(set) var tags: [TagRecord] = []
     @Published private(set) var selectedAssetTags: [TagRecord] = []
+    @Published private(set) var photoPresets: [PhotoPreset] = []
+    @Published private(set) var batchTasks: [StudioBackgroundTask] = []
+    @Published private(set) var latestBatchEditReport: BatchEditReport?
+    @Published private(set) var latestBatchExportReport: BatchExportReport?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -28,6 +32,10 @@ final class ApplicationModel: ObservableObject {
     private var scanCoordinator: ScanCoordinator?
     private var thumbnailLoader: ThumbnailLoader?
     private var photoEditingService: PhotoEditingService?
+    private var presetRepository: PresetRepository?
+    private let batchTaskCenter = BackgroundTaskCenter()
+    private var batchWorkerTasks: [UUID: Task<Void, Never>] = [:]
+    private var copiedPhotoContent: PhotoPresetContent?
     private var activeLibraryQuery = LibraryQuery.all
     private var nextAssetOffset = 0
     private var libraryRequestID = UUID()
@@ -56,9 +64,12 @@ final class ApplicationModel: ObservableObject {
                 mediaRootStore: mediaRootStore,
                 lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
             )
+            self.presetRepository = PresetRepository(catalogStore: catalogStore)
             startupState = .ready(paths)
             await refreshLibrary(validateRoots: true)
             await reloadLibraryAssets(query: .all)
+            await reloadPhotoPresets()
+            await refreshBatchTasks()
             AppLogger.app.info("Catalog bootstrap completed")
         } catch {
             AppLogger.app.error("Catalog bootstrap failed: \(error.localizedDescription, privacy: .public)")
@@ -120,7 +131,10 @@ final class ApplicationModel: ObservableObject {
     }
 
     func refreshLibrary(validateRoots: Bool = false) async {
-        guard let catalogStore, let scanCoordinator else { return }
+        guard let catalogStore, let scanCoordinator else {
+            await refreshBatchTasks()
+            return
+        }
         if validateRoots {
             await scanCoordinator.refreshRootAvailability()
         }
@@ -138,6 +152,7 @@ final class ApplicationModel: ObservableObject {
         } catch {
             report(error, activity: "Refreshing library")
         }
+        await refreshBatchTasks()
     }
 
     func reloadLibraryAssets(query: LibraryQuery) async {
@@ -317,6 +332,189 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
+    func reloadPhotoPresets() async {
+        guard let presetRepository else { return }
+        do {
+            photoPresets = try await presetRepository.presets()
+        } catch {
+            report(error, activity: "Loading presets")
+        }
+    }
+
+    func createPhotoPreset(named name: String, from assetID: UUID) async -> Bool {
+        guard let presetRepository, let photoEditingService else { return false }
+        do {
+            let state = try await photoEditingService.editState(for: assetID)
+            _ = try await presetRepository.create(named: name, content: state.presetContent)
+            await reloadPhotoPresets()
+            return true
+        } catch {
+            report(error, activity: "Creating preset")
+            return false
+        }
+    }
+
+    func renamePhotoPreset(_ preset: PhotoPreset, to name: String) async -> Bool {
+        guard let presetRepository else { return false }
+        do {
+            try await presetRepository.rename(preset, to: name)
+            await reloadPhotoPresets()
+            return true
+        } catch {
+            report(error, activity: "Renaming preset")
+            return false
+        }
+    }
+
+    func setPhotoPresetFavorite(_ isFavorite: Bool, preset: PhotoPreset) async -> Bool {
+        guard let presetRepository else { return false }
+        do {
+            try await presetRepository.setFavorite(isFavorite, for: preset)
+            await reloadPhotoPresets()
+            return true
+        } catch {
+            report(error, activity: "Updating preset favorite")
+            return false
+        }
+    }
+
+    func deletePhotoPreset(_ preset: PhotoPreset) async -> Bool {
+        guard let presetRepository else { return false }
+        do {
+            try await presetRepository.delete(preset)
+            await reloadPhotoPresets()
+            return true
+        } catch {
+            report(error, activity: "Deleting preset")
+            return false
+        }
+    }
+
+    func exportPhotoPreset(_ preset: PhotoPreset, to destinationURL: URL) async -> Bool {
+        guard let presetRepository else { return false }
+        do {
+            try await presetRepository.export(preset, to: destinationURL)
+            return true
+        } catch {
+            report(error, activity: "Exporting preset")
+            return false
+        }
+    }
+
+    func importPhotoPreset(from sourceURL: URL) async -> Bool {
+        guard let presetRepository else { return false }
+        do {
+            _ = try await presetRepository.importPreset(from: sourceURL)
+            await reloadPhotoPresets()
+            return true
+        } catch {
+            report(error, activity: "Importing preset")
+            return false
+        }
+    }
+
+    func copyPhotoEdits(from assetID: UUID) async -> Bool {
+        guard let photoEditingService else { return false }
+        do {
+            copiedPhotoContent = try await photoEditingService.editState(for: assetID).presetContent
+            return true
+        } catch {
+            report(error, activity: "Copying photo edits")
+            return false
+        }
+    }
+
+    var hasCopiedPhotoEdits: Bool { copiedPhotoContent != nil }
+
+    func pastePhotoEdits(
+        to assetIDs: [UUID],
+        components: Set<PhotoEditComponent> = PhotoEditComponent.allPresetComponents
+    ) async -> BatchEditReport? {
+        guard let copiedPhotoContent else { return nil }
+        return await applyPhotoEditContent(
+            copiedPhotoContent,
+            to: assetIDs,
+            components: components,
+            activity: "粘贴照片调整"
+        )
+    }
+
+    func applyPhotoPreset(_ preset: PhotoPreset, to assetIDs: [UUID]) async -> BatchEditReport? {
+        await applyPhotoEditContent(preset.content, to: assetIDs, activity: "应用预设")
+    }
+
+    func startBatchExport(
+        assets: [LibraryAssetRecord],
+        outputDirectoryURL: URL,
+        options: PhotoExportOptions
+    ) async -> UUID? {
+        guard let photoEditingService else { return nil }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: outputDirectoryURL.path(percentEncoded: false),
+            isDirectory: &isDirectory
+        ), isDirectory.boolValue else {
+            libraryError = "导出目录不可用。"
+            return nil
+        }
+
+        let photos = uniquePhotos(from: assets)
+        guard !photos.isEmpty else {
+            libraryError = "请选择至少一张可导出的照片。"
+            return nil
+        }
+        let task = await batchTaskCenter.enqueue(
+            kind: .photoExport,
+            title: "导出 \(photos.count) 张照片"
+        )
+        await refreshBatchTasks()
+        let taskCenter = batchTaskCenter
+        let worker = Task { [weak self, photoEditingService] in
+            let didStartAccess = outputDirectoryURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccess {
+                    outputDirectoryURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                try await taskCenter.start(task.id)
+                await self?.refreshBatchTasks()
+                let report = try await photoEditingService.batchExport(
+                    assets: photos,
+                    outputDirectoryURL: outputDirectoryURL,
+                    options: options,
+                    collisionResolver: { [weak self] collision in
+                        guard let self else { return .cancel }
+                        return await self.askForExportCollisionResolution(collision)
+                    },
+                    reportProgress: { progress in
+                        try? await taskCenter.updateProgress(progress, for: task.id)
+                    }
+                )
+                try await taskCenter.complete(task.id)
+                await self?.finishBatchExport(report, taskID: task.id)
+            } catch is CancellationError {
+                try? await taskCenter.cancel(task.id)
+                await self?.finishCancelledBatchTask(task.id)
+            } catch {
+                try? await taskCenter.fail(task.id)
+                await self?.finishFailedBatchTask(task.id, error: error)
+            }
+        }
+        batchWorkerTasks[task.id] = worker
+        return task.id
+    }
+
+    func cancelBatchTask(_ taskID: UUID) async {
+        batchWorkerTasks[taskID]?.cancel()
+        try? await batchTaskCenter.cancel(taskID)
+        await refreshBatchTasks()
+    }
+
+    func refreshBatchTasks() async {
+        batchTasks = await batchTaskCenter.allTasks()
+    }
+
     func rawEditState(for assetID: UUID) async -> RAWEditState? {
         guard let photoEditingService else { return nil }
         do {
@@ -458,5 +656,79 @@ final class ApplicationModel: ObservableObject {
     private func report(_ error: Error, activity: String) {
         libraryError = error.localizedDescription
         AppLogger.app.error("\(activity, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+    }
+
+    private func applyPhotoEditContent(
+        _ content: PhotoPresetContent,
+        to assetIDs: [UUID],
+        components: Set<PhotoEditComponent> = PhotoEditComponent.allPresetComponents,
+        activity: String
+    ) async -> BatchEditReport? {
+        guard let photoEditingService else { return nil }
+        let task = await batchTaskCenter.enqueue(kind: .photoBatchEdit, title: "\(activity)（\(assetIDs.count) 张）")
+        do {
+            try await batchTaskCenter.start(task.id)
+            await refreshBatchTasks()
+            let result = try await photoEditingService.applyPresetContent(
+                content,
+                to: assetIDs,
+                components: components,
+                reportProgress: { [batchTaskCenter] progress in
+                    try? await batchTaskCenter.updateProgress(progress, for: task.id)
+                }
+            )
+            try await batchTaskCenter.complete(task.id)
+            latestBatchEditReport = result
+            await refreshBatchTasks()
+            return result
+        } catch is CancellationError {
+            try? await batchTaskCenter.cancel(task.id)
+            await refreshBatchTasks()
+            return nil
+        } catch {
+            try? await batchTaskCenter.fail(task.id)
+            await refreshBatchTasks()
+            report(error, activity: activity)
+            return nil
+        }
+    }
+
+    private func finishBatchExport(_ report: BatchExportReport, taskID: UUID) async {
+        latestBatchExportReport = report
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+    }
+
+    private func finishCancelledBatchTask(_ taskID: UUID) async {
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+    }
+
+    private func finishFailedBatchTask(_ taskID: UUID, error: Error) async {
+        batchWorkerTasks[taskID] = nil
+        await refreshBatchTasks()
+        report(error, activity: "Batch photo export")
+    }
+
+    private func askForExportCollisionResolution(_ collision: ExportCollision) -> ExportCollisionResolution {
+        let alert = NSAlert()
+        alert.messageText = "导出文件已存在"
+        alert.informativeText = "“\(collision.destinationURL.lastPathComponent)”已存在。请选择此文件的处理方式。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "覆盖")
+        alert.addButton(withTitle: "自动重命名")
+        alert.addButton(withTitle: "跳过")
+        alert.addButton(withTitle: "取消批量导出")
+        return switch alert.runModal() {
+        case .alertFirstButtonReturn: .overwrite
+        case .alertSecondButtonReturn: .rename
+        case .alertThirdButtonReturn: .skip
+        default: .cancel
+        }
+    }
+
+    private func uniquePhotos(from assets: [LibraryAssetRecord]) -> [LibraryAssetRecord] {
+        var identifiers = Set<UUID>()
+        return assets.filter { $0.mediaType == .photo && identifiers.insert($0.id).inserted }
     }
 }

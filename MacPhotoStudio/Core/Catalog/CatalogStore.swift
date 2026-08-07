@@ -415,6 +415,53 @@ actor CatalogStore {
         )
     }
 
+    func photoPresets() throws -> [PhotoPreset] {
+        try requireConnection().query(
+            "SELECT id, name, content_json, is_favorite, created_at, updated_at FROM photo_presets ORDER BY is_favorite DESC, name COLLATE NOCASE ASC;"
+        ).compactMap(photoPreset(from:))
+    }
+
+    func createPhotoPreset(
+        named proposedName: String,
+        content: PhotoPresetContent,
+        isFavorite: Bool = false,
+        now: Date = .now
+    ) throws -> PhotoPreset {
+        let name = try validatedPresetName(proposedName)
+        let preset = PhotoPreset(
+            id: UUID(), name: name, content: content, isFavorite: isFavorite,
+            createdAt: now, updatedAt: now
+        )
+        try requireConnection().execute(
+            "INSERT INTO photo_presets (id, name, content_json, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?);",
+            bindings: [
+                .text(preset.id.uuidString), .text(preset.name), .text(try encodedPresetContent(preset.content)),
+                .integer(preset.isFavorite ? 1 : 0), .real(preset.createdAt.timeIntervalSince1970),
+                .real(preset.updatedAt.timeIntervalSince1970)
+            ]
+        )
+        return preset
+    }
+
+    func renamePhotoPreset(_ presetID: UUID, to proposedName: String, now: Date = .now) throws {
+        let name = try validatedPresetName(proposedName)
+        try requireConnection().execute(
+            "UPDATE photo_presets SET name = ?, updated_at = ? WHERE id = ?;",
+            bindings: [.text(name), .real(now.timeIntervalSince1970), .text(presetID.uuidString)]
+        )
+    }
+
+    func setPhotoPresetFavorite(_ isFavorite: Bool, for presetID: UUID, now: Date = .now) throws {
+        try requireConnection().execute(
+            "UPDATE photo_presets SET is_favorite = ?, updated_at = ? WHERE id = ?;",
+            bindings: [.integer(isFavorite ? 1 : 0), .real(now.timeIntervalSince1970), .text(presetID.uuidString)]
+        )
+    }
+
+    func deletePhotoPreset(_ presetID: UUID) throws {
+        try requireConnection().execute("DELETE FROM photo_presets WHERE id = ?;", bindings: [.text(presetID.uuidString)])
+    }
+
     private func upsert(_ asset: ScannedMediaAsset, scanID: UUID, using connection: SQLiteConnection) throws {
         try connection.execute(
             """
@@ -607,6 +654,45 @@ actor CatalogStore {
         guard let idText = row.text(at: 0), let id = UUID(uuidString: idText),
               let name = row.text(at: 1), let createdAt = row.real(at: 2) else { return nil }
         return TagRecord(id: id, name: name, createdAt: Date(timeIntervalSince1970: createdAt))
+    }
+
+    private func photoPreset(from row: SQLiteRow) -> PhotoPreset? {
+        guard
+            let idText = row.text(at: 0), let id = UUID(uuidString: idText),
+            let name = row.text(at: 1), let contentJSON = row.text(at: 2),
+            let favorite = row.integer(at: 3), let createdAt = row.real(at: 4), let updatedAt = row.real(at: 5)
+        else { return nil }
+        do {
+            return PhotoPreset(
+                id: id,
+                name: name,
+                content: try JSONDecoder().decode(PhotoPresetContent.self, from: Data(contentJSON.utf8)),
+                isFavorite: favorite != 0,
+                createdAt: Date(timeIntervalSince1970: createdAt),
+                updatedAt: Date(timeIntervalSince1970: updatedAt)
+            )
+        } catch {
+            AppLogger.catalog.error("Skipping invalid preset \(idText, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func validatedPresetName(_ proposedName: String) throws -> String {
+        let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            throw StudioError.invalidPreset(message: "预设名称不能为空。")
+        }
+        return name
+    }
+
+    private func encodedPresetContent(_ content: PhotoPresetContent) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        do {
+            return String(decoding: try encoder.encode(content), as: UTF8.self)
+        } catch {
+            throw StudioError.invalidPreset(message: "无法编码预设：\(error.localizedDescription)")
+        }
     }
 
     private func updateAssets(

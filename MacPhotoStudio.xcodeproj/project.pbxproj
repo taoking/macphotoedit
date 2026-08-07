@@ -13,7 +13,10 @@
 		0DA2AAFE91A2C30C21398B3A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */; };
 		1E5172512057B74B41A94AAF /* RAWEditState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */; };
 		238C42EF7EA4BA35AD57F9BD /* LibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F86F312851CF430251B8EEA /* LibrarySidebar.swift */; };
+		2CA9F679AA28DA40DFF2A200 /* PresetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D1654CCB9D9142CDE9B186 /* PresetRepository.swift */; };
 		2EF45CC39F8F480CD6D7967E /* CatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4E7FB6BCF002084B6B8FCA /* CatalogStoreTests.swift */; };
+		35799B232BC2ABA978C9CD36 /* PhotoBatchEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */; };
+		36435D85C22D820977C8FE05 /* BatchToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575C46B5C9E47C00A1A8F15E /* BatchToolsView.swift */; };
 		37302E7F5D3EAF1F56A42341 /* MacPhotoStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */; };
 		4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */; };
 		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
@@ -24,6 +27,7 @@
 		6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */; };
 		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
 		7E75252EC4399E8328C4FB32 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6EFD92551C7575799B149B /* ThumbnailStore.swift */; };
+		80BDE6F3D368CDFEF9B47F94 /* PhotoExportOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96506D27A280F2BF34DEFB8E /* PhotoExportOptions.swift */; };
 		8355B475E67A478EEE96C013 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498BC16F3DE7AC336BA0153A /* CatalogModels.swift */; };
 		93182D4623D9E7A5F524457F /* PhotoEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075B4115D6DDB1C4F4FFA86C /* PhotoEditingTests.swift */; };
 		947ABC884FCF60218AEA81BB /* RAWImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */; };
@@ -47,6 +51,7 @@
 		EAFB0A090487A7C9CD30EB73 /* CatalogPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163BA7295CE105D80B837A91 /* CatalogPaths.swift */; };
 		EFA234327D9F661FDCCCF976 /* CatalogIndexingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1773731E31057E5241E7B6E8 /* CatalogIndexingTests.swift */; };
 		F4F8CC28C8CBE781AF4687E6 /* CubeLUT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D96CB051B42A5C5A85F23C /* CubeLUT.swift */; };
+		FEA3FB36D13518F7DC203227 /* PhotoPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FC8B9ABF39B23C03B797BC /* PhotoPreset.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +76,7 @@
 		22D96CB051B42A5C5A85F23C /* CubeLUT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CubeLUT.swift; sourceTree = "<group>"; };
 		2325DD61230BAF602472DE97 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
 		2710AB6E9B0A303130D9CCB2 /* PhotoImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImagePipeline.swift; sourceTree = "<group>"; };
+		34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBatchEditing.swift; sourceTree = "<group>"; };
 		3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatalogTests.swift; sourceTree = "<group>"; };
 		3B9682F4368FE59D124D1D17 /* PhotoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditState.swift; sourceTree = "<group>"; };
 		4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScannerTests.swift; sourceTree = "<group>"; };
@@ -78,12 +84,15 @@
 		498BC16F3DE7AC336BA0153A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogModels.swift; sourceTree = "<group>"; };
 		4A6EFD92551C7575799B149B /* ThumbnailStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailStore.swift; sourceTree = "<group>"; };
 		52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetBrowserView.swift; sourceTree = "<group>"; };
+		575C46B5C9E47C00A1A8F15E /* BatchToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchToolsView.swift; sourceTree = "<group>"; };
 		67733C2CD6E46F2FA7319BCE /* MacPhotoStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacPhotoStudio.entitlements; sourceTree = "<group>"; };
 		67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationModel.swift; sourceTree = "<group>"; };
 		714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
 		78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoStudioApp.swift; sourceTree = "<group>"; };
 		828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWJPEGPairing.swift; sourceTree = "<group>"; };
 		894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWImagePipeline.swift; sourceTree = "<group>"; };
+		91FC8B9ABF39B23C03B797BC /* PhotoPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPreset.swift; sourceTree = "<group>"; };
+		96506D27A280F2BF34DEFB8E /* PhotoExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoExportOptions.swift; sourceTree = "<group>"; };
 		9F7A4D7504F84F852D9D9998 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		9F86F312851CF430251B8EEA /* LibrarySidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebar.swift; sourceTree = "<group>"; };
 		AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoaderTests.swift; sourceTree = "<group>"; };
@@ -92,6 +101,7 @@
 		AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoader.swift; sourceTree = "<group>"; };
 		B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScanner.swift; sourceTree = "<group>"; };
 		C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		C8D1654CCB9D9142CDE9B186 /* PresetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetRepository.swift; sourceTree = "<group>"; };
 		C97D86CE6D4DB496A6949CAE /* MediaMetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaMetadataExtractor.swift; sourceTree = "<group>"; };
 		CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigration.swift; sourceTree = "<group>"; };
 		CCFA2A76F34BD1613E82D401 /* PhotoRenderers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRenderers.swift; sourceTree = "<group>"; };
@@ -152,6 +162,14 @@
 			path = Catalog;
 			sourceTree = "<group>";
 		};
+		2003B2EEF4FB6A619A67DE11 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				96506D27A280F2BF34DEFB8E /* PhotoExportOptions.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
 		27BF195BDC8D4753BE4D030B /* Errors */ = {
 			isa = PBXGroup;
 			children = (
@@ -178,6 +196,16 @@
 				78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		92FB68D2D00D4E27FC275B4D /* Preset */ = {
+			isa = PBXGroup;
+			children = (
+				34283CAC15B2DEDAFCB64020 /* PhotoBatchEditing.swift */,
+				91FC8B9ABF39B23C03B797BC /* PhotoPreset.swift */,
+				C8D1654CCB9D9142CDE9B186 /* PresetRepository.swift */,
+			);
+			path = Preset;
 			sourceTree = "<group>";
 		};
 		9731BA73471F05FDCED64E26 /* Filesystem */ = {
@@ -230,6 +258,14 @@
 			path = Tasks;
 			sourceTree = "<group>";
 		};
+		B343B7C16B7D3D3100260397 /* Batch */ = {
+			isa = PBXGroup;
+			children = (
+				575C46B5C9E47C00A1A8F15E /* BatchToolsView.swift */,
+			);
+			path = Batch;
+			sourceTree = "<group>";
+		};
 		B5BD458AFB294B9F932D4724 /* LUT */ = {
 			isa = PBXGroup;
 			children = (
@@ -260,6 +296,7 @@
 		D6A0E516DE609051529E7B03 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				B343B7C16B7D3D3100260397 /* Batch */,
 				D87B1CA34369E2CBA757BBCB /* Library */,
 				9C7BD12EEFF4E31AA58EEB0A /* PhotoEditor */,
 			);
@@ -298,11 +335,13 @@
 			children = (
 				0E6EEDA90ED933CB11EF5472 /* Catalog */,
 				27BF195BDC8D4753BE4D030B /* Errors */,
+				2003B2EEF4FB6A619A67DE11 /* Export */,
 				9731BA73471F05FDCED64E26 /* Filesystem */,
 				A336681166FCD7A7B4570B63 /* Imaging */,
 				E311746184976C44D68816B1 /* Logging */,
 				B5BD458AFB294B9F932D4724 /* LUT */,
 				F9D5FC7996FD9840A00A4454 /* Metadata */,
+				92FB68D2D00D4E27FC275B4D /* Preset */,
 				A8C5F7AC429DC2A7B0C52BC9 /* RAW */,
 				AC43840B308DA4BE8ED1D0C0 /* Tasks */,
 				FCBAE7A6E307C744290B789F /* Thumbnail */,
@@ -398,6 +437,7 @@
 				9AA9C6C4FF4D289C5F9398C6 /* ApplicationModel.swift in Sources */,
 				574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */,
 				DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */,
+				36435D85C22D820977C8FE05 /* BatchToolsView.swift in Sources */,
 				48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */,
 				4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */,
 				8355B475E67A478EEE96C013 /* CatalogModels.swift in Sources */,
@@ -412,10 +452,14 @@
 				E8FE5671F36C112B499E0979 /* MediaMetadataExtractor.swift in Sources */,
 				B982E5EEAFEB07A05817C9D1 /* MediaRootStore.swift in Sources */,
 				A863D6FFD80094DFEF6F6E5B /* MediaScanner.swift in Sources */,
+				35799B232BC2ABA978C9CD36 /* PhotoBatchEditing.swift in Sources */,
 				01F5660411AFF757B419984B /* PhotoEditState.swift in Sources */,
 				EAEA6DCAFCE2CA9EDBCA0E72 /* PhotoEditorView.swift in Sources */,
+				80BDE6F3D368CDFEF9B47F94 /* PhotoExportOptions.swift in Sources */,
 				A13F2F03A8A014501652E4DA /* PhotoImagePipeline.swift in Sources */,
+				FEA3FB36D13518F7DC203227 /* PhotoPreset.swift in Sources */,
 				DBA26510024E937870AC7621 /* PhotoRenderers.swift in Sources */,
+				2CA9F679AA28DA40DFF2A200 /* PresetRepository.swift in Sources */,
 				1E5172512057B74B41A94AAF /* RAWEditState.swift in Sources */,
 				947ABC884FCF60218AEA81BB /* RAWImagePipeline.swift in Sources */,
 				6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */,

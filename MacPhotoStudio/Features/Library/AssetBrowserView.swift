@@ -19,6 +19,10 @@ struct AssetBrowserView: View {
     let select: (UUID, NSEvent.ModifierFlags) -> Void
     let moveSelection: (Int) -> Void
     @State private var showingFilters = false
+    @State private var showsPresetNameSheet = false
+    @State private var showsPresetManager = false
+    @State private var showsSelectivePaste = false
+    @State private var showsBatchExport = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +38,20 @@ struct AssetBrowserView: View {
         .focusable()
         .onKeyPress { keyPress in
             handleKeyPress(keyPress)
+        }
+        .sheet(isPresented: $showsPresetNameSheet) {
+            if let asset = selectedPhotoAssets.first {
+                PresetNameSheet(asset: asset, model: model)
+            }
+        }
+        .sheet(isPresented: $showsPresetManager) {
+            PresetManagerSheet(model: model)
+        }
+        .sheet(isPresented: $showsSelectivePaste) {
+            SelectivePasteSheet(model: model, assetIDs: selectedPhotoAssets.map(\.id))
+        }
+        .sheet(isPresented: $showsBatchExport) {
+            BatchExportSheet(model: model, assets: selectedPhotoAssets)
         }
     }
 
@@ -98,6 +116,44 @@ struct AssetBrowserView: View {
                     } label: {
                         Label("添加标签", systemImage: "tag")
                     }
+                    Menu {
+                        Button("复制所有调整") {
+                            guard let asset = selectedPhotoAssets.first else { return }
+                            Task { _ = await model.copyPhotoEdits(from: asset.id) }
+                        }
+                        .disabled(selectedPhotoAssets.count != 1)
+                        Button("从所选照片创建预设…") {
+                            showsPresetNameSheet = true
+                        }
+                        .disabled(selectedPhotoAssets.count != 1)
+                        Divider()
+                        Menu("粘贴调整") {
+                            Button("粘贴全部调整") {
+                                Task { _ = await model.pastePhotoEdits(to: selectedPhotoAssets.map(\.id)) }
+                            }
+                            Button("选择性粘贴…") { showsSelectivePaste = true }
+                        }
+                        .disabled(!model.hasCopiedPhotoEdits || selectedPhotoAssets.isEmpty)
+                        Menu("应用预设") {
+                            if model.photoPresets.isEmpty {
+                                Text("尚无预设")
+                            } else {
+                                ForEach(model.photoPresets) { preset in
+                                    Button(preset.name) {
+                                        Task { _ = await model.applyPhotoPreset(preset, to: selectedPhotoAssets.map(\.id)) }
+                                    }
+                                }
+                            }
+                        }
+                        .disabled(selectedPhotoAssets.isEmpty)
+                        Divider()
+                        Button("管理预设…") { showsPresetManager = true }
+                        Button("批量导出照片…") { showsBatchExport = true }
+                        .disabled(selectedPhotoAssets.isEmpty)
+                    } label: {
+                        Label("编辑", systemImage: "slider.horizontal.3")
+                    }
+                    BatchTaskStatusSummary(model: model)
                     Text("已选择 \(selectedAssetIDs.count)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -164,6 +220,10 @@ struct AssetBrowserView: View {
 
     private var hasActiveFilters: Bool {
         query.searchText != nil || query.rootID != nil || query.mediaType != nil || query.minimumRating != nil || query.flag != nil || query.tagID != nil || query.captureDateFrom != nil || query.camera != nil || query.lens != nil
+    }
+
+    private var selectedPhotoAssets: [LibraryAssetRecord] {
+        assets.filter { selectedAssetIDs.contains($0.id) && $0.mediaType == .photo }
     }
 
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
