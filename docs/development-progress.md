@@ -932,3 +932,38 @@ Known Limitations:
 
 Commit:
 - `refactor: split video and task coordinators`
+
+## Phase 12.12 — Photo Pipeline Performance
+
+Status:
+COMPLETED
+
+Implemented:
+- 审核 `ColorAdjustmentCube` 和 `ToneCurveCube`：每个 33³ RGBA Float cube 有 35,937 个条目、574,992 bytes；原实现每次有效渲染均先分配 `[Float]` 再复制为 `Data`。预览已有单一 Metal `CIContext`、90ms debounce、任务取消和 generation guard，因此没有为“性能”提前改写为 Metal shader。
+- 为两类 cube 分别增加线程安全的 8-entry LRU `Data` cache，key 只包含会影响该 cube 的白/黑/HSL 或曲线坐标。曝光、色温等无关参数不再重建已有 cube；缓存 payload 是不可变 `Data`，可安全由 preview/export 使用。
+- cube 直接写入一次 `Data` 分配，消除临时 `[Float]` 和随后的复制。Tone Curve 利用通道可分离性，预计算 33 个 master/R/G/B 值后填充同一 3D LUT 布局，保持原像素计算结果。
+- `CIColorCube` filter 继续每个图像图创建，避免把带可变 input image 的 Core Image filter 跨 preview/export actor 复用而造成竞态；大型 immutable cube data 与现有 `CIContext` 已复用。
+- 新增性能说明和确定性缓存诊断测试；该测试验证分配与缓存行为，不将不同 Mac 的 GPU/编解码/显示器条件误报成固定帧率提升。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/PhotoPipelinePerformanceTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；16 tests, 0 failures。新增 2 项验证相关参数 cache key、574,992-byte payload、8-entry 上限和曲线重建路径；已有 HSL/curve 像素测试通过。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 33³ cube 不再在相同相关参数的预览/导出上重复分配或复制；无关 slider 不会使它们失效，曲线生成 CPU 工作已按通道离散预计算。现有 debounce/cancellation/generation guard 和 reused CIContext 保持工作，未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — 全量 71 项测试，0 failures，覆盖 Phase 0–12.12 的 Catalog、资料库、照片/RAW/LUT、色彩管线、HSL/曲线像素输出、导出、视频、HDR guard 和 coordinator 边界；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的高分辨率 JPEG/HEIC/RAW，连续拖动白/黑/HSL/曲线以及无关的曝光/色温 slider，观察不同 Apple Silicon/Intel Mac、内外接显示器上的交互延迟、内存与视觉一致性。自动化不声称固定毫秒数或跨硬件帧率。
+
+Known Limitations:
+- 每个新参数组合仍需要生成一次 33³ cube；8-entry 上限避免无限制内存增长，但无法替代针对任意滑块轨迹的真实硬件 profiling。
+- Creative/Technical 导入 LUT 的独立 `cubeData` 物化路径不在本阶段 `ColorAdjustmentCube`/`ToneCurveCube` 的明确范围；未将其伪称为已优化。
+- 不引入 custom Metal kernel；现有 Core Image pipeline 的色彩正确性边界保持不变。
+
+Commit:
+- `perf: cache photo adjustment cubes`

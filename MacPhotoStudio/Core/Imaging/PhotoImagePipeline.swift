@@ -67,6 +67,21 @@ struct PhotoImagePipeline {
         return image
     }
 
+    /// Internal instrumentation for deterministic cache tests. It measures
+    /// generated cube payloads, not GPU render time, so it remains valid on
+    /// machines with different Metal devices.
+    static func cubeCacheDiagnostics() -> PhotoCubeCacheDiagnostics {
+        PhotoCubeCacheDiagnostics(
+            color: ColorAdjustmentCube.diagnostics,
+            toneCurve: ToneCurveCube.diagnostics
+        )
+    }
+
+    static func resetCubeCachesForTesting() {
+        ColorAdjustmentCube.resetCacheForTesting()
+        ToneCurveCube.resetCacheForTesting()
+    }
+
     /// Applies every mask sequentially to the pre-transform image. Sequential
     /// composition makes mask ordering deterministic and keeps preview/export
     /// identical at every resolution.
@@ -159,39 +174,49 @@ private enum LocalMaskRenderer {
 }
 
 private enum ColorAdjustmentCube {
-    // A 33^3 cube makes the eight hue regions continuous while remaining small enough
-    // to rebuild during a slider drag on a downsampled preview.
+    // A 33^3 cube makes the eight hue regions continuous. A generated cube is
+    // 574,992 bytes (33 * 33 * 33 * RGBA Float), so it is retained by a small,
+    // parameter-keyed cache instead of allocating an array and copying it to
+    // Data for every preview render.
     private static let dimension = 33
+    private static let cache = BoundedCubeDataCache<ColorAdjustmentCubeKey>(capacity: 8)
 
     static func apply(_ image: CIImage, whites: Double, blacks: Double, hsl: HSLAdjustments) -> CIImage {
-        let cube = makeCube(whites: whites, blacks: blacks, hsl: hsl)
+        let key = ColorAdjustmentCubeKey(whites: whites, blacks: blacks, hsl: hsl)
+        let cube = cache.data(for: key) {
+            makeCube(whites: whites, blacks: blacks, hsl: hsl)
+        }
         return applyCube(cube, dimension: dimension, to: image)
     }
 
     private static func makeCube(whites: Double, blacks: Double, hsl: HSLAdjustments) -> Data {
-        var values: [Float] = []
-        values.reserveCapacity(dimension * dimension * dimension * 4)
-        for blue in 0..<dimension {
-            for green in 0..<dimension {
-                for red in 0..<dimension {
-                    var color = SIMD3<Double>(
-                        Double(red) / Double(dimension - 1),
-                        Double(green) / Double(dimension - 1),
-                        Double(blue) / Double(dimension - 1)
-                    )
-                    color = adjustHSL(color, adjustments: hsl)
-                    let luminance = color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
-                    let shadowWeight = 1 - smoothstep(0, 0.5, luminance)
-                    let highlightWeight = smoothstep(0.5, 1, luminance)
-                    color += SIMD3<Double>(repeating: blacks * shadowWeight * 0.25 + whites * highlightWeight * 0.25)
-                    values.append(Float(clamp(color.x)))
-                    values.append(Float(clamp(color.y)))
-                    values.append(Float(clamp(color.z)))
-                    values.append(1)
+        var data = Data(count: dataByteCount)
+        data.withUnsafeMutableBytes { rawBuffer in
+            let values = rawBuffer.bindMemory(to: Float.self)
+            var index = 0
+            for blue in 0..<dimension {
+                for green in 0..<dimension {
+                    for red in 0..<dimension {
+                        var color = SIMD3<Double>(
+                            Double(red) / Double(dimension - 1),
+                            Double(green) / Double(dimension - 1),
+                            Double(blue) / Double(dimension - 1)
+                        )
+                        color = adjustHSL(color, adjustments: hsl)
+                        let luminance = color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
+                        let shadowWeight = 1 - smoothstep(0, 0.5, luminance)
+                        let highlightWeight = smoothstep(0.5, 1, luminance)
+                        color += SIMD3<Double>(repeating: blacks * shadowWeight * 0.25 + whites * highlightWeight * 0.25)
+                        values[index] = Float(clamp(color.x))
+                        values[index + 1] = Float(clamp(color.y))
+                        values[index + 2] = Float(clamp(color.z))
+                        values[index + 3] = 1
+                        index += 4
+                    }
                 }
             }
         }
-        return values.withUnsafeBufferPointer { Data(buffer: $0) }
+        return data
     }
 
     private static func adjustHSL(_ rgb: SIMD3<Double>, adjustments: HSLAdjustments) -> SIMD3<Double> {
@@ -221,40 +246,175 @@ private enum ColorAdjustmentCube {
         let distance = min(abs(hue - center), 1 - abs(hue - center))
         return max(0, 1 - distance / 0.125)
     }
+
+    static var diagnostics: CubeCacheDiagnostics {
+        cache.diagnostics(dataByteCount: dataByteCount)
+    }
+
+    static func resetCacheForTesting() {
+        cache.reset()
+    }
+
+    private static var dataByteCount: Int {
+        dimension * dimension * dimension * 4 * MemoryLayout<Float>.stride
+    }
 }
 
 private enum ToneCurveCube {
     private static let dimension = 33
+    private static let cache = BoundedCubeDataCache<ToneCurveCubeKey>(capacity: 8)
 
     static func apply(_ image: CIImage, curves: ToneCurves) -> CIImage {
-        var values: [Float] = []
-        values.reserveCapacity(dimension * dimension * dimension * 4)
-        for blue in 0..<dimension {
-            for green in 0..<dimension {
-                for red in 0..<dimension {
-                    let masterInput = SIMD3<Double>(
-                        Double(red) / Double(dimension - 1),
-                        Double(green) / Double(dimension - 1),
-                        Double(blue) / Double(dimension - 1)
-                    )
-                    let afterMaster = SIMD3<Double>(
-                        curves.value(at: masterInput.x, channel: .master),
-                        curves.value(at: masterInput.y, channel: .master),
-                        curves.value(at: masterInput.z, channel: .master)
-                    )
-                    let output = SIMD3<Double>(
-                        curves.value(at: afterMaster.x, channel: .red),
-                        curves.value(at: afterMaster.y, channel: .green),
-                        curves.value(at: afterMaster.z, channel: .blue)
-                    )
-                    values.append(Float(clamp(output.x)))
-                    values.append(Float(clamp(output.y)))
-                    values.append(Float(clamp(output.z)))
-                    values.append(1)
+        let key = ToneCurveCubeKey(curves: curves)
+        let cube = cache.data(for: key) {
+            makeCube(curves: curves)
+        }
+        return applyCube(cube, dimension: dimension, to: image)
+    }
+
+    private static func makeCube(curves: ToneCurves) -> Data {
+        // Tone curves are channel-separable: each cube channel depends only on
+        // its matching input coordinate. Evaluate the piecewise curves for the
+        // 33 discrete inputs once, then use those tables in the 3D layout.
+        let channelValues = CurveChannel.allCases.reduce(into: [CurveChannel: [Float]]()) { values, channel in
+            values[channel] = (0..<dimension).map { index in
+                let input = Double(index) / Double(dimension - 1)
+                let master = curves.value(at: input, channel: .master)
+                return Float(clamp(curves.value(at: master, channel: channel)))
+            }
+        }
+        let redValues = channelValues[.red] ?? []
+        let greenValues = channelValues[.green] ?? []
+        let blueValues = channelValues[.blue] ?? []
+
+        var data = Data(count: dataByteCount)
+        data.withUnsafeMutableBytes { rawBuffer in
+            let values = rawBuffer.bindMemory(to: Float.self)
+            var index = 0
+            for blue in 0..<dimension {
+                for green in 0..<dimension {
+                    for red in 0..<dimension {
+                        values[index] = redValues[red]
+                        values[index + 1] = greenValues[green]
+                        values[index + 2] = blueValues[blue]
+                        values[index + 3] = 1
+                        index += 4
+                    }
                 }
             }
         }
-        return applyCube(values.withUnsafeBufferPointer { Data(buffer: $0) }, dimension: dimension, to: image)
+        return data
+    }
+
+    static var diagnostics: CubeCacheDiagnostics {
+        cache.diagnostics(dataByteCount: dataByteCount)
+    }
+
+    static func resetCacheForTesting() {
+        cache.reset()
+    }
+
+    private static var dataByteCount: Int {
+        dimension * dimension * dimension * 4 * MemoryLayout<Float>.stride
+    }
+}
+
+struct PhotoCubeCacheDiagnostics: Sendable, Equatable {
+    let color: CubeCacheDiagnostics
+    let toneCurve: CubeCacheDiagnostics
+}
+
+struct CubeCacheDiagnostics: Sendable, Equatable {
+    let generationCount: Int
+    let entryCount: Int
+    let dataByteCount: Int
+}
+
+private struct ColorAdjustmentCubeKey: Hashable {
+    private let values: [UInt64]
+
+    init(whites: Double, blacks: Double, hsl: HSLAdjustments) {
+        var values = [whites.bitPattern, blacks.bitPattern]
+        values.reserveCapacity(2 + HSLColor.allCases.count * 3)
+        for color in HSLColor.allCases {
+            let adjustment = hsl[color]
+            values.append(adjustment.hue.bitPattern)
+            values.append(adjustment.saturation.bitPattern)
+            values.append(adjustment.luminance.bitPattern)
+        }
+        self.values = values
+    }
+}
+
+private struct ToneCurveCubeKey: Hashable {
+    private let values: [UInt64]
+
+    init(curves: ToneCurves) {
+        var values: [UInt64] = []
+        for channel in CurveChannel.allCases {
+            let points = curves[channel]
+            values.append(UInt64(points.count))
+            for point in points {
+                values.append(point.x.bitPattern)
+                values.append(point.y.bitPattern)
+            }
+        }
+        self.values = values
+    }
+}
+
+private final class BoundedCubeDataCache<Key: Hashable>: @unchecked Sendable {
+    private let capacity: Int
+    private let lock = NSLock()
+    private var values: [Key: Data] = [:]
+    private var recency: [Key] = []
+    private var generationCount = 0
+
+    init(capacity: Int) {
+        self.capacity = max(1, capacity)
+    }
+
+    func data(for key: Key, make: () -> Data) -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let existing = values[key] {
+            touch(key)
+            return existing
+        }
+
+        let generated = make()
+        generationCount += 1
+        values[key] = generated
+        recency.append(key)
+        if recency.count > capacity, let evicted = recency.first {
+            recency.removeFirst()
+            values[evicted] = nil
+        }
+        return generated
+    }
+
+    func diagnostics(dataByteCount: Int) -> CubeCacheDiagnostics {
+        lock.lock()
+        defer { lock.unlock() }
+        return CubeCacheDiagnostics(
+            generationCount: generationCount,
+            entryCount: values.count,
+            dataByteCount: dataByteCount
+        )
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        values.removeAll(keepingCapacity: false)
+        recency.removeAll(keepingCapacity: false)
+        generationCount = 0
+    }
+
+    private func touch(_ key: Key) {
+        recency.removeAll { $0 == key }
+        recency.append(key)
     }
 }
 
