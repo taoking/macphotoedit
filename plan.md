@@ -36,7 +36,7 @@ required, concise execution tracker for the long-running implementation.
   - [x] 16.1 Local Mask Transform Coordinate Correctness
   - [x] 16.2 Technical LUT Strength Correctness
   - [x] 16.3 Subject Mask Stable Source + Cache
-  - [ ] 16.4 RAW Real-Media Validation Infrastructure
+  - [x] 16.4 RAW Real-Media Validation Infrastructure
   - [ ] 16.5 Still Image Color Real Validation
   - [ ] 16.6 Video Real-Media Validation
   - [ ] 16.7 External Storage Validation

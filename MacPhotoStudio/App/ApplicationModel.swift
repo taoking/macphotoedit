@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import OSLog
+import UniformTypeIdentifiers
 
 @MainActor
 final class ApplicationModel: ObservableObject {
@@ -28,6 +29,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestDuplicateScanReport: DuplicateScanReport?
     @Published private(set) var latestSimilarPhotoScanReport: SimilarPhotoScanReport?
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
+    @Published private(set) var latestRAWDiagnosticReportURL: URL?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -117,6 +119,60 @@ final class ApplicationModel: ObservableObject {
         guard panel.runModal() == .OK, let directoryURL = panel.url else { return }
         Task {
             await addMediaRoot(directoryURL)
+        }
+    }
+
+    /// Opens a deliberately separate developer action: the selected RAW is
+    /// read in place and the only retained result is a text report in the app's
+    /// Application Support/logs directory.
+    func presentRAWDiagnosticPanel() {
+        guard case .ready = startupState else { return }
+        let panel = NSOpenPanel()
+        panel.title = "运行 RAW 诊断"
+        panel.message = "选择 ARW 或 DNG。诊断只读取原始 RAW；临时导出会自动删除，报告写入应用日志目录。"
+        panel.prompt = "运行诊断"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "arw"),
+            UTType(filenameExtension: "dng")
+        ].compactMap { $0 }
+        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+        guard let outputColorSpace = chooseRAWDiagnosticOutputColorSpace() else { return }
+        Task { await runRAWDiagnostic(for: sourceURL, outputColorSpace: outputColorSpace) }
+    }
+
+    func runRAWDiagnostic(
+        for sourceURL: URL,
+        outputColorSpace: PhotoColorSpace = .sRGB
+    ) async {
+        guard case let .ready(paths) = startupState else { return }
+        let diagnosticReport = await RAWMediaDiagnosticService.inspect(
+            sourceURL: sourceURL,
+            outputColorSpace: outputColorSpace
+        )
+        do {
+            let reportURL = try diagnosticReport.write(to: paths.logsDirectory)
+            latestRAWDiagnosticReportURL = reportURL
+            AppLogger.app.info("RAW diagnostic report written to \(reportURL.path(percentEncoded: false), privacy: .public)")
+            NSWorkspace.shared.activateFileViewerSelecting([reportURL])
+        } catch {
+            report(error, activity: "Writing RAW diagnostic report")
+        }
+    }
+
+    private func chooseRAWDiagnosticOutputColorSpace() -> PhotoColorSpace? {
+        let alert = NSAlert()
+        alert.messageText = "RAW 诊断输出色彩空间"
+        alert.informativeText = "诊断会在临时目录执行一次 full-resolution JPEG 导出并核对嵌入 ICC；原始 RAW 不会被修改。"
+        alert.addButton(withTitle: "sRGB")
+        alert.addButton(withTitle: "Display P3")
+        alert.addButton(withTitle: "取消")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return .sRGB
+        case .alertSecondButtonReturn: return .displayP3
+        default: return nil
         }
     }
 

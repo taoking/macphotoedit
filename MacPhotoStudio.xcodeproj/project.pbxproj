@@ -38,6 +38,7 @@
 		653A7FF38CDE2B4E6D9F3540 /* AdvancedPhotoManagementServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */; };
 		68B8B082BE2E1FCDD7B55F98 /* VideoEditState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20605370C393B8133835DC85 /* VideoEditState.swift */; };
 		6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD8C5E651464DE96B422800 /* RAWPhotoEditorView.swift */; };
+		6C22AED2AF83C8AA30DB6837 /* RAWMediaDiagnosticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BA6351F922CB5F33C151E95 /* RAWMediaDiagnosticService.swift */; };
 		6ED5708FADBF9DE055D0D060 /* RAWColorPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543C34A7F1B48D7827EFF4BA /* RAWColorPipelineTests.swift */; };
 		72510946831F79ACDE73A89A /* SubjectMaskProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A282BFEE31C515DE23BC220 /* SubjectMaskProvider.swift */; };
 		79D4C5F832A82E703CBE6A5C /* LibraryInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10CECF01992EA84786E75AD /* LibraryInspectorView.swift */; };
@@ -79,6 +80,7 @@
 		DF0D1F5A53C0B72B9B995B84 /* BackgroundTaskCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC889170459152139A872729 /* BackgroundTaskCenter.swift */; };
 		DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82FD80BD4A9E4EA94C756C1 /* ScanControl.swift */; };
 		E314CB17978C42218662948A /* LUTRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DE618A1E61690F787BD47B /* LUTRepository.swift */; };
+		E4BDBD13EDBAB2FD49EE7A5C /* RAWMediaDiagnosticTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69158A53FC5F79900A9AD38D /* RAWMediaDiagnosticTests.swift */; };
 		E8FE5671F36C112B499E0979 /* MediaMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97D86CE6D4DB496A6949CAE /* MediaMetadataExtractor.swift */; };
 		E9475AE7BCB6623DCBF9A709 /* ThumbnailLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */; };
 		EAEA6DCAFCE2CA9EDBCA0E72 /* PhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B675C1906F7A568C2C1BE2 /* PhotoEditorView.swift */; };
@@ -123,6 +125,7 @@
 		3774B3DB008B559D3E5A09F2 /* LibraryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatalogTests.swift; sourceTree = "<group>"; };
 		3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPhotoManagementServices.swift; sourceTree = "<group>"; };
 		3B9682F4368FE59D124D1D17 /* PhotoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditState.swift; sourceTree = "<group>"; };
+		3BA6351F922CB5F33C151E95 /* RAWMediaDiagnosticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWMediaDiagnosticService.swift; sourceTree = "<group>"; };
 		3CD1B5184F9BE9E26C0B1AB8 /* PhotoTransformGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTransformGeometryTests.swift; sourceTree = "<group>"; };
 		3ED52DD2AB2468F2990ABE0B /* LocalMaskCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMaskCanvas.swift; sourceTree = "<group>"; };
 		4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScannerTests.swift; sourceTree = "<group>"; };
@@ -139,6 +142,7 @@
 		67733C2CD6E46F2FA7319BCE /* MacPhotoStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacPhotoStudio.entitlements; sourceTree = "<group>"; };
 		67B6EEB3E5F65D3D46E6B902 /* ColorManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorManagementTests.swift; sourceTree = "<group>"; };
 		67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationModel.swift; sourceTree = "<group>"; };
+		69158A53FC5F79900A9AD38D /* RAWMediaDiagnosticTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWMediaDiagnosticTests.swift; sourceTree = "<group>"; };
 		714C053FE3E16460F6D9C8E7 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
 		74CC05614B4A933B65E8F7B4 /* TaskCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCoordinator.swift; sourceTree = "<group>"; };
 		78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoStudioApp.swift; sourceTree = "<group>"; };
@@ -216,6 +220,7 @@
 				D286F0CC67E9740E60F35512 /* PhotoPipelinePerformanceTests.swift */,
 				3CD1B5184F9BE9E26C0B1AB8 /* PhotoTransformGeometryTests.swift */,
 				543C34A7F1B48D7827EFF4BA /* RAWColorPipelineTests.swift */,
+				69158A53FC5F79900A9AD38D /* RAWMediaDiagnosticTests.swift */,
 				9884177D9500D102BD3C281B /* SimilarPhotoDetectionTests.swift */,
 				CA2666F4538BFB9FB0AF0B02 /* SmartMaskTests.swift */,
 				E61401E925D436DD21C52B45 /* SubjectMaskProviderTests.swift */,
@@ -375,6 +380,7 @@
 				1F7EC1E4D244B5015CBCA56C /* RAWEditState.swift */,
 				894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */,
 				828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */,
+				3BA6351F922CB5F33C151E95 /* RAWMediaDiagnosticService.swift */,
 			);
 			path = RAW;
 			sourceTree = "<group>";
@@ -601,6 +607,7 @@
 				1E5172512057B74B41A94AAF /* RAWEditState.swift in Sources */,
 				947ABC884FCF60218AEA81BB /* RAWImagePipeline.swift in Sources */,
 				6222B2A686277A86C813669B /* RAWJPEGPairing.swift in Sources */,
+				6C22AED2AF83C8AA30DB6837 /* RAWMediaDiagnosticService.swift in Sources */,
 				6956A63CB6AE3A40E6E6A7D7 /* RAWPhotoEditorView.swift in Sources */,
 				CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */,
 				DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */,
@@ -641,6 +648,7 @@
 				0832687446BC905A80D64C11 /* PhotoPipelinePerformanceTests.swift in Sources */,
 				2535E1D37399D97E4C849DEF /* PhotoTransformGeometryTests.swift in Sources */,
 				6ED5708FADBF9DE055D0D060 /* RAWColorPipelineTests.swift in Sources */,
+				E4BDBD13EDBAB2FD49EE7A5C /* RAWMediaDiagnosticTests.swift in Sources */,
 				B29DCFF698D564F4E4E52A7D /* SimilarPhotoDetectionTests.swift in Sources */,
 				0FD0A6BF456905B6F0F6F9FF /* SmartMaskTests.swift in Sources */,
 				DB6A9A226C0B633848BA0476 /* SubjectMaskProviderTests.swift in Sources */,

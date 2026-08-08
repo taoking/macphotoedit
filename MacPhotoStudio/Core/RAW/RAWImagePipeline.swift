@@ -11,6 +11,21 @@ struct RAWCapabilities: Sendable, Equatable {
     var detail = false
     var localToneMap = false
     var highlightRecovery = false
+
+    /// The diagnostic report uses the same capability decision as the editor,
+    /// so it never advertises a CIRAWFilter control the UI/pipeline cannot use.
+    var availableControlNames: [String] {
+        var names = ["曝光", "色温", "色调", "阴影偏移"]
+        if luminanceNoiseReduction { names.append("亮度降噪") }
+        if colorNoiseReduction { names.append("色彩降噪") }
+        if sharpness { names.append("RAW 锐化") }
+        if localContrast { names.append("局部对比") }
+        if detail { names.append("细节") }
+        if localToneMap { names.append("局部色调") }
+        if lensCorrection { names.append("镜头校正") }
+        if highlightRecovery { names.append("高光恢复") }
+        return names
+    }
 }
 
 /// The non-destructive boundary between Apple's RAW decoder and the shared
@@ -69,6 +84,22 @@ enum RAWColorPipeline {
 }
 
 enum RAWImagePipeline {
+    static func capabilities(for filter: CIRAWFilter) -> RAWCapabilities {
+        RAWCapabilities(
+            lensCorrection: filter.isLensCorrectionSupported,
+            luminanceNoiseReduction: filter.isLuminanceNoiseReductionSupported,
+            colorNoiseReduction: filter.isColorNoiseReductionSupported,
+            sharpness: filter.isSharpnessSupported,
+            localContrast: filter.isContrastSupported,
+            detail: filter.isDetailSupported,
+            localToneMap: filter.isLocalToneMapSupported,
+            highlightRecovery: {
+                if #available(macOS 26.0, *) { return filter.isHighlightRecoverySupported }
+                return false
+            }()
+        )
+    }
+
     static func decode(
         sourceURL: URL,
         state: RAWEditState,
@@ -85,19 +116,7 @@ enum RAWImagePipeline {
         } else {
             filter.scaleFactor = 1
         }
-        let capabilities = RAWCapabilities(
-            lensCorrection: filter.isLensCorrectionSupported,
-            luminanceNoiseReduction: filter.isLuminanceNoiseReductionSupported,
-            colorNoiseReduction: filter.isColorNoiseReductionSupported,
-            sharpness: filter.isSharpnessSupported,
-            localContrast: filter.isContrastSupported,
-            detail: filter.isDetailSupported,
-            localToneMap: filter.isLocalToneMapSupported,
-            highlightRecovery: {
-                if #available(macOS 26.0, *) { return filter.isHighlightRecoverySupported }
-                return false
-            }()
-        )
+        let capabilities = capabilities(for: filter)
         filter.exposure = Float(state.exposure)
         filter.shadowBias = Float(state.shadowBias)
         if let temperature = state.temperature { filter.neutralTemperature = Float(temperature) }

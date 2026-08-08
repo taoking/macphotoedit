@@ -25,9 +25,9 @@ automatically marked as passed by unit tests.
 
 ## RAW
 
-- [ ] Sony A7C II ARW: decode, white balance, exposure, highlight recovery, lens correction, preview, creative LUT and full-resolution export.
-- [ ] DNG: decode, RAW controls, crop, LUT and export.
-- [ ] RAW color boundary: record the `CIRAWFilter.outputImage` ICC/profile for Sony A7C II ARW and DNG; verify normal preview and full-resolution export carry the expected selected output profile, and that an absent/unknown decoder profile is rejected rather than assumed sRGB.
+- [ ] Sony A7C II ARW: run **File → 运行 RAW 诊断…** and retain the Application Support/logs text report; then verify decode, orientation, white balance, exposure, highlight recovery (when reported), lens correction (when reported), luminance/color noise reduction (when reported), RAW sharpness/detail/local tone (when reported), preview, creative LUT, local masks when applicable, crop/rotate and full-resolution new-file export. Repeat new-file export for sRGB and Display P3; confirm the source remains byte-identical.
+- [ ] DNG: run the same diagnostic and retain its report; verify decode, orientation, every reported RAW control, crop/rotate, creative LUT, local masks when applicable and full-resolution sRGB/Display P3 new-file export. Confirm the source remains byte-identical.
+- [ ] RAW color boundary: record the diagnostic's `CIRAWFilter.outputImage` ICC/profile, exact ICC-payload match result, recognised descriptor, normalised working descriptor and reopened output ICC for Sony A7C II ARW and DNG. Verify normal preview and full-resolution export carry the selected output profile, and that an absent/unknown decoder profile is rejected rather than assumed sRGB. Do not add a mapping until a stable real decoder profile is independently validated; see `docs/raw-diagnostics.md`.
 - [ ] RAW Technical LUT: verify a LUT explicitly declared Extended Linear sRGB input runs after RAW normalization; confirm a mismatched Rec.709/P3/S-Log3 contract is rejected.
 - [ ] RAW + JPEG pair: pairing and configured display preference.
 

@@ -1203,3 +1203,37 @@ Known Limitations:
 
 Commit:
 - `fix: stabilize subject mask rendering`
+
+## Phase 16.4 — RAW Real-Media Validation Infrastructure
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增 **File → 运行 RAW 诊断…**。用户选择 ARW/DNG 后可显式选择 sRGB 或 Display P3 作为临时导出目标；`RAWMediaDiagnosticService` 只读源文件、检查 `CIRAWFilter` 和真实 decoder `CIImage`，以可复用 `RAWMediaDiagnosticReport` 记录文件扩展名/大小、解码尺寸、decoder 色彩空间名、ICC payload 严格匹配结果、已识别 `PhotoColorDescriptor`、实际成功预览后的 linear working descriptor、同一能力检查得到的 RAW 控制、预览/导出结果及重新打开临时导出的 ICC。
+- 临时 JPEG 导出仅用于实际锻炼 full-resolution RAW export 与 ImageIO ICC 重读，始终位于唯一临时目录并在完成后删除；可选报告仅为 Application Support `logs/` 下的小型 UTF-8 文本，不写入 Catalog、不含位图、不写 sidecar，也不会覆盖/修改 RAW 源文件。
+- `RAWCapabilities.availableControlNames` 与 `RAWImagePipeline` 共享一套 `CIRAWFilter` capability probe，避免诊断报告宣称 editor/pipeline 不支持的控制。未知、缺失或不匹配的 decoder ICC 只会被记录并使严格管线失败关闭，绝不假定为 sRGB。
+- 新增 `docs/raw-diagnostics.md`，并扩展 Sony A7C II ARW/DNG 的手工流程，覆盖方向、WB、曝光、高光恢复、镜头校正、降噪、锐化/细节、LUT、局部蒙版（适用时）及 sRGB/Display P3 full-resolution 新文件导出。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/RAWMediaDiagnosticTests -only-testing:MacPhotoStudioTests/RAWColorPipelineTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；22 tests, 0 failures。新增测试覆盖非 RAW 失败关闭、报告全部关键字段、日志文本写入、源字节不变和 RAW capability 列表；既有测试覆盖 explicit linear working normalization 与未知 ICC 的无 sRGB fallback 拒绝。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 用户可直接选择真实 ARW/DNG、再选择 sRGB 或 Display P3，产生可保存的诊断报告；报告来自实际 CIRAWFilter/Photo/Export 路径，且临时导出删除、源写入路径不存在。未知 decoder ICC 保持拒绝并供调查，不引入 heuristic 或未经验证的 Sony mapping。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 94 tests, 0 failures，覆盖 Phase 0–16.4 的 Catalog、资料库、照片/RAW/LUT、色彩管线、局部蒙版、导出、视频、HDR guard 与相似照片检测。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 仓库不包含私有 Sony A7C II ARW、DNG 或大型 RAW。使用用户授权文件运行 File → 运行 RAW 诊断…，保留报告并按 `docs/raw-diagnostics.md` 与 `docs/manual-validation.md` 验证真实 decoder ICC、方向、全部实际可用控制、preview、LUT、local masks（适用时）、sRGB/Display P3 full-resolution export 和原文件字节不变。若 A7C II ICC 未匹配严格契约，只记录实际 profile；在独立验证前不添加映射。
+
+Known Limitations:
+- 自动化只能验证诊断服务的安全失败、文本报告、能力列表和现有合成色彩契约，不能伪造 Sony/DNG decoder 输出或声称真实相机支持全部 CIRAWFilter control。
+- 诊断的 full-resolution 临时导出有意会占用真实 RAW 的 CPU/内存和时间；它是开发/验证动作，而不是交互式预览的快捷路径。
+- Source integrity 字段比较文件大小和修改时间；不额外计算昂贵的全文件哈希。渲染与导出 API 不包含源写入操作，真实文件 byte-identical 检查仍列为人工验证。
+
+Commit:
+- `feat: add RAW media diagnostics`

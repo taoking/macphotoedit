@@ -17,6 +17,9 @@ struct MacPhotoStudioApp: App {
                     applicationModel.presentAddFolderPanel()
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+                Button("运行 RAW 诊断…") {
+                    applicationModel.presentRAWDiagnosticPanel()
+                }
             }
         }
     }
