@@ -22,10 +22,15 @@ empty mask array, and v3 gradient JSON decodes with an empty brush-stroke list,
 while preserving its original version marker.
 
 Coordinates are normalized to the image extent before crop, rotation and
-straighten transforms. Consequently a 1024px preview and a full-resolution
-export apply the same part of the referenced original. Local-mask geometry is
-intentionally omitted from reusable presets and copy/paste, so a preset cannot
-silently place one photo's mask on another.
+straighten transforms. `PhotoTransformGeometry` is the single shared contract
+for the Core Image transform and the editor canvas: the canvas first maps a
+stored source-normalized point through the complete crop/flip/rotation/
+straighten transform, and maps a pointer location back through its inverse
+before storing a mask edit. Consequently a 1024px preview and a
+full-resolution export apply the same part of the referenced original, even
+after combined transforms. Local-mask geometry is intentionally omitted from
+reusable presets and copy/paste, so a preset cannot silently place one photo's
+mask on another.
 
 ## Render order
 
@@ -49,8 +54,10 @@ fails, it applies no adjustment rather than applying one to the whole image.
 
 Phase 12.13 adds direct manipulation to the ordinary photo editor without
 changing the stored `LocalMask` schema. The canvas calculates the same
-aspect-fitted image rectangle as the AppKit image view and converts between
-SwiftUI's top-left coordinates and the persisted bottom-left normalized values.
+aspect-fitted image rectangle as the AppKit image view, converts between
+SwiftUI's top-left coordinates and the persisted bottom-left normalized values,
+and uses the shared transform geometry above rather than treating a transformed
+preview as source space.
 
 - Linear masks show start and end handles; dragging either changes direction
   and rotation, while dragging the dashed center line moves both endpoints

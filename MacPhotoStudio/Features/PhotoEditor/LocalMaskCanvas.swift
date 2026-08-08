@@ -84,6 +84,11 @@ enum BrushMaskTool: String, CaseIterable, Identifiable, Equatable {
 
 struct LocalMaskCanvas: View {
     let image: NSImage
+    /// The untransformed preview dimensions. The displayed `image` has already
+    /// gone through `PhotoImagePipeline.applyTransform`, so editing must invert
+    /// that shared transform before persisting mask geometry.
+    let sourceImageSize: CGSize
+    let transform: TransformAdjustments
     let enablesExtendedRange: Bool
     let mask: LocalMask
     let showsMaskOverlay: Bool
@@ -94,6 +99,10 @@ struct LocalMaskCanvas: View {
     @State private var dragStartMask: LocalMask?
     @State private var activeBrushMask: LocalMask?
     @State private var activeBrushStrokeID: UUID?
+
+    private var transformGeometry: PhotoTransformGeometry {
+        PhotoTransformGeometry(sourceExtent: CGRect(origin: .zero, size: sourceImageSize), transform: transform)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -136,19 +145,22 @@ struct LocalMaskCanvas: View {
         let alpha = 0.46 * max(0.2, mask.clampedOpacity)
         switch mask.kind {
         case .linearGradient:
+            let start = displayPoint(for: CGPoint(x: mask.clampedStartX, y: mask.clampedStartY))
+            let end = displayPoint(for: CGPoint(x: mask.clampedEndX, y: mask.clampedEndY))
             Rectangle()
                 .fill(
                     LinearGradient(
                         colors: [Color.red.opacity(alpha), Color.red.opacity(0.01)],
-                        startPoint: UnitPoint(x: mask.clampedStartX, y: 1 - mask.clampedStartY),
-                        endPoint: UnitPoint(x: mask.clampedEndX, y: 1 - mask.clampedEndY)
+                        startPoint: UnitPoint(x: start.x, y: 1 - start.y),
+                        endPoint: UnitPoint(x: end.x, y: 1 - end.y)
                     )
                 )
                 .frame(width: imageRect.width, height: imageRect.height)
                 .position(x: imageRect.midX, y: imageRect.midY)
         case .radialGradient:
-            let radius = CGFloat(mask.clampedRadius) * min(imageRect.width, imageRect.height)
-            let outerRadius = CGFloat(mask.clampedRadius + mask.clampedFeather) * min(imageRect.width, imageRect.height)
+            let center = displayPoint(for: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY))
+            let radius = displayedRadius(mask.clampedRadius, from: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY), in: imageRect)
+            let outerRadius = displayedRadius(mask.clampedRadius + mask.clampedFeather, from: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY), in: imageRect)
             Rectangle()
                 .fill(
                     RadialGradient(
@@ -157,7 +169,7 @@ struct LocalMaskCanvas: View {
                             .init(color: .red.opacity(alpha), location: min(1, radius / max(outerRadius, 1))),
                             .init(color: .red.opacity(0.01), location: 1)
                         ]),
-                        center: UnitPoint(x: mask.clampedCenterX, y: 1 - mask.clampedCenterY),
+                        center: UnitPoint(x: center.x, y: 1 - center.y),
                         startRadius: 0,
                         endRadius: outerRadius
                     )
@@ -175,8 +187,8 @@ struct LocalMaskCanvas: View {
     private func controls(in imageRect: CGRect) -> some View {
         switch mask.kind {
         case .linearGradient:
-            let start = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedStartX, y: mask.clampedStartY, in: imageRect)
-            let end = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedEndX, y: mask.clampedEndY, in: imageRect)
+            let start = viewPoint(for: CGPoint(x: mask.clampedStartX, y: mask.clampedStartY), in: imageRect)
+            let end = viewPoint(for: CGPoint(x: mask.clampedEndX, y: mask.clampedEndY), in: imageRect)
             Path { path in
                 path.move(to: start)
                 path.addLine(to: end)
@@ -191,10 +203,10 @@ struct LocalMaskCanvas: View {
                 .background(.black.opacity(0.55), in: Capsule())
                 .position(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 15)
         case .radialGradient:
-            let center = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedCenterX, y: mask.clampedCenterY, in: imageRect)
-            let scale = min(imageRect.width, imageRect.height)
-            let radius = CGFloat(mask.clampedRadius) * scale
-            let feather = CGFloat(mask.clampedFeather) * scale
+            let sourceCenter = CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY)
+            let center = viewPoint(for: sourceCenter, in: imageRect)
+            let radius = displayedRadius(mask.clampedRadius, from: sourceCenter, in: imageRect)
+            let feather = max(0, displayedRadius(mask.clampedRadius + mask.clampedFeather, from: sourceCenter, in: imageRect) - radius)
             Circle()
                 .stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                 .frame(width: radius * 2, height: radius * 2)
@@ -244,11 +256,14 @@ struct LocalMaskCanvas: View {
     @ViewBuilder
     private func brushStrokeOverlay(_ stroke: BrushStroke, in imageRect: CGRect) -> some View {
         let points = stroke.points.map {
-            let point = LocalMaskCanvasGeometry.viewPoint(x: $0.clamped.x, y: $0.clamped.y, in: imageRect)
+            let storedPoint = $0.clamped
+            let point = viewPoint(for: CGPoint(x: storedPoint.x, y: storedPoint.y), in: imageRect)
             return CGPoint(x: point.x - imageRect.minX, y: point.y - imageRect.minY)
         }
         let color = stroke.erase ? Color.cyan : Color.red
-        let width = max(1, CGFloat(stroke.clampedRadius) * min(imageRect.width, imageRect.height) * 2)
+        let reference = stroke.points.first?.clamped ?? BrushPoint(x: 0.5, y: 0.5)
+        let referencePoint = CGPoint(x: reference.x, y: reference.y)
+        let width = max(1, displayedRadius(stroke.clampedRadius, from: referencePoint, in: imageRect) * 2)
         if let point = points.first, points.count == 1 {
             Circle()
                 .stroke(color.opacity(0.75), lineWidth: 1.5)
@@ -309,7 +324,7 @@ struct LocalMaskCanvas: View {
     private func updateBrush(with value: DragGesture.Value, in imageRect: CGRect) {
         if activeBrushMask == nil {
             guard imageRect.contains(value.startLocation) else { return }
-            let point = LocalMaskCanvasGeometry.normalizedPoint(value.location, in: imageRect)
+            let point = sourcePoint(for: value.location, in: imageRect)
             let stroke = BrushStroke(
                 points: [BrushPoint(x: point.x, y: point.y)],
                 radius: mask.clampedBrushSize,
@@ -329,7 +344,7 @@ struct LocalMaskCanvas: View {
               let activeBrushStrokeID,
               let index = updated.brushStrokes.firstIndex(where: { $0.id == activeBrushStrokeID })
         else { return }
-        let point = LocalMaskCanvasGeometry.normalizedPoint(value.location, in: imageRect)
+        let point = sourcePoint(for: value.location, in: imageRect)
         updated.brushStrokes[index].append(BrushPoint(x: point.x, y: point.y))
         activeBrushMask = updated
         onMaskChange(updated)
@@ -338,14 +353,16 @@ struct LocalMaskCanvas: View {
     private func target(at point: CGPoint, in imageRect: CGRect) -> DragTarget? {
         switch mask.kind {
         case .linearGradient:
-            let start = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedStartX, y: mask.clampedStartY, in: imageRect)
-            let end = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedEndX, y: mask.clampedEndY, in: imageRect)
+            let start = viewPoint(for: CGPoint(x: mask.clampedStartX, y: mask.clampedStartY), in: imageRect)
+            let end = viewPoint(for: CGPoint(x: mask.clampedEndX, y: mask.clampedEndY), in: imageRect)
             if Self.distance(point, start) < 14 { return .linearStart }
             if Self.distance(point, end) < 14 { return .linearEnd }
             if LocalMaskCanvasGeometry.distanceToSegment(point, start: start, end: end) < 12 { return .linearPosition }
         case .radialGradient:
-            let center = LocalMaskCanvasGeometry.viewPoint(x: mask.clampedCenterX, y: mask.clampedCenterY, in: imageRect)
-            let distance = LocalMaskCanvasGeometry.normalizedDistance(from: center, to: point, in: imageRect)
+            let sourceCenter = CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY)
+            let center = viewPoint(for: sourceCenter, in: imageRect)
+            let currentSourcePoint = sourcePoint(for: point, in: imageRect)
+            let distance = normalizedSourceDistance(from: sourceCenter, to: currentSourcePoint)
             if Self.distance(point, center) < 12 { return .radialCenter }
             if abs(distance - mask.clampedRadius) < 0.035 { return .radialRadius }
             if abs(distance - (mask.clampedRadius + mask.clampedFeather)) < 0.035 { return .radialFeather }
@@ -365,7 +382,7 @@ struct LocalMaskCanvas: View {
         imageRect: CGRect
     ) -> LocalMask {
         var updated = original
-        let point = LocalMaskCanvasGeometry.normalizedPoint(current, in: imageRect)
+        let point = sourcePoint(for: current, in: imageRect)
         switch target {
         case .linearStart:
             updated.startX = point.x
@@ -374,7 +391,7 @@ struct LocalMaskCanvas: View {
             updated.endX = point.x
             updated.endY = point.y
         case .linearPosition:
-            let initial = LocalMaskCanvasGeometry.normalizedPoint(start, in: imageRect)
+            let initial = sourcePoint(for: start, in: imageRect)
             updated = LocalMaskCanvasGeometry.translateLinearMask(
                 original,
                 by: CGPoint(x: point.x - initial.x, y: point.y - initial.y)
@@ -383,12 +400,8 @@ struct LocalMaskCanvas: View {
             updated.centerX = point.x
             updated.centerY = point.y
         case .radialRadius, .radialFeather:
-            let center = LocalMaskCanvasGeometry.viewPoint(
-                x: original.clampedCenterX,
-                y: original.clampedCenterY,
-                in: imageRect
-            )
-            let distance = LocalMaskCanvasGeometry.normalizedDistance(from: center, to: current, in: imageRect)
+            let center = CGPoint(x: original.clampedCenterX, y: original.clampedCenterY)
+            let distance = normalizedSourceDistance(from: center, to: point)
             if target == .radialRadius {
                 updated.radius = min(max(distance, 0.01), 1)
             } else {
@@ -400,6 +413,41 @@ struct LocalMaskCanvas: View {
 
     private static func distance(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
         hypot(lhs.x - rhs.x, lhs.y - rhs.y)
+    }
+
+    private func displayPoint(for sourcePoint: CGPoint) -> CGPoint {
+        transformGeometry.displayedNormalizedPoint(forSourceNormalized: sourcePoint)
+    }
+
+    private func viewPoint(for sourcePoint: CGPoint, in imageRect: CGRect) -> CGPoint {
+        let displayPoint = displayPoint(for: sourcePoint)
+        return LocalMaskCanvasGeometry.viewPoint(x: displayPoint.x, y: displayPoint.y, in: imageRect)
+    }
+
+    private func sourcePoint(for viewPoint: CGPoint, in imageRect: CGRect) -> CGPoint {
+        transformGeometry.sourceNormalizedPoint(
+            forDisplayedNormalized: LocalMaskCanvasGeometry.normalizedPoint(viewPoint, in: imageRect)
+        )
+    }
+
+    private func sourcePoint(atRadius radius: Double, from center: CGPoint) -> CGPoint {
+        let smallestDimension = max(1, min(sourceImageSize.width, sourceImageSize.height))
+        let xOffset = CGFloat(radius) * smallestDimension / max(sourceImageSize.width, 1)
+        return CGPoint(x: min(max(center.x + xOffset, 0), 1), y: min(max(center.y, 0), 1))
+    }
+
+    private func displayedRadius(_ radius: Double, from center: CGPoint, in imageRect: CGRect) -> CGFloat {
+        let centerPoint = viewPoint(for: center, in: imageRect)
+        let radiusPoint = viewPoint(for: sourcePoint(atRadius: radius, from: center), in: imageRect)
+        return Self.distance(centerPoint, radiusPoint)
+    }
+
+    private func normalizedSourceDistance(from center: CGPoint, to point: CGPoint) -> Double {
+        let smallestDimension = max(1, min(sourceImageSize.width, sourceImageSize.height))
+        return Double(hypot(
+            (point.x - center.x) * sourceImageSize.width,
+            (point.y - center.y) * sourceImageSize.height
+        ) / smallestDimension)
     }
 
     private enum DragTarget: Equatable {

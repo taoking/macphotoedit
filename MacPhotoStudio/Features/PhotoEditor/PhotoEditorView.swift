@@ -354,6 +354,8 @@ struct PhotoEditorView: View {
                        let mask = editor.localMask(id: selectedLocalMaskID) {
                         LocalMaskCanvas(
                             image: image,
+                            sourceImageSize: editor.originalImage?.size ?? image.size,
+                            transform: editor.state.transform,
                             enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr,
                             mask: mask,
                             showsMaskOverlay: showsMaskOverlay,

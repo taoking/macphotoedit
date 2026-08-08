@@ -32,3 +32,15 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 13 — Brush Mask
 - [x] Phase 14 — Subject / Sky Mask
 - [x] Phase 15 — Similar Photo Detection
+- [ ] Phase 16 — Editing Correctness & Real Media Validation
+  - [x] 16.1 Local Mask Transform Coordinate Correctness
+  - [ ] 16.2 Technical LUT Strength Correctness
+  - [ ] 16.3 Subject Mask Stable Source + Cache
+  - [ ] 16.4 RAW Real-Media Validation Infrastructure
+  - [ ] 16.5 Still Image Color Real Validation
+  - [ ] 16.6 Video Real-Media Validation
+  - [ ] 16.7 External Storage Validation
+  - [ ] 16.8 Similar Photo Large-Library Benchmark
+  - [ ] 16.9 Similar Group Review UX
+  - [ ] 16.10 ApplicationModel Incremental Refactor
+  - [ ] 16.11 CI / Regression Gate

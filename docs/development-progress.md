@@ -1105,3 +1105,35 @@ Known Limitations:
 
 Commit:
 - `feat: add local similar photo detection`
+
+## Phase 16.1 — Local Mask Transform Coordinate Correctness
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增 `PhotoTransformGeometry`，把裁剪、水平/垂直翻转、90°倍数旋转和拉直的 Core Image 仿射变换与正反向归一化坐标映射收敛到一个共享实现。
+- `PhotoImagePipeline` 与 `LocalMaskCanvas` 共用该几何契约。画布先将既有 source-space 蒙版映射至变换后的可见预览，再在绘制、拖动和命中时将指针反变换回 source-space；线性、径向和画笔路径均不再直接把变换后预览坐标写入持久化状态。
+- 补充局部蒙版文档与真实媒体检查项；状态仍只保存原图归一化几何，不写入原媒体或派生蒙版文件。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/PhotoTransformGeometryTests -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；24 tests, 0 failures。新增 3 项几何/像素回归，覆盖 crop、90°/180°/270°、straighten、双翻转及组合变换的 source→display→source 往返，并验证可见画笔落点反映到局部蒙版实际渲染像素。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 渲染器和交互画布使用同一变换数学；局部蒙版不再因裁剪、旋转、拉直或翻转而写入错误的原图坐标。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 86 tests, 0 failures，覆盖 Phase 0–15 与本阶段新增回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的横图、竖图和正方形 JPEG/HEIC/RAW 派生图，在裁剪、90°/180°/270°、straighten 与双翻转组合后拖动线性/径向手柄并绘制画笔，重开资产和导出新文件后核对效果仍落在可见目标上；详见 `docs/manual-validation.md`。
+
+Known Limitations:
+- 自动化可以验证共享仿射数学和合成像素，但不能替代真实高分辨率媒体、鼠标命中、显示缩放和人工视觉判断。
+- 本阶段不改变 RAW 编辑器没有局部蒙版选择器的既有产品边界。
+
+Commit:
+- Pending — `fix: align local masks with photo transforms`

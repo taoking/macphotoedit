@@ -99,15 +99,7 @@ struct PhotoImagePipeline {
     }
 
     static func applyTransform(_ image: CIImage, using transform: TransformAdjustments) -> CIImage {
-        let crop = transform.crop.clamped
-        let extent = image.extent
-        let cropped = image.cropped(to: CGRect(x: extent.minX + extent.width * crop.x, y: extent.minY + extent.height * crop.y, width: extent.width * crop.width, height: extent.height * crop.height))
-        var affine = CGAffineTransform.identity
-        if transform.flipHorizontal { affine = affine.scaledBy(x: -1, y: 1) }
-        if transform.flipVertical { affine = affine.scaledBy(x: 1, y: -1) }
-        let radians = (transform.rotationDegrees + transform.straightenDegrees) * .pi / 180
-        if radians != 0 { affine = affine.rotated(by: radians) }
-        return cropped.transformed(by: affine)
+        PhotoTransformGeometry(sourceExtent: image.extent, transform: transform).applying(to: image)
     }
 
     private static func apply(_ adjustments: LocalMaskAdjustments, to source: CIImage) -> CIImage {
