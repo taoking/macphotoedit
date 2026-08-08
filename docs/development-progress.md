@@ -545,3 +545,41 @@ Known Limitations:
 
 Commit:
 - `fix: correct photo color space output`
+
+## Phase 12.2 — Photo Color Pipeline
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- 所有照片预览、普通照片全分辨率导出、RAW 预览与 RAW 导出共用 `RendererContextFactory`，明确将 `CIContext.workingColorSpace` 固定为 Extended Linear sRGB，并使用 RGBAh 半浮点中间格式。
+- Core Image 现在有明确且统一的实际数据流：Source profile → Extended Linear sRGB working space → Technical Transform → Creative Adjustments → Local Masks → Creative LUT → Transform/Crop → Output ColorSync profile。
+- `ColorPipelinePlan` 保留并测试 Source、Working 与 Output descriptor；Rec.2020 SDR 正确使用 Rec.709 transfer function，而非不真实的 sRGB 标注。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`；54 tests, 0 failures。新增覆盖实际 render context 的 working ICC profile、RGBAh working format 以及 pipeline descriptor。
+
+Build:
+PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 不再依赖未声明的 Core Image 默认值；预览、照片导出、RAW preview/export 使用同一显式线性工作空间，且既有输出 ICC round-trip 继续通过。
+
+Regression:
+PASS — 全量 54 项测试覆盖 Phase 0–12.1 的 Catalog、资料库、照片/RAW/LUT、导出、视频、Proxy 与局部蒙版能力。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 在真实 sRGB、Display P3、Rec.709 和 Rec.2020 媒体上与 ColorSync 参考应用比较创意调整、LUT、local mask 与导出结果；参见 `docs/manual-validation.md`。
+
+Production Readiness:
+PARTIAL — 普通照片管线已有明确、自动验证的线性 working space；Technical LUT 编码桥接与真实 RAW 的输出 descriptor 仍待后续子阶段验证。
+
+Known Limitations:
+- 当前 Technical LUT 的 source/input/output encoding bridge 仍由下一 Phase 12.3 审核并收紧；未声明为已完整支持 Sony S-Log3 / S-Gamut3.Cine。
+- HDR gain-map still export、HDR video edit/export 仍明确不支持。
+
+Commit:
+- `fix: establish linear photo working space`

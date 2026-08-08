@@ -28,10 +28,20 @@ exporter reopens its temporary file and compares the embedded ICC payload with
 the requested output profile. A mismatch fails the export before the temporary
 file is moved into the user-selected directory.
 
-The current Phase 12.1 automated suite verifies this round trip for every
-supported SDR format and all four output choices. It does not yet claim that
-the pipeline explicitly converts source pixels into a single linear working
-space before each stage; that source-to-working-space refactor is Phase 12.2.
+The Phase 12.1 automated suite verifies this round trip for every supported
+SDR format and all four output choices. The following Phase 12.2 section
+documents the subsequent source-to-working-space refactor.
+
+## Explicit working space
+
+Phase 12.2 completes that refactor. Every photo `CIContext` is now created
+with `CGColorSpace.extendedLinearSRGB` as `workingColorSpace` and `RGBAh` as
+the intermediate working format. Core Image therefore color-matches each
+profile-attached source into that one working space before executing filter
+kernels, and matches from it to the requested output profile at render time.
+The same `RendererContextFactory` is used by preview, full-resolution photo
+export, RAW preview and RAW export, so those paths do not silently use separate
+working-space defaults.
 
 ## LUT safety
 

@@ -762,12 +762,17 @@ actor PhotoEditingService {
     }
 }
 
-private enum RendererContextFactory {
+enum RendererContextFactory {
     static func makeContext() -> CIContext {
+        let options: [CIContextOption: Any] = [
+            .cacheIntermediates: true,
+            .workingColorSpace: PhotoColorPipeline.workingColorSpace,
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ]
         if let device = MTLCreateSystemDefaultDevice() {
-            return CIContext(mtlDevice: device, options: [.cacheIntermediates: true])
+            return CIContext(mtlDevice: device, options: options)
         }
-        return CIContext(options: [.cacheIntermediates: true])
+        return CIContext(options: options)
     }
 }
 

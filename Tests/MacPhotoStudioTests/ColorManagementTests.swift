@@ -55,6 +55,28 @@ final class ColorManagementTests: XCTestCase {
         }
     }
 
+    func testPhotoRenderContextsUseExplicitExtendedLinearWorkingSpace() {
+        let context = RendererContextFactory.makeContext()
+        let workingColorSpace = try? XCTUnwrap(context.workingColorSpace)
+        XCTAssertNotNil(workingColorSpace)
+        if let workingColorSpace {
+            XCTAssertTrue(PhotoColorSpace.extendedLinearSRGB.matchesEmbeddedProfile(of: workingColorSpace))
+        }
+        XCTAssertEqual(context.workingFormat, .RGBAh)
+    }
+
+    func testColorPipelinePlanNamesTheSharedLinearWorkingSpace() throws {
+        let plan = try ColorPipelinePlan.make(
+            source: .displayP3,
+            settings: PhotoColorPipelineSettings(outputColorSpace: .rec2020, dynamicRange: .sdr),
+            technicalLUT: nil,
+            creativeLUT: nil
+        )
+        XCTAssertEqual(plan.source, .displayP3)
+        XCTAssertEqual(plan.working, .linearWorking)
+        XCTAssertEqual(plan.output, PhotoColorDescriptor(colorSpace: .rec2020, transferFunction: .rec709))
+    }
+
     func testTechnicalLUTPersistsItsColorContractWithoutChangingOriginalCube() async throws {
         let sourceURL = temporaryDirectory.appending(path: "SLog3-to-709.cube")
         let sourceData = identityCubeData(dimension: 17)

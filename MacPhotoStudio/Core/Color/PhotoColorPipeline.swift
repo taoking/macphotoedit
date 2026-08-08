@@ -238,6 +238,12 @@ enum HDRToneMapper {
 }
 
 enum PhotoColorPipeline {
+    /// All photo render contexts explicitly use this extended, linear ColorSync
+    /// space. Core Image then matches every source image into it before any
+    /// filter kernel runs, and matches from it to the requested output at the
+    /// render boundary.
+    static let workingColorSpace = PhotoColorSpace.extendedLinearSRGB.cgColorSpace
+
     /// Core Image preserves the source ICC attachment through the processing
     /// graph. The render boundary below supplies the explicit output CGColorSpace
     /// to ColorSync; this function defines the non-destructive stage ordering.
@@ -257,8 +263,11 @@ enum PhotoColorPipeline {
             creativeLUT: creativeLUT
         )
 
-        // Source → Working Color Space. Core Image keeps the source profile and
-        // ColorSync resolves it when the renderer requests the explicit target.
+        // Source → Working Color Space is performed by the explicit
+        // `CIContext.workingColorSpace` used by every photo renderer. This
+        // graph deliberately starts with the original, profile-attached source;
+        // Core Image color-matches it into `workingColorSpace` before executing
+        // the filters below.
         var image = source
 
         // Working → Technical Transform. The metadata validation above makes an
