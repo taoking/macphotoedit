@@ -5,6 +5,11 @@ struct ResolvedBookmark: Sendable {
     let isStale: Bool
 }
 
+struct SecurityScopedAccessResult<Value: Sendable>: Sendable {
+    let didStartAccess: Bool
+    let value: Value
+}
+
 struct BookmarkStore: Sendable {
     func createBookmark(for directoryURL: URL) throws -> Data {
         do {
@@ -37,12 +42,26 @@ struct BookmarkStore: Sendable {
         to url: URL,
         operation: @Sendable () async throws -> T
     ) async throws -> T {
+        try await withSecurityScopedAccessResult(to: url, operation: operation).value
+    }
+
+    /// Keeps the start/stop lifecycle balanced while making the result visible
+    /// to diagnostics. `false` is valid for an already-accessible local URL,
+    /// so callers must combine it with an actual directory read rather than
+    /// treating it as a permission failure on its own.
+    func withSecurityScopedAccessResult<T: Sendable>(
+        to url: URL,
+        operation: @Sendable () async throws -> T
+    ) async throws -> SecurityScopedAccessResult<T> {
         let didStartAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccess {
                 url.stopAccessingSecurityScopedResource()
             }
         }
-        return try await operation()
+        return SecurityScopedAccessResult(
+            didStartAccess: didStartAccess,
+            value: try await operation()
+        )
     }
 }

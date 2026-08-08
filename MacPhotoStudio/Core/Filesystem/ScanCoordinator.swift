@@ -157,21 +157,13 @@ actor ScanCoordinator {
             guard let root = try await catalogStore.mediaRoot(id: rootID) else {
                 throw StudioError.mediaRootNotFound(id: rootID)
             }
-            let resolvedRoot = try await mediaRootStore.resolve(root)
-            let rootIsAccessible = try await bookmarkStore.withSecurityScopedAccess(to: resolvedRoot.directoryURL) {
-                var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(
-                    atPath: resolvedRoot.directoryURL.path(percentEncoded: false),
-                    isDirectory: &isDirectory
-                )
-                return exists && isDirectory.boolValue
-            }
-            guard rootIsAccessible else {
-                try await catalogStore.updateRootAvailability(.offline, errorMessage: "目录或卷当前不可用。", rootID: rootID)
+            let diagnostic = await mediaRootStore.diagnoseAccess(to: root)
+            guard diagnostic.availability == .online else {
                 try await taskCenter.fail(scanID)
-                await state.finish(state: .failed, errorMessage: "目录或卷当前不可用。")
+                await state.finish(state: .failed, errorMessage: diagnostic.errorMessage)
                 return
             }
+            let resolvedRoot = try await mediaRootStore.resolve(root)
 
             let fingerprints = try await catalogStore.assetFingerprints(for: rootID)
             try await catalogStore.beginScan(rootID: rootID, scanID: scanID)

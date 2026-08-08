@@ -46,9 +46,10 @@ automatically marked as passed by unit tests.
 
 ## Storage and permissions
 
-- [ ] Internal SSD, external SSD, external HDD and SD card.
-- [ ] Disconnect, reconnect, rename the volume and restart the app.
-- [ ] Confirm security-scoped bookmark recovery and that offline assets retain Catalog data and existing derived thumbnails.
+- [ ] 对 internal SSD、external SSD、external HDD 与 SD card 依次添加文件夹、重启并运行 **File → 运行媒体根目录可用性诊断**；记录 bookmark 解析/stale、security-scoped access、目录读写、卷名/UUID 与 online 状态。
+- [ ] 每种设备均执行 disconnect → restart → offline Catalog → reconnect same drive → diagnostic → rescan → edit → new-file export；离线时必须保留 Catalog 组织与既有派生缩略图，重新扫描后必须恢复源文件操作。
+- [ ] 逐一 rename volume → reconnect → restart → diagnostic → rescan。确认报告呈现新卷名和可核对的 UUID；如需要重新授权，只使用“重新定位文件夹…”，并核对资产 ID、编辑、评分、标签、相册与堆栈没有被清除。
+- [ ] 按 `docs/external-storage-validation.md` 保留每块真实设备的报告、操作系统、连接方式和结果；路径缺失应为 offline，路径仍存在但 bookmark 无法恢复应为 permissionRequired。
 
 ## HDR / display
 

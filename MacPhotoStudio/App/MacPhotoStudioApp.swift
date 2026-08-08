@@ -23,6 +23,9 @@ struct MacPhotoStudioApp: App {
                 Button("运行静态图像色彩验证…") {
                     applicationModel.presentStillImageColorDiagnosticPanels()
                 }
+                Button("运行媒体根目录可用性诊断") {
+                    Task { await applicationModel.runMediaRootAvailabilityDiagnostics() }
+                }
             }
         }
     }

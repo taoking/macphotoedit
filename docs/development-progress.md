@@ -1303,3 +1303,36 @@ Known Limitations:
 
 Commit:
 - `test: strengthen video media validation`
+
+## Phase 16.7 — External Storage Validation
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增统一的媒体根目录可用性诊断与文本报告；它记录 bookmark 生命周期、security-scoped access、目录资源值和卷信息，并让启动检查与扫描入口复用同一判断。
+- 断开的根目录只变为 offline、保留 Catalog 与派生资产；bookmark 失败但上次路径仍存在时明确标记 permissionRequired，避免把权限问题伪装成卷已拔出。
+- `File → 运行媒体根目录可用性诊断` 会将每个根目录的报告写入 Application Support logs，并在 Finder 中显示；没有复制、移动、覆盖或删除任何用户媒体。
+- 修正实际 H.264/AAC 导出回归：同步检查以音视频起点与 composition/video 时长为准，并仅允许有限 AAC encoder packet-padding 尾部，消除把容器编码细节误判为 A/V drift 的不稳定失败。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/MediaRootAvailabilityDiagnosticTests -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；4 tests, 0 failures。真实临时 bookmark/目录验证 online 报告、目录移除后 Catalog 保留、离线扫描失败但不把资产改为 missing，以及 AAC packet-padding 下的同步契约。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — 统一诊断记录路径、bookmark 解析/stale、scope 启动结果、卷与 URL resource values；断开后只标记 offline 并保留记录，扫描在 `finishScan` 前失败，不会产生错误 missing。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 101 tests, 0 failures，覆盖 Phase 0–16.7 的 Catalog、资料库、照片/RAW、LUT、色彩、局部蒙版、视频、HDR guard、相似照片检测与外置存储诊断。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 真实 internal SSD、external SSD/HDD、SD card、断连、改名、重连和 sandbox 授权必须按 `docs/external-storage-validation.md` 人工验证。
+
+Known Limitations:
+- 自动化临时目录不能代表真实可移动卷、设备休眠、Finder 重命名或权限弹窗。
+- 重新连接后仍需要 rescan 才会将已有 offline 资产恢复为可编辑/可导出；诊断不会猜测每个源文件已经在原路径恢复。
+
+Commit:
+- `feat: add external storage diagnostics`

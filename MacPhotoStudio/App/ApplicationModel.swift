@@ -31,6 +31,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var latestRAWDiagnosticReportURL: URL?
     @Published private(set) var latestStillImageColorDiagnosticReportURL: URL?
+    @Published private(set) var latestMediaRootAvailabilityReportURL: URL?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -314,6 +315,33 @@ final class ApplicationModel: ObservableObject {
             report(error, activity: "Refreshing library")
         }
         await refreshBatchTasks()
+    }
+
+    func runMediaRootAvailabilityDiagnostics() async {
+        guard case .ready(let paths) = startupState,
+              let catalogStore,
+              let mediaRootStore
+        else { return }
+
+        do {
+            libraryError = nil
+            let roots = try await catalogStore.mediaRoots()
+            var diagnostics: [MediaRootAvailabilityDiagnostic] = []
+            diagnostics.reserveCapacity(roots.count)
+            for root in roots {
+                diagnostics.append(await mediaRootStore.diagnoseAccess(to: root))
+            }
+            let reportURL = try MediaRootAvailabilityReport(
+                generatedAt: .now,
+                diagnostics: diagnostics
+            ).write(to: paths.logsDirectory)
+            latestMediaRootAvailabilityReportURL = reportURL
+            AppLogger.app.info("Media-root availability report written to \(reportURL.path(percentEncoded: false), privacy: .public)")
+            await refreshLibrary()
+            NSWorkspace.shared.activateFileViewerSelecting([reportURL])
+        } catch {
+            report(error, activity: "Diagnosing media-root availability")
+        }
     }
 
     func reloadLibraryAssets(query: LibraryQuery) async {

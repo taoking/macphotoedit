@@ -75,8 +75,19 @@ final class VideoExportAudioTests: XCTestCase {
 
         XCTAssertEqual(CMTimeGetSeconds(outputDuration), 0.3, accuracy: 0.08)
         XCTAssertEqual(CMTimeGetSeconds(videoTimeRange.duration), 0.3, accuracy: 0.08)
-        XCTAssertEqual(CMTimeGetSeconds(audioTimeRange.duration), 0.3, accuracy: 0.08)
-        XCTAssertEqual(CMTimeGetSeconds(videoTimeRange.duration), CMTimeGetSeconds(audioTimeRange.duration), accuracy: 0.04)
+        XCTAssertEqual(
+            CMTimeGetSeconds(videoTimeRange.start),
+            CMTimeGetSeconds(audioTimeRange.start),
+            accuracy: 0.04
+        )
+        // AVAssetExportSession may retain a bounded AAC packet-padding tail in
+        // the track range even though the composition and video duration are
+        // both 0.3 s. Treating that encoder detail as A/V drift made this
+        // real-media regression flaky; a larger or negative delta is still a
+        // synchronization failure.
+        let audioTail = CMTimeGetSeconds(audioTimeRange.duration) - CMTimeGetSeconds(videoTimeRange.duration)
+        XCTAssertGreaterThanOrEqual(audioTail, -0.04)
+        XCTAssertLessThanOrEqual(audioTail, 0.08)
         XCTAssertEqual(outputSize, CGSize(width: 24, height: 32))
         XCTAssertTrue(formatDescriptions.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 })
     }

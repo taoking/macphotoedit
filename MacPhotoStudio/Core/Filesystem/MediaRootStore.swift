@@ -3,6 +3,7 @@ import Foundation
 struct ResolvedMediaRoot: Sendable {
     var root: MediaRootRecord
     let directoryURL: URL
+    let bookmarkWasStale: Bool
 }
 
 struct MediaRootStore: Sendable {
@@ -79,30 +80,110 @@ struct MediaRootStore: Sendable {
             )
         }
 
-        return ResolvedMediaRoot(root: updatedRoot, directoryURL: resolvedBookmark.url)
+        return ResolvedMediaRoot(
+            root: updatedRoot,
+            directoryURL: resolvedBookmark.url,
+            bookmarkWasStale: resolvedBookmark.isStale
+        )
     }
 
     func validateAccess(to root: MediaRootRecord) async -> MediaRootAvailability {
+        await diagnoseAccess(to: root).availability
+    }
+
+    /// Resolves a bookmark and performs a real directory read under a balanced
+    /// security-scoped access session. A missing last-known path is offline;
+    /// an unresolved bookmark for an existing path is permission-required.
+    /// Neither case deletes catalog assets or derived thumbnails.
+    func diagnoseAccess(to root: MediaRootRecord) async -> MediaRootAvailabilityDiagnostic {
         do {
             let resolved = try await resolve(root)
-            let isAccessible = try await bookmarkStore.withSecurityScopedAccess(to: resolved.directoryURL) {
-                var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(
-                    atPath: resolved.directoryURL.path(percentEncoded: false),
-                    isDirectory: &isDirectory
-                )
-                return exists && isDirectory.boolValue
+            let accessResult = try await bookmarkStore.withSecurityScopedAccessResult(to: resolved.directoryURL) {
+                resourceSnapshot(for: resolved.directoryURL)
             }
-            let availability: MediaRootAvailability = isAccessible ? .online : .offline
-            try? await catalogStore.updateRootAvailability(availability, rootID: root.id)
-            return availability
-        } catch {
+            let snapshot = accessResult.value
+            let availability: MediaRootAvailability = snapshot.directoryExists && snapshot.isDirectory ? .online : .offline
+            let errorMessage = availability == .offline ? "目录或卷当前不可用。" : nil
             try? await catalogStore.updateRootAvailability(
-                .permissionRequired,
-                errorMessage: error.localizedDescription,
+                availability,
+                errorMessage: errorMessage,
                 rootID: root.id
             )
-            return .permissionRequired
+            return MediaRootAvailabilityDiagnostic(
+                rootID: root.id,
+                displayName: root.displayName,
+                lastKnownPath: root.lastKnownPath,
+                resolvedPath: resolved.directoryURL.path(percentEncoded: false),
+                bookmarkResolved: true,
+                bookmarkWasStale: resolved.bookmarkWasStale,
+                bookmarkResolutionError: nil,
+                securityScopedAccessStarted: accessResult.didStartAccess,
+                resourceSnapshot: snapshot,
+                volumeIdentifierMatchesStoredValue: matchesStoredVolume(
+                    stored: resolved.root.volumeIdentifier,
+                    observed: snapshot.volumeIdentifier
+                ),
+                availability: availability,
+                errorMessage: errorMessage
+            )
+        } catch {
+            let snapshot = resourceSnapshot(for: URL(filePath: root.lastKnownPath, directoryHint: .isDirectory))
+            let availability: MediaRootAvailability = snapshot.directoryExists && snapshot.isDirectory
+                ? .permissionRequired
+                : .offline
+            let errorMessage = "书签无法解析：\(error.localizedDescription)"
+            try? await catalogStore.updateRootAvailability(
+                availability,
+                errorMessage: errorMessage,
+                rootID: root.id
+            )
+            return MediaRootAvailabilityDiagnostic(
+                rootID: root.id,
+                displayName: root.displayName,
+                lastKnownPath: root.lastKnownPath,
+                resolvedPath: nil,
+                bookmarkResolved: false,
+                bookmarkWasStale: nil,
+                bookmarkResolutionError: error.localizedDescription,
+                securityScopedAccessStarted: nil,
+                resourceSnapshot: snapshot,
+                volumeIdentifierMatchesStoredValue: nil,
+                availability: availability,
+                errorMessage: errorMessage
+            )
         }
+    }
+
+    private func resourceSnapshot(for directoryURL: URL) -> MediaRootResourceSnapshot {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(
+            atPath: directoryURL.path(percentEncoded: false),
+            isDirectory: &isDirectory
+        )
+        let values = try? directoryURL.resourceValues(forKeys: [
+            .isReadableKey,
+            .isWritableKey,
+            .volumeNameKey,
+            .volumeUUIDStringKey,
+            .volumeIsLocalKey,
+            .volumeIsRemovableKey,
+            .volumeIsEjectableKey
+        ])
+        return MediaRootResourceSnapshot(
+            directoryExists: exists,
+            isDirectory: isDirectory.boolValue,
+            isReadable: values?.isReadable,
+            isWritable: values?.isWritable,
+            volumeName: values?.volumeName,
+            volumeIdentifier: values?.volumeUUIDString,
+            volumeIsLocal: values?.volumeIsLocal,
+            volumeIsRemovable: values?.volumeIsRemovable,
+            volumeIsEjectable: values?.volumeIsEjectable
+        )
+    }
+
+    private func matchesStoredVolume(stored: String?, observed: String?) -> Bool? {
+        guard let stored, let observed else { return nil }
+        return stored == observed
     }
 }
