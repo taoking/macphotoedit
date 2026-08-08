@@ -163,6 +163,9 @@ private enum LocalMaskRenderer {
                 "inputColor0": CIColor.white,
                 "inputColor1": CIColor.black
             ])
+        case .brush:
+            guard let brushMask = BrushMaskRenderer.image(for: mask.brushStrokes, extent: extent) else { return nil }
+            maskImage = brushMask
         }
         guard mask.clampedOpacity < 1 else { return maskImage.cropped(to: extent) }
         return maskImage.applyingFilter("CIColorMatrix", parameters: [

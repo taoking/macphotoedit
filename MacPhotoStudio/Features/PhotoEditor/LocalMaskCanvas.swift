@@ -68,15 +68,32 @@ enum LocalMaskCanvasGeometry {
     private static func clamp(_ value: Double) -> Double { min(max(value, 0), 1) }
 }
 
+enum BrushMaskTool: String, CaseIterable, Identifiable, Equatable {
+    case paint
+    case erase
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .paint: "绘制"
+        case .erase: "擦除"
+        }
+    }
+}
+
 struct LocalMaskCanvas: View {
     let image: NSImage
     let enablesExtendedRange: Bool
     let mask: LocalMask
     let showsMaskOverlay: Bool
+    let brushTool: BrushMaskTool
     let onMaskChange: (LocalMask) -> Void
 
     @State private var dragTarget: DragTarget?
     @State private var dragStartMask: LocalMask?
+    @State private var activeBrushMask: LocalMask?
+    @State private var activeBrushStrokeID: UUID?
 
     var body: some View {
         GeometryReader { proxy in
@@ -94,10 +111,21 @@ struct LocalMaskCanvas: View {
                 }
             }
             .contentShape(Rectangle())
-            .gesture(dragGesture(in: imageRect))
+            .gesture(interactionGesture(in: imageRect))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("局部蒙版画布")
-            .accessibilityHint("拖动线性蒙版的起点、终点或中线；拖动径向蒙版的中心、半径或羽化环。")
+            .accessibilityHint(accessibilityHint)
+        }
+    }
+
+    private var accessibilityHint: String {
+        switch mask.kind {
+        case .linearGradient:
+            "拖动线性蒙版的起点、终点或中线。"
+        case .radialGradient:
+            "拖动径向蒙版的中心、半径或羽化环。"
+        case .brush:
+            "在图像上拖动以\(brushTool.title)画笔蒙版。"
         }
     }
 
@@ -134,6 +162,8 @@ struct LocalMaskCanvas: View {
                 )
                 .frame(width: imageRect.width, height: imageRect.height)
                 .position(x: imageRect.midX, y: imageRect.midY)
+        case .brush:
+            brushOverlay(in: imageRect)
         }
     }
 
@@ -180,6 +210,50 @@ struct LocalMaskCanvas: View {
                 color: .white,
                 label: "径向蒙版羽化"
             )
+        case .brush:
+            Text("\(brushTool.title)画笔：在图像上拖动")
+                .font(.caption2)
+                .foregroundStyle(.white)
+                .padding(4)
+                .background(.black.opacity(0.55), in: Capsule())
+                .position(x: imageRect.midX, y: imageRect.minY + 16)
+        }
+    }
+
+    private func brushOverlay(in imageRect: CGRect) -> some View {
+        ZStack {
+            ForEach(mask.brushStrokes) { stroke in
+                brushStrokeOverlay(stroke, in: imageRect)
+            }
+        }
+        .frame(width: imageRect.width, height: imageRect.height)
+        .position(x: imageRect.midX, y: imageRect.midY)
+    }
+
+    @ViewBuilder
+    private func brushStrokeOverlay(_ stroke: BrushStroke, in imageRect: CGRect) -> some View {
+        let points = stroke.points.map {
+            let point = LocalMaskCanvasGeometry.viewPoint(x: $0.clamped.x, y: $0.clamped.y, in: imageRect)
+            return CGPoint(x: point.x - imageRect.minX, y: point.y - imageRect.minY)
+        }
+        let color = stroke.erase ? Color.cyan : Color.red
+        let width = max(1, CGFloat(stroke.clampedRadius) * min(imageRect.width, imageRect.height) * 2)
+        if let point = points.first, points.count == 1 {
+            Circle()
+                .stroke(color.opacity(0.75), lineWidth: 1.5)
+                .frame(width: width, height: width)
+                .position(point)
+        } else if !points.isEmpty {
+            Path { path in
+                path.move(to: points[0])
+                for point in points.dropFirst() {
+                    path.addLine(to: point)
+                }
+            }
+            .stroke(
+                color.opacity(max(0.2, stroke.clampedOpacity * 0.75)),
+                style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round)
+            )
         }
     }
 
@@ -192,10 +266,14 @@ struct LocalMaskCanvas: View {
             .accessibilityLabel(label)
     }
 
-    private func dragGesture(in imageRect: CGRect) -> some Gesture {
+    private func interactionGesture(in imageRect: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 guard !imageRect.isEmpty else { return }
+                if case .brush = mask.kind {
+                    updateBrush(with: value, in: imageRect)
+                    return
+                }
                 if dragTarget == nil {
                     dragTarget = target(at: value.startLocation, in: imageRect)
                     dragStartMask = mask
@@ -212,7 +290,38 @@ struct LocalMaskCanvas: View {
             .onEnded { _ in
                 dragTarget = nil
                 dragStartMask = nil
+                activeBrushMask = nil
+                activeBrushStrokeID = nil
             }
+    }
+
+    private func updateBrush(with value: DragGesture.Value, in imageRect: CGRect) {
+        if activeBrushMask == nil {
+            guard imageRect.contains(value.startLocation) else { return }
+            let point = LocalMaskCanvasGeometry.normalizedPoint(value.location, in: imageRect)
+            let stroke = BrushStroke(
+                points: [BrushPoint(x: point.x, y: point.y)],
+                radius: mask.clampedBrushSize,
+                hardness: 1 - mask.clampedBrushFeather,
+                opacity: mask.clampedBrushFlow,
+                erase: brushTool == .erase
+            )
+            var updated = mask
+            updated.brushStrokes.append(stroke)
+            activeBrushMask = updated
+            activeBrushStrokeID = stroke.id
+            onMaskChange(updated)
+            return
+        }
+
+        guard var updated = activeBrushMask,
+              let activeBrushStrokeID,
+              let index = updated.brushStrokes.firstIndex(where: { $0.id == activeBrushStrokeID })
+        else { return }
+        let point = LocalMaskCanvasGeometry.normalizedPoint(value.location, in: imageRect)
+        updated.brushStrokes[index].append(BrushPoint(x: point.x, y: point.y))
+        activeBrushMask = updated
+        onMaskChange(updated)
     }
 
     private func target(at point: CGPoint, in imageRect: CGRect) -> DragTarget? {
@@ -229,6 +338,8 @@ struct LocalMaskCanvas: View {
             if Self.distance(point, center) < 12 { return .radialCenter }
             if abs(distance - mask.clampedRadius) < 0.035 { return .radialRadius }
             if abs(distance - (mask.clampedRadius + mask.clampedFeather)) < 0.035 { return .radialFeather }
+        case .brush:
+            return nil
         }
         return nil
     }

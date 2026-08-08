@@ -207,6 +207,18 @@ final class PhotoEditorViewModel: ObservableObject {
         state.localMasks[index] = mask
     }
 
+    func removeLastBrushStroke(from id: UUID) {
+        guard let index = state.localMasks.firstIndex(where: { $0.id == id }),
+              !state.localMasks[index].brushStrokes.isEmpty
+        else { return }
+        state.localMasks[index].brushStrokes.removeLast()
+    }
+
+    func removeAllBrushStrokes(from id: UUID) {
+        guard let index = state.localMasks.firstIndex(where: { $0.id == id }) else { return }
+        state.localMasks[index].brushStrokes.removeAll()
+    }
+
     func localMaskBinding(_ id: UUID, keyPath: WritableKeyPath<LocalMask, Double>) -> Binding<Double> {
         Binding(
             get: { self.localMask(id: id)?[keyPath: keyPath] ?? 0 },
@@ -267,6 +279,7 @@ struct PhotoEditorView: View {
     @State private var technicalOutputTransfer: PhotoTransferFunction = .rec709
     @State private var selectedLocalMaskID: UUID?
     @State private var showsMaskOverlay = false
+    @State private var brushTool: BrushMaskTool = .paint
 
     init(asset: LibraryAssetRecord, model: ApplicationModel) {
         self.asset = asset
@@ -344,6 +357,7 @@ struct PhotoEditorView: View {
                             enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr,
                             mask: mask,
                             showsMaskOverlay: showsMaskOverlay,
+                            brushTool: brushTool,
                             onMaskChange: editor.updateLocalMask
                         )
                     } else {
@@ -419,9 +433,13 @@ struct PhotoEditorView: View {
                 Button("添加径向") {
                     selectedLocalMaskID = editor.addLocalMask(kind: .radialGradient)
                 }
+                Button("添加画笔") {
+                    brushTool = .paint
+                    selectedLocalMaskID = editor.addLocalMask(kind: .brush)
+                }
             }
             if editor.state.localMasks.isEmpty {
-                Text("本地非破坏性渐变蒙版会同时用于预览和导出。")
+                Text("本地非破坏性局部蒙版会同时用于预览和导出。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -434,9 +452,15 @@ struct PhotoEditorView: View {
                 if let selectedLocalMaskID, let mask = editor.localMask(id: selectedLocalMaskID) {
                     Toggle("启用", isOn: editor.localMaskEnabledBinding(selectedLocalMaskID))
                     Toggle("显示蒙版覆盖", isOn: $showsMaskOverlay)
-                    Text("在编辑预览上拖动控制点：线性蒙版可拖动起点、终点和中线；径向蒙版可拖动中心、半径和羽化环。覆盖层只用于编辑提示，不改变导出像素。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if case .brush = mask.kind {
+                        Text("在编辑预览上直接绘制或擦除画笔笔触。笔触覆盖层只用于编辑提示，不改变导出像素。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("在编辑预览上拖动控制点：线性蒙版可拖动起点、终点和中线；径向蒙版可拖动中心、半径和羽化环。覆盖层只用于编辑提示，不改变导出像素。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     slider("不透明度", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.opacity), range: 0...1)
                     switch mask.kind {
                     case .linearGradient:
@@ -449,6 +473,29 @@ struct PhotoEditorView: View {
                         slider("中心 Y", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.centerY), range: 0...1)
                         slider("半径", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.radius), range: 0.01...1)
                         slider("羽化", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.feather), range: 0.001...1)
+                    case .brush:
+                        Picker("画笔工具", selection: $brushTool) {
+                            ForEach(BrushMaskTool.allCases) { tool in
+                                Text(tool.title).tag(tool)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        slider("画笔大小", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.brushSize), range: 0.002...0.5)
+                        slider("羽化", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.brushFeather), range: 0...1)
+                        slider("流量", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.brushFlow), range: 0.01...1)
+                        Text("在编辑预览中拖动以\(brushTool.title)。每笔保存为归一化点、大小、硬度、流量和擦除标记；运行时才生成蒙版纹理。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Button("撤销最后笔触") {
+                                editor.removeLastBrushStroke(from: selectedLocalMaskID)
+                            }
+                            .disabled(mask.brushStrokes.isEmpty)
+                            Button("清空笔触", role: .destructive) {
+                                editor.removeAllBrushStrokes(from: selectedLocalMaskID)
+                            }
+                            .disabled(mask.brushStrokes.isEmpty)
+                        }
                     }
                     slider("局部曝光", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.exposure), range: -3...3)
                     slider("局部对比度", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.contrast), range: -1...1)
@@ -461,7 +508,7 @@ struct PhotoEditorView: View {
                     }
                 }
             }
-            Text("蒙版坐标按原图比例保存；旋转、裁剪和不同预览尺寸不会改变其作用位置。局部蒙版不包含在可复用 Preset 中。")
+            Text("渐变几何和画笔笔触都按原图比例保存；旋转、裁剪和不同预览尺寸不会改变其作用位置。局部蒙版不包含在可复用 Preset 中。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -29,6 +29,6 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 12.11 — ApplicationModel Refactor
 - [x] Phase 12.12 — Photo Pipeline Performance
 - [x] Phase 12.13 — Local Mask Canvas UX
-- [ ] Phase 13 — Brush Mask
+- [x] Phase 13 — Brush Mask
 - [ ] Phase 14 — Subject / Sky Mask
 - [ ] Phase 15 — Similar Photo Detection

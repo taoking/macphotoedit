@@ -2,18 +2,22 @@
 
 ## Scope and privacy
 
-Phase 11 provides two practical, local-only masks: linear gradients and radial
-gradients. The application does not upload, index remotely, or send source
+Phase 13 adds a third practical, local-only mask: vector brush strokes, beside
+the existing linear and radial gradients. The application does not upload,
+index remotely, or send source
 photos to a cloud service. There is no placeholder subject/sky/face model in
 this release.
 
 ## Non-destructive state
 
-`PhotoEditState` v3 stores an ordered `localMasks` array per asset. Each entry
+`PhotoEditState` v4 stores an ordered `localMasks` array per asset. Each entry
 contains a stable ID, enable state, opacity, normalized geometry and local
-exposure, contrast and saturation adjustments. Existing v1/v2 edit JSON
-decodes with an empty array while preserving its original version marker, so
-older state remains readable without a destructive migration.
+exposure, contrast and saturation adjustments. A brush mask stores compact
+`BrushStroke` records: normalized points, radius, hardness, per-stroke flow
+and an erase flag. It does not store a source-sized bitmap, encoded PNG, or
+derived texture in Catalog SQLite. Existing v1/v2 JSON still decodes with an
+empty mask array, and v3 gradient JSON decodes with an empty brush-stroke list,
+while preserving its original version marker.
 
 Coordinates are normalized to the image extent before crop, rotation and
 straighten transforms. Consequently a 1024px preview and a full-resolution
@@ -59,9 +63,31 @@ The Inspector sliders remain available for numerical adjustment. Existing
 preview debounce/save behavior is reused when a drag changes the same
 non-destructive state.
 
+## Brush masks
+
+The ordinary photo editor can add a brush mask and paint or erase directly on
+the edited preview. Size, feather and flow configure newly created strokes;
+the recorded stroke retains its own radius, hardness, opacity and erase mode,
+so later UI changes never rewrite an earlier stroke. Undo removes the latest
+stroke and Clear removes only this mask's vector strokes.
+
+At preview and export time, `BrushMaskRenderer` rasterizes the normalized
+strokes into a grayscale Core Graphics texture matching the current image
+extent, then `CIBlendWithMask` applies the same local adjustments used by
+gradient masks. This gives the preview's downsampled image and the export's
+full-resolution image separate, appropriately sized masks without resampling
+or persisting a large bitmap.
+
+Derived textures are memory-only: a thread-safe LRU keeps at most 48 MiB in
+total and declines to retain an individual texture larger than 16 MiB. A large
+export still rasterizes correctly for that render, then releases its texture.
+The cache key includes image dimensions and every stroke value; no texture is
+shared after any brush edit. The 90 ms preview debounce, task cancellation and
+generation guard continue to coalesce interactive redraws.
+
 ## Deliberate boundary
 
-Brush strokes, subject/sky segmentation, perceptual similarity, semantic
-search and face grouping are not claimed as implemented. They require separate
-geometry, Vision-model, quality and privacy validation before they can be added
-without becoming mock functionality.
+Subject/sky segmentation, perceptual similarity, semantic search and face
+grouping are not claimed as implemented. They require separate Vision-model,
+quality and privacy validation before they can be added without becoming mock
+functionality.

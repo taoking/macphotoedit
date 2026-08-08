@@ -1001,3 +1001,38 @@ Known Limitations:
 
 Commit:
 - `feat: add local mask canvas controls`
+
+## Phase 13 — Brush Mask
+
+Status:
+COMPLETED
+
+Implemented:
+- `PhotoEditState` 升级为 v4，`LocalMaskKind` 新增真实 `.brush`。每个 brush mask 非破坏性保存 `BrushStroke`：归一化点、半径、hardness、每笔 flow/opacity 与 erase 标记；画笔当前的 size、feather 与 flow 仅作为新笔触配置。没有向 SQLite 写入完整位图、PNG 或派生纹理。
+- `BrushMaskRenderer` 在 Preview/Export 当前图像 extent 上以 Core Graphics 栅格化笔触为灰度 mask，再交给既有 `CIBlendWithMask` 与局部 exposure/contrast/saturation 路径。画笔、低流量、羽化和擦除均影响实际像素，且与线性/径向蒙版保持确定性的数组顺序。
+- 新增线程安全、内存专用的 LRU 派生纹理缓存：总上限 48 MiB、单项上限 16 MiB；大图导出仍会栅格化当前 render，但不保留该纹理。cache key 含尺寸与所有笔触数据，修改笔触不会误用旧 mask。
+- 普通照片编辑器可添加画笔蒙版，直接在 aspect-fit 预览上绘制或擦除，并提供大小、羽化、流量、显示 overlay、撤销最后笔触和清空笔触。新 stroke 复用 Phase 12.13 的归一化坐标转换及状态 debounce/save/render；原始媒体仍只读。
+- 新增文档与自动化测试，覆盖 v3 旧渐变解码、v4 vector state 编码、无 bitmap 字段、画笔位置、flow 和 erase 的真实 Core Image 像素输出；同时扩展真实照片/高像素人工验收清单。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests`；20 tests, 0 failures。覆盖新增画笔的持久化兼容、无 bitmap 存储、paint/flow/erase 像素路径及既有画布几何。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — Brush Mask 不是 UI 占位：拖动画布创建持久化 vector stroke，渲染时生成实际蒙版并进入与导出相同的 Core Image 合成；paint、erase、size、feather、flow/opacity 均有真实数据与像素路径。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 77 tests, 0 failures，覆盖 Phase 0–13 的 Catalog、照片/RAW/LUT、全部局部蒙版、导出、视频、HDR guard、协调器和性能缓存边界；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 按 `docs/manual-validation.md` 使用用户授权的 JPEG/HEIC、RAW 派生照片及 24MP/48MP 图像，验证长笔触、重叠软/硬笔触、擦除、撤销、窗口缩放、横竖构图、裁剪/旋转、重开资产、预览与新文件导出的一致性；同时观察高像素笔触时的内存、交互延迟与原图字节不变。自动化 fixture 不代表真实鼠标/手写板、外置存储、权限或大图性能。
+
+Known Limitations:
+- 当前画笔读取标准拖动坐标，不读取 Apple Pencil/手写板 pressure、tilt 或速度；已保存笔触只支持撤销最后一笔或清空，尚无单笔重编辑。
+- 普通照片编辑器暴露画笔 UI；RAW 编辑器当前没有局部蒙版选择器，因此不宣称已提供同一交互入口。RAW 解码后的照片渲染路径仍可读取持久化的 `PhotoEditState`。
+- Subject/Sky Mask 和相似照片检测仍是后续 Phase，未以 UI、mock 或 hardcode 冒充完成。
+
+Commit:
+- `feat: add non-destructive brush masks`

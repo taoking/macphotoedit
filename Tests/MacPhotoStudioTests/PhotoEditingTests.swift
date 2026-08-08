@@ -191,6 +191,127 @@ final class PhotoEditingTests: XCTestCase {
         XCTAssertEqual(source.extent, CGRect(x: 0, y: 0, width: 20, height: 20))
     }
 
+    func testBrushMaskPersistsVectorStrokesWithoutAStoredBitmap() throws {
+        let mask = LocalMask(
+            kind: .brush,
+            adjustments: LocalMaskAdjustments(exposure: 0.8, contrast: 0, saturation: 0),
+            brushStrokes: [
+                BrushStroke(
+                    points: [BrushPoint(x: 0.15, y: 0.2), BrushPoint(x: 0.65, y: 0.7)],
+                    radius: 0.08,
+                    hardness: 0.7,
+                    opacity: 0.55,
+                    erase: false
+                ),
+                BrushStroke(
+                    points: [BrushPoint(x: 0.45, y: 0.45)],
+                    radius: 0.04,
+                    hardness: 1,
+                    opacity: 1,
+                    erase: true
+                )
+            ],
+            brushSize: 0.08,
+            brushFeather: 0.3,
+            brushFlow: 0.55
+        )
+        var state = PhotoEditState.identity
+        state.localMasks = [mask]
+
+        let data = try JSONEncoder().encode(state)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let serializedMask = try XCTUnwrap((object["localMasks"] as? [[String: Any]])?.first)
+        XCTAssertNotNil(serializedMask["brushStrokes"])
+        XCTAssertNil(serializedMask["maskBitmap"])
+        XCTAssertNil(serializedMask["derivedTexture"])
+        XCTAssertEqual(try JSONDecoder().decode(PhotoEditState.self, from: data), state)
+    }
+
+    func testLegacyGradientMaskDecodesWithEmptyBrushState() throws {
+        var state = PhotoEditState.identity
+        state.version = 3
+        state.localMasks = [LocalMask(kind: .linearGradient)]
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any])
+        var masks = try XCTUnwrap(object["localMasks"] as? [[String: Any]])
+        masks[0].removeValue(forKey: "brushStrokes")
+        masks[0].removeValue(forKey: "brushSize")
+        masks[0].removeValue(forKey: "brushFeather")
+        masks[0].removeValue(forKey: "brushFlow")
+        object["localMasks"] = masks
+
+        let decoded = try JSONDecoder().decode(
+            PhotoEditState.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        let restored = try XCTUnwrap(decoded.localMasks.first)
+        XCTAssertEqual(decoded.version, 3)
+        XCTAssertTrue(restored.brushStrokes.isEmpty)
+        XCTAssertEqual(restored.brushSize, 0.06, accuracy: 0.000_001)
+        XCTAssertEqual(restored.brushFeather, 0.45, accuracy: 0.000_001)
+        XCTAssertEqual(restored.brushFlow, 1, accuracy: 0.000_001)
+    }
+
+    func testBrushMaskPaintFlowAndEraseChangeOnlyRasterizedRegions() throws {
+        let source = CIImage(color: CIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 40, height: 40))
+        let paint = BrushStroke(
+            points: [BrushPoint(x: 0.25, y: 0.75), BrushPoint(x: 0.7, y: 0.75)],
+            radius: 0.12,
+            hardness: 1,
+            opacity: 1,
+            erase: false
+        )
+        var state = PhotoEditState.identity
+        state.localMasks = [
+            LocalMask(
+                kind: .brush,
+                adjustments: LocalMaskAdjustments(exposure: 2, contrast: 0, saturation: 0),
+                brushStrokes: [paint]
+            )
+        ]
+        let painted = PhotoImagePipeline.apply(state, to: source)
+        let paintedPixel = try rgba(of: painted, at: CGPoint(x: 18, y: 30))
+        let untouchedPixel = try rgba(of: painted, at: CGPoint(x: 18, y: 8))
+        XCTAssertGreaterThan(paintedPixel.x, untouchedPixel.x + 0.15)
+        XCTAssertEqual(untouchedPixel.x, 0.2, accuracy: 0.04)
+
+        var lowFlowState = state
+        lowFlowState.localMasks[0].brushStrokes[0].opacity = 0.2
+        let lowFlow = try rgba(of: PhotoImagePipeline.apply(lowFlowState, to: source), at: CGPoint(x: 18, y: 30))
+        XCTAssertGreaterThan(paintedPixel.x, lowFlow.x + 0.1)
+
+        var erasedState = state
+        erasedState.localMasks[0].brushStrokes.append(BrushStroke(
+            points: [BrushPoint(x: 0.25, y: 0.75), BrushPoint(x: 0.7, y: 0.75)],
+            radius: 0.12,
+            hardness: 1,
+            opacity: 1,
+            erase: true
+        ))
+        let erased = try rgba(of: PhotoImagePipeline.apply(erasedState, to: source), at: CGPoint(x: 18, y: 30))
+        XCTAssertEqual(erased.x, 0.2, accuracy: 0.05)
+
+        let hardStamp = BrushStroke(
+            points: [BrushPoint(x: 0.5, y: 0.5)],
+            radius: 0.2,
+            hardness: 1,
+            opacity: 1,
+            erase: false
+        )
+        var hardState = PhotoEditState.identity
+        hardState.localMasks = [LocalMask(
+            kind: .brush,
+            adjustments: LocalMaskAdjustments(exposure: 2, contrast: 0, saturation: 0),
+            brushStrokes: [hardStamp]
+        )]
+        var softState = hardState
+        softState.localMasks[0].brushStrokes[0].hardness = 0
+        let hardEdge = try rgba(of: PhotoImagePipeline.apply(hardState, to: source), at: CGPoint(x: 23, y: 20))
+        let softEdge = try rgba(of: PhotoImagePipeline.apply(softState, to: source), at: CGPoint(x: 23, y: 20))
+        XCTAssertGreaterThan(softEdge.x, 0.2 + 0.04)
+        XCTAssertLessThan(softEdge.x, hardEdge.x - 0.05)
+    }
+
     func testPreviewAndExportUseSameColorPipelineAndDoNotModifySourceFile() async throws {
         let sourceURL = temporaryDirectory.appending(path: "source.png")
         let originalData = try pngData(width: 64, height: 32, color: CGColor(red: 0.15, green: 0.4, blue: 0.8, alpha: 1))
