@@ -967,3 +967,37 @@ Known Limitations:
 
 Commit:
 - `perf: cache photo adjustment cubes`
+
+## Phase 12.13 — Local Mask Canvas UX
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增照片编辑画布上的真实局部蒙版直接操作：线性蒙版可拖动起点、终点和中线，以调整旋转与位置；径向蒙版可拖动中心、半径和羽化环。拖动直接更新既有、非破坏性的 `PhotoEditState.localMasks` 持久化状态，而不是只移动 UI 占位控件。
+- 画布按预览图的 aspect-fit 可见区域计算命中、归一化坐标、半径与羽化，并在 SwiftUI 顶部原点和渲染器底部原点之间转换；线性移动在边界处保留起终点向量。
+- 新增“显示蒙版覆盖”开关，在可编辑预览上绘制红色线性/径向提示层。该提示层仅供交互确认，不进入 Core Image 渲染、持久化或导出像素；原有检查器滑块保留作精确数值控制。
+- 补充局部蒙版文档和画布几何单元测试，覆盖 aspect-fit 映射、归一化往返、线性整体移动、线段命中距离与径向距离。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；17 tests, 0 failures。新增画布几何测试与既有局部蒙版像素/持久化测试均通过。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 线性与径向局部蒙版均可在画布直接操作，修改复用既有可持久化的蒙版数据和真实 Core Image 渲染路径；红色 overlay 明确不改变导出。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 74 tests, 0 failures，覆盖 Phase 0–12.13 的 Catalog、资料库、照片/RAW/LUT、局部蒙版、导出、视频、HDR guard、协调器和性能缓存边界；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的 JPEG/HEIC/RAW，在横图、竖图、正方形图、窗口缩放及并排/原图对照模式中实际拖动所有控制点，核对命中区域、overlay 与最终效果的一致性，并导出确认 overlay 不写入文件。真实媒体、macOS 鼠标事件、显示缩放与权限不能由仓库 fixture 完整模拟。
+
+Known Limitations:
+- 本阶段只为已有线性/径向蒙版添加画布 UX；Brush Mask、Subject/Sky Mask 未实现，也没有被标记为完成。
+- 画布交互没有以真实 UI 自动化或外部照片视觉截图作为通过依据；该部分保留人工验证。
+- RAW 编辑界面当前没有局部蒙版选择器，因此不宣称该界面已暴露相同画布工作流。
+
+Commit:
+- `feat: add local mask canvas controls`

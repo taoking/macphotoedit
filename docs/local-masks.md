@@ -37,6 +37,28 @@ locally adjusted image against the current image with `CIBlendWithMask`.
 Preview and export both use `PhotoColorPipeline`, rather than a separate UI
 effect implementation.
 
+## Canvas interaction
+
+Phase 12.13 adds direct manipulation to the ordinary photo editor without
+changing the stored `LocalMask` schema. The canvas calculates the same
+aspect-fitted image rectangle as the AppKit image view and converts between
+SwiftUI's top-left coordinates and the persisted bottom-left normalized values.
+
+- Linear masks show start and end handles; dragging either changes direction
+  and rotation, while dragging the dashed center line moves both endpoints
+  together without changing the gradient vector.
+- Radial masks show a center handle, an orange radius ring and a white feather
+  ring. Their handles move center, radius and feather independently.
+- Geometry is clamped to the normalized image extent. A linear-mask move stops
+  at an edge while preserving the distance and direction between its endpoints.
+- “显示蒙版覆盖” adds a translucent red display-only field for the selected
+  mask. It is neither stored in the edit state nor passed to Core Image or any
+  export path.
+
+The Inspector sliders remain available for numerical adjustment. Existing
+preview debounce/save behavior is reused when a drag changes the same
+non-destructive state.
+
 ## Deliberate boundary
 
 Brush strokes, subject/sky segmentation, perceptual similarity, semantic

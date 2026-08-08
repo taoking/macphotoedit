@@ -202,6 +202,11 @@ final class PhotoEditorViewModel: ObservableObject {
         state.localMasks.first(where: { $0.id == id })
     }
 
+    func updateLocalMask(_ mask: LocalMask) {
+        guard let index = state.localMasks.firstIndex(where: { $0.id == mask.id }) else { return }
+        state.localMasks[index] = mask
+    }
+
     func localMaskBinding(_ id: UUID, keyPath: WritableKeyPath<LocalMask, Double>) -> Binding<Double> {
         Binding(
             get: { self.localMask(id: id)?[keyPath: keyPath] ?? 0 },
@@ -261,6 +266,7 @@ struct PhotoEditorView: View {
     @State private var technicalOutputSpace: PhotoColorSpace = .rec709
     @State private var technicalOutputTransfer: PhotoTransferFunction = .rec709
     @State private var selectedLocalMaskID: UUID?
+    @State private var showsMaskOverlay = false
 
     init(asset: LibraryAssetRecord, model: ApplicationModel) {
         self.asset = asset
@@ -307,11 +313,15 @@ struct PhotoEditorView: View {
             Color.black.opacity(0.86)
             if sideBySide {
                 HStack(spacing: 1) {
-                    editorImage(editor.originalImage, label: "原图")
-                    editorImage(editor.editedImage, label: "编辑后")
+                    editorImage(editor.originalImage, label: "原图", supportsMaskCanvas: false)
+                    editorImage(editor.editedImage, label: "编辑后", supportsMaskCanvas: true)
                 }
             } else {
-                editorImage(showsOriginal ? editor.originalImage : editor.editedImage, label: showsOriginal ? "原图" : "编辑后")
+                editorImage(
+                    showsOriginal ? editor.originalImage : editor.editedImage,
+                    label: showsOriginal ? "原图" : "编辑后",
+                    supportsMaskCanvas: !showsOriginal
+                )
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -322,13 +332,27 @@ struct PhotoEditorView: View {
         }
     }
 
-    private func editorImage(_ image: NSImage?, label: String) -> some View {
+    private func editorImage(_ image: NSImage?, label: String, supportsMaskCanvas: Bool) -> some View {
         Group {
             if let image {
-                ExtendedRangeImageView(
-                    image: image,
-                    enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr
-                )
+                Group {
+                    if supportsMaskCanvas,
+                       let selectedLocalMaskID,
+                       let mask = editor.localMask(id: selectedLocalMaskID) {
+                        LocalMaskCanvas(
+                            image: image,
+                            enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr,
+                            mask: mask,
+                            showsMaskOverlay: showsMaskOverlay,
+                            onMaskChange: editor.updateLocalMask
+                        )
+                    } else {
+                        ExtendedRangeImageView(
+                            image: image,
+                            enablesExtendedRange: editor.state.colorPipeline.dynamicRange == .hdr
+                        )
+                    }
+                }
                 .padding(14)
             } else {
                 ContentUnavailableView("\(label)预览不可用", systemImage: "photo")
@@ -409,6 +433,10 @@ struct PhotoEditorView: View {
                 .pickerStyle(.menu)
                 if let selectedLocalMaskID, let mask = editor.localMask(id: selectedLocalMaskID) {
                     Toggle("启用", isOn: editor.localMaskEnabledBinding(selectedLocalMaskID))
+                    Toggle("显示蒙版覆盖", isOn: $showsMaskOverlay)
+                    Text("在编辑预览上拖动控制点：线性蒙版可拖动起点、终点和中线；径向蒙版可拖动中心、半径和羽化环。覆盖层只用于编辑提示，不改变导出像素。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     slider("不透明度", value: editor.localMaskBinding(selectedLocalMaskID, keyPath: \.opacity), range: 0...1)
                     switch mask.kind {
                     case .linearGradient:
