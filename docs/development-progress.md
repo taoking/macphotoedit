@@ -703,3 +703,42 @@ Known Limitations:
 
 Commit:
 - `fix: unify video display geometry`
+
+## Phase 12.6 — Video Preview State
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- `VideoPlaybackSession` 在每次编辑 preview 重建 `AVPlayerItem` 前捕获播放头、播放状态、倍率、静音与音量；不再把 `currentTime` 重置为 0。
+- 新 item replace 后保留同一个 `AVPlayer`，先以零容差 seek 到旧的输出时间（仅在新的 trim/speed composition 更短时裁剪），再恢复音量/静音与播放倍率/播放状态。
+- replacement generation 防止旧的异步 seek completion 在用户又一次滑块调整后覆盖最新 preview；当前 AVFoundation composition 方案不安全地支持原地更新，故选择已实测的 rebuild item + restore state 路径。
+- 新增 `VideoPreviewStateTests`，包含真实临时 H.264 item 替换：验证 0.5 秒播放头、1.5×、静音、35% 音量和播放状态均被恢复；不提交任何测试视频。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；62 tests, 0 failures。专项 `VideoPreviewStateTests` 2 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 编辑预览 debounce 后替换 item 会恢复播放时间和所有要求的会话状态，不再跳回开头；连续 replace 的旧 completion 不能覆盖最新状态。P0/P1 阻塞问题已修复并完成复测。
+
+Regression:
+PASS — 全量 62 项测试覆盖 Phase 0–12.5 的 Catalog、资料库、照片/RAW/LUT、导出、视频编辑、fade、Proxy、几何 metadata 与局部蒙版能力，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 用用户授权的长视频在约 35 秒处持续调整 exposure、contrast、temperature、LUT strength 和 crop，确认真实 `VideoPlayer` 视觉画面、play/pause、倍率、静音和音量稳定恢复；外置盘、长片和系统 AVFoundation 缓冲行为不进入自动化 fixture。
+
+Production Readiness:
+PARTIAL — AVPlayer item replacement state contract 已由真实临时 H.264 自动化验证；真实长片、不同编码、外置卷及用户交互节奏仍需人工核验。
+
+Known Limitations:
+- 当前 composition 构建模型不在播放中原地修改 `videoComposition`；它稳定地 replace item 后恢复会话状态，以避免动态 AVFoundation 更新产生未验证的画面/音频行为。
+- 新 item 的 end/status/duration/error observer 重绑将在紧接的 Phase 12.7 完成，本阶段没有提前声称已修复。
+
+Commit:
+- `fix: stabilize video editor preview`

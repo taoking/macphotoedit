@@ -2,6 +2,28 @@ import AVFoundation
 import Combine
 import Foundation
 
+/// Values that must survive rebuilding an `AVPlayerItem` for the editor preview.
+/// The edited composition can have a shorter duration after trim/speed, so the
+/// playhead is clamped only when the equivalent output time no longer exists.
+struct VideoPreviewPlaybackState: Sendable, Equatable {
+    let currentTime: Double
+    let isPlaying: Bool
+    let playbackRate: Double
+    let isMuted: Bool
+    let volume: Double
+
+    func restored(forDuration duration: Double) -> VideoPreviewPlaybackState {
+        let safeDuration = max(0, duration.isFinite ? duration : 0)
+        return VideoPreviewPlaybackState(
+            currentTime: min(max(0, currentTime.isFinite ? currentTime : 0), safeDuration),
+            isPlaying: isPlaying,
+            playbackRate: max(0, playbackRate.isFinite ? playbackRate : 1),
+            isMuted: isMuted,
+            volume: min(max(0, volume.isFinite ? volume : 1), 1)
+        )
+    }
+}
+
 @MainActor
 final class VideoPlaybackSession: ObservableObject {
     @Published private(set) var currentTime: Double = 0
@@ -21,6 +43,7 @@ final class VideoPlaybackSession: ObservableObject {
     private var hasSecurityScopedAccess: Bool
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var replacementGeneration = 0
 
     init(
         sourceURL: URL,
@@ -80,10 +103,16 @@ final class VideoPlaybackSession: ObservableObject {
     }
 
     func replaceCurrentItem(with item: AVPlayerItem, duration: Double) {
+        let preservedState = previewPlaybackState.restored(forDuration: duration)
+        replacementGeneration += 1
+        let generation = replacementGeneration
         pause()
         player.replaceCurrentItem(with: item)
-        self.duration = max(0, duration)
-        currentTime = 0
+        applyPreviewPlaybackState(preservedState, duration: duration)
+        seekForReplacement(to: preservedState.currentTime) { [weak self] finished in
+            guard let self, finished, self.replacementGeneration == generation else { return }
+            self.restorePlayingState(from: preservedState)
+        }
     }
 
     func setVolume(_ newVolume: Double) {
@@ -135,5 +164,47 @@ final class VideoPlaybackSession: ObservableObject {
                 self?.isPlaying = false
             }
         }
+    }
+
+    private var previewPlaybackState: VideoPreviewPlaybackState {
+        VideoPreviewPlaybackState(
+            currentTime: currentTime,
+            isPlaying: isPlaying,
+            playbackRate: playbackRate,
+            isMuted: isMuted,
+            volume: volume
+        )
+    }
+
+    private func applyPreviewPlaybackState(_ state: VideoPreviewPlaybackState, duration: Double) {
+        self.duration = max(0, duration.isFinite ? duration : 0)
+        currentTime = state.currentTime
+        playbackRate = state.playbackRate
+        isMuted = state.isMuted
+        volume = state.volume
+        player.isMuted = state.isMuted
+        player.volume = Float(state.volume)
+    }
+
+    private func seekForReplacement(to seconds: Double, completion: @escaping @MainActor (Bool) -> Void) {
+        player.seek(
+            to: CMTime(seconds: seconds, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { finished in
+            Task { @MainActor in
+                completion(finished)
+            }
+        }
+    }
+
+    private func restorePlayingState(from state: VideoPreviewPlaybackState) {
+        guard state.isPlaying else {
+            player.pause()
+            isPlaying = false
+            return
+        }
+        player.playImmediately(atRate: Float(state.playbackRate))
+        isPlaying = true
     }
 }

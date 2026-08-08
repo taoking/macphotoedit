@@ -32,6 +32,14 @@ metadata、Inspector、最终导出的 render canvas 和生成后的 Proxy metad
 该入口，因此竖拍 1920×1080 源会按 1080×1920 显示和输出，而不会在任一路径
 回退到未变换的 encoded size。
 
+## 编辑预览状态恢复
+
+调色、裁剪或 LUT 改动会重建 composition 和 `AVPlayerItem`，但不会重建
+`AVPlayer`。替换前 `VideoPlaybackSession` 保存播放头、播放状态、倍率、静音和
+音量；替换后先 seek 到同一输出时间（仅在新 trim/speed composition 更短时裁剪），
+再恢复上述状态。replace generation 会忽略已被更新请求取代的异步 seek completion，
+因此连续拖动滑块不会由旧预览恢复覆盖最新预览状态。
+
 ## 淡入淡出
 
 画面淡入/淡出在 composition 的**输出时间线**上渲染到黑场，因此在 trim 和

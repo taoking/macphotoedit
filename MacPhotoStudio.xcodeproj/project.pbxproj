@@ -24,6 +24,7 @@
 		4038F1E5F57049CF0410CD6F /* CatalogMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC9B75F126B9147EE1A85EC /* CatalogMigration.swift */; };
 		44E897261A1B2AF695BC94D5 /* VideoGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB563DBC5DE57415E0393212 /* VideoGeometry.swift */; };
 		48BA45D10A5F54C7B13CC880 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1078ECBFC236980C141969F6 /* BookmarkStore.swift */; };
+		4D54C0761DAFF5DC4276043C /* VideoPreviewStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B515B470A089F80BA08883B9 /* VideoPreviewStateTests.swift */; };
 		574A59B363E525F8B6A17465 /* AssetBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52EFD24DADD1E07CD2B3220D /* AssetBrowserView.swift */; };
 		5A629FC7005C0B654876D675 /* VideoEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F4F7CF9FE5D49982A072D95 /* VideoEditingTests.swift */; };
 		5DCB877C5B3432C1D2691A0E /* VideoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE078B8F0958FB8AB0E01C35 /* VideoEditorView.swift */; };
@@ -130,6 +131,7 @@
 		ADD39ED3BF42EC68AB9DC4E6 /* VideoEditingPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditingPipeline.swift; sourceTree = "<group>"; };
 		ADEB2724FC2226C4CBC0407B /* MacPhotoStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacPhotoStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE861B7373C5C7C65AD1B405 /* ThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailLoader.swift; sourceTree = "<group>"; };
+		B515B470A089F80BA08883B9 /* VideoPreviewStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPreviewStateTests.swift; sourceTree = "<group>"; };
 		B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScanner.swift; sourceTree = "<group>"; };
 		BB563DBC5DE57415E0393212 /* VideoGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoGeometry.swift; sourceTree = "<group>"; };
 		C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -180,6 +182,7 @@
 				4F4F7CF9FE5D49982A072D95 /* VideoEditingTests.swift */,
 				E6E6FEBE6A834281DE7C881A /* VideoGeometryTests.swift */,
 				65412376C8CA35E5F64F0F93 /* VideoLibraryTests.swift */,
+				B515B470A089F80BA08883B9 /* VideoPreviewStateTests.swift */,
 			);
 			name = MacPhotoStudioTests;
 			path = Tests/MacPhotoStudioTests;
@@ -580,6 +583,7 @@
 				5A629FC7005C0B654876D675 /* VideoEditingTests.swift in Sources */,
 				8CE7407F96C3A4511DF4B3C5 /* VideoGeometryTests.swift in Sources */,
 				D266B7E77573EAB96D368C38 /* VideoLibraryTests.swift in Sources */,
+				4D54C0761DAFF5DC4276043C /* VideoPreviewStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

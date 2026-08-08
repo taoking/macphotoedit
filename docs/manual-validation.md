@@ -27,6 +27,7 @@ automatically marked as passed by unit tests.
 - [ ] iPhone MOV and Sony MP4; H.264 and HEVC; horizontal and vertical material. Confirm Catalog and Inspector show the `preferredTransform` display dimensions (for example 1080×1920 rather than encoded 1920×1080) and that Preview, Editor, Proxy and Export retain that orientation.
 - [ ] Material with audio and without audio; 30 fps, 60 fps and 4K sources.
 - [ ] Metadata, playback, seek, frame stepping, trim, speed, LUT, crop, rotate, audio, fades, Proxy and export.
+- [ ] While playing around 35 seconds, continuously change exposure, contrast, temperature, LUT strength and crop. Confirm each rebuilt preview resumes at the prior output time with the same play/pause state, rate, mute and volume instead of jumping to zero.
 - [ ] Confirm trim + speed keeps audio and video in sync, including audio fades.
 
 ## Storage and permissions
