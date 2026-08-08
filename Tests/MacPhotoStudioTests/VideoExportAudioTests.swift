@@ -72,6 +72,8 @@ final class VideoExportAudioTests: XCTestCase {
         let audioTimeRange = try await audioTrack.load(.timeRange)
         let outputSize = try await videoTrack.load(.naturalSize)
         let formatDescriptions = try await videoTrack.load(.formatDescriptions)
+        let audioFormatDescriptions = try await audioTrack.load(.formatDescriptions)
+        let audioFormatDescription = try XCTUnwrap(audioFormatDescriptions.first)
 
         XCTAssertEqual(CMTimeGetSeconds(outputDuration), 0.3, accuracy: 0.08)
         XCTAssertEqual(CMTimeGetSeconds(videoTimeRange.duration), 0.3, accuracy: 0.08)
@@ -80,14 +82,26 @@ final class VideoExportAudioTests: XCTestCase {
             CMTimeGetSeconds(audioTimeRange.start),
             accuracy: 0.04
         )
-        // AVAssetExportSession may retain a bounded AAC packet-padding tail in
-        // the track range even though the composition and video duration are
-        // both 0.3 s. Treating that encoder detail as A/V drift made this
-        // real-media regression flaky; a larger or negative delta is still a
-        // synchronization failure.
+        XCTAssertEqual(CMFormatDescriptionGetMediaSubType(audioFormatDescription), kAudioFormatMPEG4AAC)
+        // MP4 AAC tracks may report a shorter time range after the exporter
+        // drops encoder-priming/padding access units. Bound that metadata-only
+        // difference to three actual AAC access units rather than assuming a
+        // fixed wall-clock tolerance. The playback timeline and video duration
+        // must still remain aligned above.
+        let audioStreamDescription = try XCTUnwrap(
+            CMAudioFormatDescriptionGetStreamBasicDescription(audioFormatDescription)
+        )
+        let audioSampleRate = audioStreamDescription.pointee.mSampleRate
+        XCTAssertGreaterThan(audioSampleRate, 0)
+        let audioFramesPerPacket = try XCTUnwrap(
+            Int(exactly: audioStreamDescription.pointee.mFramesPerPacket),
+            "AAC format description must expose a nonzero access-unit size."
+        )
+        XCTAssertGreaterThan(audioFramesPerPacket, 0)
+        let packetTolerance = 3 * Double(audioFramesPerPacket) / audioSampleRate
         let audioTail = CMTimeGetSeconds(audioTimeRange.duration) - CMTimeGetSeconds(videoTimeRange.duration)
-        XCTAssertGreaterThanOrEqual(audioTail, -0.04)
-        XCTAssertLessThanOrEqual(audioTail, 0.08)
+        XCTAssertGreaterThanOrEqual(audioTail, -packetTolerance)
+        XCTAssertLessThanOrEqual(audioTail, packetTolerance)
         XCTAssertEqual(outputSize, CGSize(width: 24, height: 32))
         XCTAssertTrue(formatDescriptions.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 })
     }

@@ -832,7 +832,7 @@ COMPLETED — export continues to use the existing production AVFoundation compo
 Implemented:
 - 审核 `VideoCompositionBuilder` 与 `VideoExportService`：视频和所有可用音轨先使用同一 trim range 插入 `AVMutableComposition`，再共同 time-scale；`AVMutableVideoComposition` 接收几何、裁剪、翻转、调色、LUT、画面淡入淡出，`AVAudioMix` 接收衰减和音频淡入淡出；`AVAssetExportSession` 写入目标目录的唯一临时 MP4，成功后才移动，且拒绝源 URL 作为目标。
 - 新增真实的临时 H.264 MOV + AAC 单声道音轨 fixture（由 `AVAssetWriter` 在测试临时目录生成，不提交媒体文件）。测试输入为带 90° `preferredTransform` 的竖拍视频，应用 trim、2× speed、flip、曝光、音频 -6 dB、画面/音频淡入淡出及最长边 resize。
-- 端到端检查导出结果保留 H.264 视频轨和 AAC 音轨，输出总时长、视频轨时长和音频轨时长均约为 0.3 秒，音视频差异不超过 0.04 秒；同时检查旋转后 resize 尺寸为 24×32 和源文件字节不变。
+- 端到端检查导出结果保留 H.264 视频轨和 AAC 音轨，输出总时长和视频轨时长均约为 0.3 秒；音轨起点与视频对齐，且轨道时长的差异不得超过三个实际 AAC access unit。这样既能捕捉真实的时间轴漂移，也不会把 `AVAssetExportSession` 的 encoder priming/padding 元数据量化误判为同步问题；同时检查旋转后 resize 尺寸为 24×32 和源文件字节不变。
 
 Tests:
 PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。
@@ -1441,31 +1441,33 @@ Commit:
 ## Phase 16.11 — CI / Regression Gate
 
 Status:
-IMPLEMENTED — REMOTE CI PENDING
+IMPLEMENTED — REMOTE CI RETRY PENDING
 
 Implemented:
 - 新增公开仓库的 `.github/workflows/macos-regression.yml`。它在 `main` push、针对 `main` 的 PR 和手动触发时，使用 `macos-26`，明确选择 `/Applications/Xcode_26.6.app`，通过 Homebrew 安装 XcodeGen，运行完整 unsigned macOS test 和 Debug build。
 - 工作流最小权限为 `contents: read`，没有 secrets、媒体上传或生成文件归档。`docs/**` 和 `plan.md` 的纯文档 push 不重复消耗 macOS runner；任何代码、工程或 workflow 变化仍会触发门禁。
 - 新增 `docs/ci.md`，并在 README 中链接，记录本地与 GitHub-hosted runner/Xcode 矩阵以及工具链漂移时的可见失败策略。
+- 首次远端运行 `31267655377` 真实暴露了 AAC 轨时长元数据的跨 runner 量化差异：`VideoExportAudioTests` 的固定 −40 ms 下限会把三个 AAC access unit 以内的 encoder priming/padding 误判为 A/V 失步。测试现改为读取实际输出 AAC access-unit size 和 sample rate，以三个 packet 为严格、可解释的双向边界；仍检查音轨存在、起点与视频对齐及输出/视频时长。远端复验待本次修复推送后完成。
 
 Tests:
-PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（20.50 秒）。
+PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。完整 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（24.81 秒）。
 
 Build:
 PASS (local) — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
 
 Acceptance:
-PENDING — 本地 workflow 语法、完整 test 和 Debug build 已通过；需在推送后等待 GitHub-hosted `macos-26` job 的实际状态，绝不将本地结果伪装成远程 CI 结果。
+PENDING — 初次 GitHub-hosted `macos-26` run 的确执行并失败（105 tests 中 1 个 AAC packet-quantization 断言）；原因已在本地修复且复测通过。必须等待修复提交的完整远端 test + Debug build 成功，不能将本地结果伪装为远端 CI 结果。
 
 Regression:
-PASS (local) — 当前全部 105 项自动化回归通过；远程 CI status 待记录。
+PASS (local) — 当前全部 105 项自动化回归通过；远程 CI retry status 待记录。
 
 Manual Verification:
 NOT REQUIRED — 本阶段 CI workflow 不读取真实媒体，也不依赖外置盘、HDR 屏幕或权限弹窗。已有真实媒体/硬件人工验证项继续适用。
 
 Known Limitations:
 - GitHub-hosted runner image 会更新；workflow 故意固定 `macos-26` 和 Xcode 26.6 path，镜像移除该 path 会失败并要求显式更新矩阵。
-- 初次远程运行的结果尚未取得；在 Actions 实际完成前，本阶段不能标记为完成。
+- 初次远程运行 `31267655377` 已记录为失败，原因是 AAC access-unit 元数据量化，不是被忽略的 CI 失败；修复后的运行仍未完成，因此本阶段不能标记为完成。
 
 Commit:
-- Pending — `ci: add macos regression gate`
+- `ci: add macos regression gate`
+- Pending — `test: account for AAC export packet quantization`
