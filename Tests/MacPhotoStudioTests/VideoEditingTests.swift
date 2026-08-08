@@ -49,8 +49,8 @@ final class VideoEditingTests: XCTestCase {
             VideoFramePipeline.outputSize(sourceSize: CGSize(width: 1_920, height: 1_080), state: state, maximumPixelSize: 480),
             CGSize(width: 270, height: 480)
         )
-        let rotatedSize = VideoFramePipeline.displaySize(
-            sourceSize: CGSize(width: 1_920, height: 1_080),
+        let rotatedSize = VideoGeometry.displaySize(
+            naturalSize: CGSize(width: 1_920, height: 1_080),
             preferredTransform: CGAffineTransform(rotationAngle: .pi / 2)
         )
         XCTAssertEqual(rotatedSize.width, 1_080, accuracy: 0.001)

@@ -35,11 +35,6 @@ private final class PreparedVideoComposition: @unchecked Sendable {
 }
 
 enum VideoFramePipeline {
-    static func displaySize(sourceSize: CGSize, preferredTransform: CGAffineTransform) -> CGSize {
-        let transformed = CGRect(origin: .zero, size: sourceSize).applying(preferredTransform)
-        return CGSize(width: abs(transformed.width), height: abs(transformed.height))
-    }
-
     static func outputSize(
         sourceSize: CGSize,
         state: VideoEditState,
@@ -209,8 +204,8 @@ private enum VideoCompositionBuilder {
         )
 
         let renderSize = VideoFramePipeline.outputSize(
-            sourceSize: VideoFramePipeline.displaySize(
-                sourceSize: naturalSize,
+            sourceSize: VideoGeometry.displaySize(
+                naturalSize: naturalSize,
                 preferredTransform: preferredTransform
             ),
             state: state,

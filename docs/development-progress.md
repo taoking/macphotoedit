@@ -664,3 +664,42 @@ Known Limitations:
 
 Commit:
 - `fix: implement raw color pipeline`
+
+## Phase 12.5 — Video Geometry / Metadata
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- 新增 `VideoGeometry` 作为唯一的显示尺寸计算入口，以视频轨 `naturalSize` 和 `preferredTransform` 计算变换后的正向尺寸，并消除原有与 `VideoFramePipeline` 重复的 helper。
+- `MediaMetadataExtractor` 读取并应用 `preferredTransform` 后才写入 Catalog；资料库和 Inspector 通过既有 metadata 路径显示真实竖拍尺寸。
+- 编辑 composition 的 render canvas、Proxy 完成后的 metadata 与测试均使用同一个 `VideoGeometry`，避免扫描、播放/编辑、Proxy 与导出各自解释方向。
+- 新增真实临时旋转 H.264 MOV fixture：encoded 64×48 且带 90° transform，扫描后的 metadata 正确为 48×64；另覆盖含 translation 的 1920×1080→1080×1920 变换。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；60 tests, 0 failures。专项 `VideoGeometryTests` 2 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — Catalog/Inspector 写入经过 transform 的 display dimensions；composition export canvas 与 Proxy metadata 复用同一计算，不再保留并行的 raw-size helper。P0/P1 阻塞问题已修复并完成全量复测。
+
+Regression:
+PASS — 全量 60 项测试覆盖 Phase 0–12.4 的 Catalog、资料库、照片/RAW/LUT、导出、视频编辑、fade、Proxy 和局部蒙版能力，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的 iPhone/Sony 竖拍 MOV/MP4（H.264、HEVC）重新扫描，确认 Catalog、Inspector、Preview、Editor、Proxy 和最终导出均为正确朝向及尺寸；真实素材、设备 metadata 和播放显示不进入仓库。
+
+Production Readiness:
+PARTIAL — AVFoundation `preferredTransform` 的自动化 geometry 和 metadata 契约已验证；真实相机文件、非方形像素/变形像素比和外置卷工作流仍需人工核验。
+
+Known Limitations:
+- 当前按首个视频轨的 `naturalSize` 和 `preferredTransform` 计算尺寸；多视频轨选择、非方形像素和特殊容器显示矩阵没有在本阶段扩大实现范围。
+- HDR video 编辑/导出及真正 HDR video 色彩管线仍明确不支持。
+
+Commit:
+- `fix: unify video display geometry`

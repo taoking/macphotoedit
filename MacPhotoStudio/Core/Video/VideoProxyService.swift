@@ -82,15 +82,25 @@ actor VideoProxyService {
         let proxyAsset = AVURLAsset(url: destinationURL)
         let tracks = try await proxyAsset.loadTracks(withMediaType: .video)
         let track = tracks.first
-        let naturalSize = try await track?.load(.naturalSize)
+        let displaySize: CGSize?
+        if let track {
+            let naturalSize = try await track.load(.naturalSize)
+            let preferredTransform = try await track.load(.preferredTransform)
+            displaySize = VideoGeometry.displaySize(
+                naturalSize: naturalSize,
+                preferredTransform: preferredTransform
+            )
+        } else {
+            displaySize = nil
+        }
         let now = Date.now
         let record = VideoProxyRecord(
             assetID: asset.id,
             sourceFileSize: asset.fileSize,
             sourceModifiedAt: asset.modifiedAt,
             relativePath: relativePath,
-            width: naturalSize.map { Int($0.width.rounded()) },
-            height: naturalSize.map { Int($0.height.rounded()) },
+            width: displaySize.map { Int($0.width.rounded()) },
+            height: displaySize.map { Int($0.height.rounded()) },
             createdAt: now,
             updatedAt: now
         )

@@ -57,7 +57,17 @@ struct MediaMetadataExtractor: Sendable {
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         let videoTrack = tracks.first
 
-        let naturalSize = try await videoTrack?.load(.naturalSize)
+        let displaySize: CGSize?
+        if let videoTrack {
+            let naturalSize = try await videoTrack.load(.naturalSize)
+            let preferredTransform = try await videoTrack.load(.preferredTransform)
+            displaySize = VideoGeometry.displaySize(
+                naturalSize: naturalSize,
+                preferredTransform: preferredTransform
+            )
+        } else {
+            displaySize = nil
+        }
         let frameRate = try await videoTrack?.load(.nominalFrameRate)
         let formatDescriptions = try await videoTrack?.load(.formatDescriptions)
         let codec = formatDescriptions?.first.map { formatDescription in
@@ -66,8 +76,8 @@ struct MediaMetadataExtractor: Sendable {
         let colorProperties = formatDescriptions?.first.map(videoColorProperties)
 
         return VideoMetadata(
-            width: naturalSize.map { Int(abs($0.width)) },
-            height: naturalSize.map { Int(abs($0.height)) },
+            width: displaySize.map { Int($0.width.rounded()) },
+            height: displaySize.map { Int($0.height.rounded()) },
             duration: duration.isNumeric ? CMTimeGetSeconds(duration) : nil,
             frameRate: frameRate.map(Double.init),
             codec: codec,

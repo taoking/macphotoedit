@@ -24,7 +24,7 @@ automatically marked as passed by unit tests.
 
 ## Video
 
-- [ ] iPhone MOV and Sony MP4; H.264 and HEVC; horizontal and vertical material.
+- [ ] iPhone MOV and Sony MP4; H.264 and HEVC; horizontal and vertical material. Confirm Catalog and Inspector show the `preferredTransform` display dimensions (for example 1080×1920 rather than encoded 1920×1080) and that Preview, Editor, Proxy and Export retain that orientation.
 - [ ] Material with audio and without audio; 30 fps, 60 fps and 4K sources.
 - [ ] Metadata, playback, seek, frame stepping, trim, speed, LUT, crop, rotate, audio, fades, Proxy and export.
 - [ ] Confirm trim + speed keeps audio and video in sync, including audio fades.

@@ -26,6 +26,12 @@ Creative LUT 的模型、解析器和强度语义。Technical LUT 不进入本�
 裁剪与四分之一转变换。这样旋转拍摄的源视频不会因 raw natural size 而被
 强制回横向画布。
 
+`VideoGeometry` 是显示尺寸的唯一计算入口：它以 `naturalSize` 和
+`preferredTransform` 计算经过方向变换后的几何尺寸。扫描入库的 Catalog
+metadata、Inspector、最终导出的 render canvas 和生成后的 Proxy metadata 都使用
+该入口，因此竖拍 1920×1080 源会按 1080×1920 显示和输出，而不会在任一路径
+回退到未变换的 encoded size。
+
 ## 淡入淡出
 
 画面淡入/淡出在 composition 的**输出时间线**上渲染到黑场，因此在 trim 和
