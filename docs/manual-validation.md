@@ -18,6 +18,8 @@ automatically marked as passed by unit tests.
 
 - [ ] Sony A7C II ARW: decode, white balance, exposure, highlight recovery, lens correction, preview, creative LUT and full-resolution export.
 - [ ] DNG: decode, RAW controls, crop, LUT and export.
+- [ ] RAW color boundary: record the `CIRAWFilter.outputImage` ICC/profile for Sony A7C II ARW and DNG; verify normal preview and full-resolution export carry the expected selected output profile, and that an absent/unknown decoder profile is rejected rather than assumed sRGB.
+- [ ] RAW Technical LUT: verify a LUT explicitly declared Extended Linear sRGB input runs after RAW normalization; confirm a mismatched Rec.709/P3/S-Log3 contract is rejected.
 - [ ] RAW + JPEG pair: pairing and configured display preference.
 
 ## Video

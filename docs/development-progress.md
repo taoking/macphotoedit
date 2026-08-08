@@ -623,3 +623,44 @@ Known Limitations:
 
 Commit:
 - `fix: enforce technical lut color contracts`
+
+## Phase 12.4 — RAW Color Pipeline
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- `RAWImagePipeline` 不再仅返回无来源描述的 `CIRAWFilter.outputImage`。它检查 decoder 返回的 `CIImage.colorSpace`，并仅在 ICC payload 与应用明确支持的 ColorSync profile 完全相符时继续处理。
+- 新增 `RAWColorPipeline`：以明确的 Extended Linear sRGB working/output CIContext 与 RGBAh 半浮点格式将 decoder 输出物化为线性工作图，再给它附着同一 ICC profile。RAW preview、全分辨率 render 和导出均将 `.linearWorking` 实际传入 `PhotoColorPipeline`；删除此前 RAW export 的 `sourceColor: .sRGB` 硬编码。
+- 未附 profile 或未知 profile 的 CIRAWFilter 输出现在报 `rawColorSpaceUnsupported`，明确拒绝按 sRGB 假设；RAW Technical LUT 因此必须声明 Extended Linear sRGB input，错误 Rec.709/P3/Log contract 会沿用严格拒绝机制。
+- 新增 `RAWColorPipelineTests`，覆盖已验证 P3 decoder attachment 到显式 Extended Linear sRGB 的真实 CIContext materialization，以及未知 profile 的安全拒绝。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；58 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — RAW source descriptor 不再硬编码为 sRGB；CIRAWFilter decoder attachment 被审计并实际转换为明确、统一的线性 working profile 后才进入普通照片 pipeline。
+PASS — RAW preview/export、Creative LUT、Technical LUT 使用同一非破坏性 RAW decode → normalize → PhotoColorPipeline 顺序；未知 profile 安全失败。P0/P1 阻塞问题已修复并复测通过。
+
+Regression:
+PASS — 全量 58 项测试覆盖 Phase 0–12.3 的 Catalog、资料库、照片/RAW/LUT、输出 ICC、视频、Proxy 与局部蒙版能力。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的 Sony A7C II ARW 与 DNG，记录 `CIRAWFilter.outputImage.colorSpace`，逐项验证 decode、WB、exposure、highlight recovery、lens correction、preview、full-resolution export、Creative LUT 与唯一支持的 Extended Linear RAW Technical LUT；同时确认未知/缺失 profile 的拒绝交互。详见 `docs/manual-validation.md`。
+
+Production Readiness:
+PARTIAL — 已消除 RAW 的错误 sRGB 标签，并有可测试的显式 ColorSync normalization；不同 macOS、相机与真实 ARW/DNG 的 decoder output profile 仍未在本机以真实素材验证。
+
+Known Limitations:
+- 没有将 Sony S-Gamut3.Cine/S-Log3 RAW 或未知 `CIRAWFilter` profile 猜测为 sRGB；它们会明确失败，等待以真实参考素材验证专用色彩契约。
+- RAW normalization 会在 decoder 与非破坏性编辑之间物化一张半浮点图；高分辨率 RAW 的内存与性能需按人工清单核验，后续 Phase 12.12 专门处理渲染性能。
+- HDR gain-map still export、HDR video edit/export 仍明确不支持。
+
+Commit:
+- `fix: implement raw color pipeline`

@@ -13,13 +13,68 @@ struct RAWCapabilities: Sendable, Equatable {
     var highlightRecovery = false
 }
 
+/// The non-destructive boundary between Apple's RAW decoder and the shared
+/// photo editor. `decoderOutputColor` describes what CIRAWFilter actually
+/// supplied; `pipelineInputColor` describes the materialised image that enters
+/// PhotoColorPipeline.
+struct RAWDecodedImage {
+    let image: CIImage
+    let capabilities: RAWCapabilities
+    let decoderOutputColor: PhotoColorDescriptor
+    let pipelineInputColor: PhotoColorDescriptor
+}
+
+/// CIRAWFilter has no public output-colour-space configuration. Instead of
+/// assuming that every camera decoder produces sRGB, inspect the returned
+/// CIImage attachment and materialise the image once into the application's
+/// explicit Extended Linear sRGB working space.
+enum RAWColorPipeline {
+    static func prepare(
+        decoderOutput: CIImage,
+        sourceURL: URL
+    ) throws -> (image: CIImage, decoderOutputColor: PhotoColorDescriptor, pipelineInputColor: PhotoColorDescriptor) {
+        guard let decoderColorSpace = decoderOutput.colorSpace,
+              let decoderOutputColor = PhotoColorDescriptor.exactColorSyncDescriptor(for: decoderColorSpace) else {
+            throw StudioError.rawColorSpaceUnsupported(
+                path: sourceURL.path(percentEncoded: false),
+                profileName: decoderOutput.colorSpace?.name as String?
+            )
+        }
+        let extent = decoderOutput.extent.integral
+        guard !extent.isEmpty else {
+            throw StudioError.rawDecodingFailed(path: sourceURL.path(percentEncoded: false))
+        }
+
+        let workingColorSpace = PhotoColorPipeline.workingColorSpace
+        let normalizationContext = CIContext(options: [
+            .cacheIntermediates: true,
+            .workingColorSpace: workingColorSpace,
+            .outputColorSpace: workingColorSpace,
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ])
+        guard let normalizedCGImage = normalizationContext.createCGImage(
+            decoderOutput,
+            from: extent,
+            format: .RGBAh,
+            colorSpace: workingColorSpace
+        ) else {
+            throw StudioError.rawDecodingFailed(path: sourceURL.path(percentEncoded: false))
+        }
+        let normalizedImage = CIImage(
+            cgImage: normalizedCGImage,
+            options: [.colorSpace: workingColorSpace]
+        )
+        return (normalizedImage, decoderOutputColor, .linearWorking)
+    }
+}
+
 enum RAWImagePipeline {
     static func decode(
         sourceURL: URL,
         state: RAWEditState,
         maximumPixelSize: Int?,
         draft: Bool
-    ) throws -> (image: CIImage, capabilities: RAWCapabilities) {
+    ) throws -> RAWDecodedImage {
         guard RAWFormat.isRAW(sourceURL.pathExtension), let filter = CIRAWFilter(imageURL: sourceURL) else {
             throw StudioError.rawDecodingFailed(path: sourceURL.path(percentEncoded: false))
         }
@@ -60,7 +115,13 @@ enum RAWImagePipeline {
             filter.isHighlightRecoveryEnabled = enabled
         }
         guard let image = filter.outputImage else { throw StudioError.rawDecodingFailed(path: sourceURL.path(percentEncoded: false)) }
-        return (image, capabilities)
+        let prepared = try RAWColorPipeline.prepare(decoderOutput: image, sourceURL: sourceURL)
+        return RAWDecodedImage(
+            image: prepared.image,
+            capabilities: capabilities,
+            decoderOutputColor: prepared.decoderOutputColor,
+            pipelineInputColor: prepared.pipelineInputColor
+        )
     }
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>) -> Double {

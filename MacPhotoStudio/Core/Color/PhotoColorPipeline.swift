@@ -117,6 +117,16 @@ struct PhotoColorDescriptor: Codable, Sendable, Equatable, Hashable {
         colorSyncColorSpace != nil
     }
 
+    /// Resolves a CI/ImageIO colour attachment only when its ICC payload is an
+    /// exact match for a profile the app has an explicit pipeline contract for.
+    /// Callers must not infer sRGB from an absent or unfamiliar attachment.
+    static func exactColorSyncDescriptor(for colorSpace: CGColorSpace) -> Self? {
+        for candidate in PhotoColorSpace.allCases where candidate.matchesEmbeddedProfile(of: colorSpace) {
+            return Self(colorSpace: candidate, transferFunction: candidate.defaultTransferFunction)
+        }
+        return nil
+    }
+
     static func inferred(fromProfileName profileName: String?) -> Self {
         let profile = profileName?.lowercased() ?? ""
         var transfer: PhotoTransferFunction

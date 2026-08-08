@@ -14,6 +14,7 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
     case mediaRootNotFound(id: UUID)
     case invalidLUT(message: String)
     case rawDecodingFailed(path: String)
+    case rawColorSpaceUnsupported(path: String, profileName: String?)
     case exportFailed(message: String)
     case invalidPreset(message: String)
 
@@ -45,6 +46,9 @@ enum StudioError: Error, LocalizedError, Sendable, Equatable {
             return "无效的 LUT：\(message)"
         case .rawDecodingFailed(let path):
             return "无法使用系统 RAW 解码器读取：\(path)"
+        case .rawColorSpaceUnsupported(let path, let profileName):
+            let detail = profileName.map { "（\($0)）" } ?? "（没有可用 ICC profile）"
+            return "RAW 解码输出色彩空间无法验证\(detail)：\(path)。已拒绝按 sRGB 假设处理。"
         case .exportFailed(let message):
             return "无法导出媒体：\(message)"
         case .invalidPreset(let message):

@@ -43,6 +43,24 @@ The same `RendererContextFactory` is used by preview, full-resolution photo
 export, RAW preview and RAW export, so those paths do not silently use separate
 working-space defaults.
 
+## RAW decoder boundary
+
+Phase 12.4 gives `CIRAWFilter` its own explicit colour boundary. Apple does
+not expose a `CIRAWFilter` output-colour-space setting, so the app reads the
+actual `outputImage.colorSpace` attachment. It accepts it only when its ICC
+payload exactly matches one of this app's ColorSync contracts, then
+materialises the decoder result with a half-float `CIContext` whose working and
+output spaces are both Extended Linear sRGB. The resulting CIImage is attached
+to that linear working profile and enters `PhotoColorPipeline` as
+`linearWorking` for RAW preview, full-resolution render and export.
+
+An absent or unfamiliar decoder profile is a hard, descriptive RAW error; it
+is never labelled sRGB. Consequently, a RAW Technical LUT must explicitly
+declare Extended Linear sRGB input after this normalization. Creative LUTs
+continue to run in the shared linear working space. Actual Sony A7C II ARW and
+DNG decoder attachments still require the documented manual verification,
+because the repository intentionally contains no user RAW fixture.
+
 ## LUT safety
 
 Creative LUTs are the existing Phase 3 look LUTs. They run only after the

@@ -332,6 +332,7 @@ actor RAWPreviewRenderer {
             state: photoState,
             lut: lut,
             technicalLUT: technicalLUT,
+            sourceColor: decoded.pipelineInputColor,
             maximumPixelSize: maximumPixelSize
         )
         return RAWRenderResult(render: render, capabilities: decoded.capabilities)
@@ -361,7 +362,8 @@ actor RAWExportRenderer {
             source: decoded.image,
             state: photoState,
             lut: lut,
-            technicalLUT: technicalLUT
+            technicalLUT: technicalLUT,
+            sourceColor: decoded.pipelineInputColor
         )
         return RAWRenderResult(render: render, capabilities: decoded.capabilities)
     }
@@ -390,7 +392,7 @@ actor RAWExportRenderer {
         var output = try PhotoColorPipeline.apply(
             source: decoded.image,
             state: photoState,
-            sourceColor: .sRGB,
+            sourceColor: decoded.pipelineInputColor,
             technicalLUT: technicalLUT,
             creativeLUT: lut,
             settings: outputSettings
