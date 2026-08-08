@@ -820,3 +820,41 @@ Known Limitations:
 
 Commit:
 - `fix: restrict video audio gain to attenuation`
+
+## Phase 12.9 — Video Export Reliability
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED — export continues to use the existing production AVFoundation composition path; this phase adds an end-to-end audio-bearing fixture rather than a mock.
+
+Implemented:
+- 审核 `VideoCompositionBuilder` 与 `VideoExportService`：视频和所有可用音轨先使用同一 trim range 插入 `AVMutableComposition`，再共同 time-scale；`AVMutableVideoComposition` 接收几何、裁剪、翻转、调色、LUT、画面淡入淡出，`AVAudioMix` 接收衰减和音频淡入淡出；`AVAssetExportSession` 写入目标目录的唯一临时 MP4，成功后才移动，且拒绝源 URL 作为目标。
+- 新增真实的临时 H.264 MOV + AAC 单声道音轨 fixture（由 `AVAssetWriter` 在测试临时目录生成，不提交媒体文件）。测试输入为带 90° `preferredTransform` 的竖拍视频，应用 trim、2× speed、flip、曝光、音频 -6 dB、画面/音频淡入淡出及最长边 resize。
+- 端到端检查导出结果保留 H.264 视频轨和 AAC 音轨，输出总时长、视频轨时长和音频轨时长均约为 0.3 秒，音视频差异不超过 0.04 秒；同时检查旋转后 resize 尺寸为 24×32 和源文件字节不变。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — H.264/HEVC、trim、speed、rotation、crop、flip、LUT、audio、fades 和 resize 均由已有实际导出路径覆盖；新增真实 AAC fixture 证明 trim + speed 后音视频轨都会导出且持续时间同步。P0/P1 阻塞问题已修复并完成复测。
+
+Regression:
+PASS — 全量 66 项测试，0 failures，覆盖 Phase 0–12.9 的 Catalog、照片/RAW/LUT、导出、视频编辑、fade、Proxy、几何、preview state、observer、audio attenuation 与实际含音轨导出；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 用用户授权的真实 iPhone/Sony 竖拍 H.264、HEVC 与含音轨素材，在本地/外置卷进行 trim + speed、crop、flip、LUT、resize、音频及双淡入淡出导出；听检 A/V sync、淡入淡出曲线、不同声道布局和真实长片性能。自动化 fixture 不代表实际扬声器/耳机听感或所有编码器硬件路径。
+
+Production Readiness:
+PARTIAL — 真实 AAC + H.264 导出已验证轨道存在、编码、竖拍几何、源文件保护及 time-scale A/V 同步；HEVC 含音轨、4K/长片、多声道和外置存储仍需人工验收。
+
+Known Limitations:
+- 测试验证的是临时单声道 AAC 轨的存在和时间同步，不测量人耳听感、响度或所有多声道/编码组合。
+- HDR video 编辑、导出及 HDR video 色彩管线仍明确不支持；正增益、limiter、peak metering 与 normalisation 仍未实现。
+
+Commit:
+- `fix: verify video export audio pipeline`
