@@ -16,3 +16,19 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 9 — Video Editing + LUT
 - [x] Phase 10 — Advanced Video
 - [x] Phase 11 — Local Masks / Smart Features
+- [x] Phase 12.1 — Real Color Space Output
+- [ ] Phase 12.2 — Photo Color Pipeline
+- [ ] Phase 12.3 — Technical LUT Correctness
+- [ ] Phase 12.4 — RAW Color Pipeline
+- [ ] Phase 12.5 — Video Geometry / Metadata
+- [ ] Phase 12.6 — Video Preview State
+- [ ] Phase 12.7 — PlayerItem Observer
+- [ ] Phase 12.8 — Audio Gain
+- [ ] Phase 12.9 — Video Export Reliability
+- [ ] Phase 12.10 — HDR Capability Audit
+- [ ] Phase 12.11 — ApplicationModel Refactor
+- [ ] Phase 12.12 — Photo Pipeline Performance
+- [ ] Phase 12.13 — Local Mask Canvas UX
+- [ ] Phase 13 — Brush Mask
+- [ ] Phase 14 — Subject / Sky Mask
+- [ ] Phase 15 — Similar Photo Detection

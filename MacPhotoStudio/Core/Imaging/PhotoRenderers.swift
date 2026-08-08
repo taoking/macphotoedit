@@ -193,6 +193,10 @@ enum ImageFileExporter {
         guard CGImageDestinationFinalize(destination) else {
             throw StudioError.exportFailed(message: "无法写入 \(destinationURL.lastPathComponent)。")
         }
+        try verifyEmbeddedColorProfile(
+            at: temporaryURL,
+            expected: options.outputColorSpace
+        )
         try Task.checkCancellation()
         if FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false)) {
             guard allowsOverwrite else {
@@ -233,6 +237,27 @@ enum ImageFileExporter {
             properties.removeValue(forKey: kCGImagePropertyGPSDictionary)
         }
         return properties
+    }
+
+    /// ImageIO normally preserves the profile carried by `cgImage`, but this
+    /// post-write readback is the safety boundary for colour-managed export. A
+    /// file that cannot retain the chosen ICC profile is never moved to the
+    /// user's output directory and is not presented as a successful export.
+    private static func verifyEmbeddedColorProfile(
+        at url: URL,
+        expected: PhotoColorSpace
+    ) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              let outputColorSpace = image.colorSpace
+        else {
+            throw StudioError.exportFailed(message: "无法重新读取导出文件的 ICC profile。")
+        }
+        guard expected.matchesEmbeddedProfile(of: outputColorSpace) else {
+            throw StudioError.exportFailed(
+                message: "\(expected.title) profile 无法由当前 ImageIO \(url.pathExtension.uppercased()) 导出器可靠保留；文件未写入目标位置。"
+            )
+        }
     }
 }
 

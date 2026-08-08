@@ -28,26 +28,46 @@ enum PhotoColorSpace: String, Codable, Sendable, CaseIterable, Identifiable {
         }
     }
 
-    /// Core Image/ColorSync performs the actual ICC conversion at a render
-    /// boundary. Rec.709 and Rec.2020 remain explicit in the pipeline plan even
-    /// when an input image only supplies an ICC profile to Core Image.
+    /// The explicit ColorSync profile used at the renderer boundary. These are
+    /// deliberately *not* allowed to fall back to sRGB: exporting a Rec.709 or
+    /// Rec.2020 image with an sRGB profile would make the file's colour contract
+    /// false even if its edit state still mentioned the requested output.
     var cgColorSpace: CGColorSpace {
-        switch self {
-        case .displayP3:
-            CGColorSpace(name: CGColorSpace.displayP3)
-                ?? CGColorSpace(name: CGColorSpace.sRGB)
-                ?? CGColorSpaceCreateDeviceRGB()
-        case .linearSRGB:
-            CGColorSpace(name: CGColorSpace.linearSRGB)
-                ?? CGColorSpace(name: CGColorSpace.sRGB)
-                ?? CGColorSpaceCreateDeviceRGB()
-        case .extendedLinearSRGB:
-            CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
-                ?? CGColorSpace(name: CGColorSpace.sRGB)
-                ?? CGColorSpaceCreateDeviceRGB()
-        case .sRGB, .rec709, .rec2020:
-            CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let name: CFString = switch self {
+        case .sRGB: CGColorSpace.sRGB
+        case .displayP3: CGColorSpace.displayP3
+        case .rec709: CGColorSpace.itur_709
+        case .rec2020: CGColorSpace.itur_2020
+        case .linearSRGB: CGColorSpace.linearSRGB
+        case .extendedLinearSRGB: CGColorSpace.extendedLinearSRGB
         }
+        guard let colorSpace = CGColorSpace(name: name) else {
+            preconditionFailure("当前 macOS 无法提供 \(title) ColorSync profile；拒绝回退为错误的色彩空间。")
+        }
+        return colorSpace
+    }
+
+    /// Rec.2020 SDR uses the BT.709 transfer curve. HDR transfer functions are
+    /// represented separately and are not claimed by this SDR output setting.
+    var defaultTransferFunction: PhotoTransferFunction {
+        switch self {
+        case .sRGB, .displayP3:
+            .sRGB
+        case .rec709, .rec2020:
+            .rec709
+        case .linearSRGB, .extendedLinearSRGB:
+            .linear
+        }
+    }
+
+    /// Checks the actual embedded ICC payload rather than a display name. This
+    /// is used after ImageIO writes an export so a destination that silently
+    /// discarded or substituted the requested profile is rejected.
+    func matchesEmbeddedProfile(of colorSpace: CGColorSpace) -> Bool {
+        guard let expected = cgColorSpace.copyICCData(),
+              let actual = colorSpace.copyICCData()
+        else { return false }
+        return expected == actual
     }
 }
 
@@ -178,7 +198,9 @@ struct ColorPipelinePlan: Sendable, Equatable {
             creativeLUTIdentifier: creativeLUT?.id,
             output: PhotoColorDescriptor(
                 colorSpace: settings.outputColorSpace,
-                transferFunction: settings.dynamicRange == .hdr ? .linear : .sRGB
+                transferFunction: settings.dynamicRange == .hdr
+                    ? .linear
+                    : settings.outputColorSpace.defaultTransferFunction
             ),
             dynamicRange: settings.dynamicRange
         )

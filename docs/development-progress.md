@@ -505,3 +505,43 @@ Known Limitations:
 
 Commit:
 - `feat: complete phase 11 local masks`
+
+## Phase 12.1 — Real Color Space Output
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- `PhotoColorSpace` 将 Rec.709 和 Rec.2020 映射到 Apple 正式的 `CGColorSpace.itur_709` 与 `CGColorSpace.itur_2020`；不再回退为 sRGB。
+- Color pipeline 输出描述正确记录 SDR Rec.709/Rec.2020 的 transfer function；HDR 仍保持扩展线性预览语义，未虚称 HDR 文件导出。
+- `ImageFileExporter` 在将临时文件移动至用户选择目录前，以 ImageIO 重开并逐字节核对嵌入 ICC payload；profile 不匹配时导出失败并清理临时文件。
+- 新增 `ColorOutputTests`，对 JPEG、HEIF、TIFF 的 sRGB、Display P3、Rec.709 与 Rec.2020 进行真实输出→ImageIO 重开→ICC profile 验证。
+- 新增 `docs/manual-validation.md`，覆盖真实照片、Sony A7C II ARW、DNG、含/不含音频视频、外置存储、权限与 HDR 显示验证清单。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test`；52 tests, 0 failures。
+
+Build:
+PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 四个 SDR 输出空间均有正式 ColorSync profile；Rec.709/Rec.2020 与 sRGB ICC profile 自动化验证为不同；三种当前 ImageIO 输出格式均完成 profile round-trip。
+
+Regression:
+PASS — 全量 52 项测试覆盖既有 Catalog、扫描、资料库、照片/RAW/LUT、导出、管理、HDR still、视频资料库、视频编辑、Proxy 与局部蒙版功能。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 在已校准 sRGB/Display P3 显示器、真实广色域照片与用户授权的外置存储上比较预览、导出文件和其他 ColorSync 应用的视觉结果。该人工清单详见 `docs/manual-validation.md`。
+
+Production Readiness:
+PARTIAL — SDR 输出 ICC 契约已通过自动测试；完整工作空间转换、真实 RAW 色彩契约、HDR 导出和硬件显示测量尚未完成。
+
+Known Limitations:
+- Phase 12.2 前，Source→Working Space 仍由 Core Image/ColorSync 在渲染边界处理，尚未实现明确可测试的单一线性工作空间转换。
+- HDR gain-map still export、HDR video edit/export 仍明确不支持。
+
+Commit:
+- `fix: correct photo color space output`

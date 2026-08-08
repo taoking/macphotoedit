@@ -19,6 +19,20 @@ S-Log3, HLG, PQ). Core Image retains the source ICC attachment through the
 graph, and the renderer requests the selected output `CGColorSpace` so
 ColorSync performs the display/export boundary conversion.
 
+## SDR output ICC contract
+
+Phase 12.1 maps every selectable SDR output to an Apple-provided ColorSync
+space: sRGB, Display P3, ITU-R BT.709, and ITU-R BT.2020. Rec.709 and
+Rec.2020 never fall back to sRGB. After ImageIO writes JPEG, HEIF, or TIFF, the
+exporter reopens its temporary file and compares the embedded ICC payload with
+the requested output profile. A mismatch fails the export before the temporary
+file is moved into the user-selected directory.
+
+The current Phase 12.1 automated suite verifies this round trip for every
+supported SDR format and all four output choices. It does not yet claim that
+the pipeline explicitly converts source pixels into a single linear working
+space before each stage; that source-to-working-space refactor is Phase 12.2.
+
 ## LUT safety
 
 Creative LUTs are the existing Phase 3 look LUTs. They run only after the
