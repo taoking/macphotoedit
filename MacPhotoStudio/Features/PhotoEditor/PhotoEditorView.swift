@@ -426,16 +426,25 @@ struct PhotoEditorView: View {
 
     private var localMasksSection: some View {
         adjustmentSection("局部蒙版") {
-            HStack(spacing: 8) {
-                Button("添加线性") {
-                    selectedLocalMaskID = editor.addLocalMask(kind: .linearGradient)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Button("添加线性") {
+                        selectedLocalMaskID = editor.addLocalMask(kind: .linearGradient)
+                    }
+                    Button("添加径向") {
+                        selectedLocalMaskID = editor.addLocalMask(kind: .radialGradient)
+                    }
                 }
-                Button("添加径向") {
-                    selectedLocalMaskID = editor.addLocalMask(kind: .radialGradient)
-                }
-                Button("添加画笔") {
-                    brushTool = .paint
-                    selectedLocalMaskID = editor.addLocalMask(kind: .brush)
+                HStack(spacing: 8) {
+                    Button("添加画笔") {
+                        brushTool = .paint
+                        selectedLocalMaskID = editor.addLocalMask(kind: .brush)
+                    }
+                    if VisionSubjectMaskCapabilities.supportsForegroundSubjectMask {
+                        Button("添加主体") {
+                            selectedLocalMaskID = editor.addLocalMask(kind: .subject)
+                        }
+                    }
                 }
             }
             if editor.state.localMasks.isEmpty {
@@ -454,6 +463,10 @@ struct PhotoEditorView: View {
                     Toggle("显示蒙版覆盖", isOn: $showsMaskOverlay)
                     if case .brush = mask.kind {
                         Text("在编辑预览上直接绘制或擦除画笔笔触。笔触覆盖层只用于编辑提示，不改变导出像素。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if case .subject = mask.kind {
+                        Text("主体蒙版由本机 Apple Vision 的显著前景实例请求生成；不上传图像。当前系统没有可靠的 Sky Mask API，因此天空蒙版不提供。主体 overlay 不单独绘制，编辑后预览和导出使用同一 Vision mask 路径。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -496,6 +509,10 @@ struct PhotoEditorView: View {
                             }
                             .disabled(mask.brushStrokes.isEmpty)
                         }
+                    case .subject:
+                        Text("主体（前景）会在每次预览或导出时由 Apple Vision 本地分析。它选择显著前景实例，可能包含人、动物或物体；不把结果写入 Catalog，也不将其表述为语义类别或 Sky Mask。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     slider("局部曝光", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.exposure), range: -3...3)
                     slider("局部对比度", value: editor.localMaskAdjustmentBinding(selectedLocalMaskID, keyPath: \.contrast), range: -1...1)
@@ -509,6 +526,9 @@ struct PhotoEditorView: View {
                 }
             }
             Text("渐变几何和画笔笔触都按原图比例保存；旋转、裁剪和不同预览尺寸不会改变其作用位置。局部蒙版不包含在可复用 Preset 中。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("天空蒙版：当前 macOS 目标 SDK 未提供经过验证的本地 Sky Mask 请求，故本版本明确不支持。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -56,6 +56,11 @@ final class PhotoEditingTests: XCTestCase {
                 centerY: 0.6,
                 radius: 0.22,
                 feather: 0.15
+            ),
+            LocalMask(
+                kind: .subject,
+                opacity: 0.72,
+                adjustments: LocalMaskAdjustments(exposure: -0.4, contrast: 0.15, saturation: 0.1)
             )
         ]
         try await firstStore.savePhotoEditState(state, for: asset.id)
@@ -224,6 +229,26 @@ final class PhotoEditingTests: XCTestCase {
         XCTAssertNotNil(serializedMask["brushStrokes"])
         XCTAssertNil(serializedMask["maskBitmap"])
         XCTAssertNil(serializedMask["derivedTexture"])
+        XCTAssertEqual(try JSONDecoder().decode(PhotoEditState.self, from: data), state)
+    }
+
+    func testSubjectMaskPersistsOnlyItsAdjustmentState() throws {
+        let mask = LocalMask(
+            kind: .subject,
+            opacity: 0.6,
+            adjustments: LocalMaskAdjustments(exposure: 0.5, contrast: -0.2, saturation: 0.1)
+        )
+        var state = PhotoEditState.identity
+        state.localMasks = [mask]
+
+        let data = try JSONEncoder().encode(state)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let serializedMask = try XCTUnwrap((object["localMasks"] as? [[String: Any]])?.first)
+        XCTAssertEqual(serializedMask["kind"] as? String, "subject")
+        XCTAssertNil(serializedMask["maskBitmap"])
+        XCTAssertNil(serializedMask["visionMask"])
+        XCTAssertNil(serializedMask["derivedTexture"])
+        XCTAssertTrue(mask.isRenderable)
         XCTAssertEqual(try JSONDecoder().decode(PhotoEditState.self, from: data), state)
     }
 

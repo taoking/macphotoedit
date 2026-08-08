@@ -2,11 +2,12 @@
 
 ## Scope and privacy
 
-Phase 13 adds a third practical, local-only mask: vector brush strokes, beside
-the existing linear and radial gradients. The application does not upload,
-index remotely, or send source
-photos to a cloud service. There is no placeholder subject/sky/face model in
-this release.
+Phase 14 adds a fourth practical, local-only mask: Vision foreground subject
+selection, beside linear and radial gradients and vector brush strokes. The
+application does not upload, index remotely, or send source photos to a cloud
+service. The implemented subject mask is Apple Vision's salient foreground
+instances, not an unverified semantic class selector. Sky and face models are
+not placeholders in this release.
 
 ## Non-destructive state
 
@@ -14,7 +15,8 @@ this release.
 contains a stable ID, enable state, opacity, normalized geometry and local
 exposure, contrast and saturation adjustments. A brush mask stores compact
 `BrushStroke` records: normalized points, radius, hardness, per-stroke flow
-and an erase flag. It does not store a source-sized bitmap, encoded PNG, or
+and an erase flag. A subject mask stores no Vision result: it is regenerated
+locally when rendering. No mask stores a source-sized bitmap, encoded PNG, or
 derived texture in Catalog SQLite. Existing v1/v2 JSON still decodes with an
 empty mask array, and v3 gradient JSON decodes with an empty brush-stroke list,
 while preserving its original version marker.
@@ -30,16 +32,18 @@ silently place one photo's mask on another.
 ```text
 Source / optional RAW stage
 → global creative adjustments
-→ ordered local gradient masks
+→ ordered local gradient / brush / Vision foreground masks
 → Creative LUT
 → crop / rotate / flip
 → selected output colour transform
 ```
 
-Core Image creates the actual linear or radial grayscale field and blends the
-locally adjusted image against the current image with `CIBlendWithMask`.
-Preview and export both use `PhotoColorPipeline`, rather than a separate UI
-effect implementation.
+Core Image creates the actual gradient or brush grayscale field; Vision creates
+the subject foreground field through `VNGenerateForegroundInstanceMaskRequest`.
+Each field blends the locally adjusted image against the current image with
+`CIBlendWithMask`. Preview and export both use `PhotoColorPipeline`, rather
+than a separate UI effect implementation. If Vision finds no foreground or
+fails, it applies no adjustment rather than applying one to the whole image.
 
 ## Canvas interaction
 
@@ -87,7 +91,8 @@ generation guard continue to coalesce interactive redraws.
 
 ## Deliberate boundary
 
-Subject/sky segmentation, perceptual similarity, semantic search and face
-grouping are not claimed as implemented. They require separate Vision-model,
-quality and privacy validation before they can be added without becoming mock
-functionality.
+Vision foreground subject selection is implemented, but it has no semantic
+class selector, instance picker, manual refine controls or separately rendered
+overlay. Sky segmentation, perceptual similarity, semantic search and face
+grouping are not claimed as implemented. Sky requires a separately verified
+local system API or bundled model; see `docs/subject-sky-mask-feasibility.md`.

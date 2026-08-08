@@ -15,6 +15,8 @@ automatically marked as passed by unit tests.
 - [ ] 24 MP and 48 MP images: sustained slider interaction, cancellation, memory and full-resolution export.
 - [ ] Brush mask: on JPEG/HEIC and a user-authorised RAW-derived photo, paint overlapping hard and soft strokes, change size/feather/flow, erase, undo and clear; compare preview with a new-file export at full resolution. Verify strokes remain aligned after window resize, crop/rotate, reopening the asset and switching between horizontal/vertical images.
 - [ ] Brush-mask memory: on a 24 MP or 48 MP photo, make several masks and long strokes while observing sustained interaction and memory. Confirm the original remains byte-identical and no bitmap/derived texture is written into Catalog state or beside the source.
+- [ ] Vision foreground subject mask: on authorised people, pets and common-object photos with plain and complex backgrounds, apply exposure/contrast/saturation and compare preview with a new-file export. Check hair/fur, transparent or reflective edges, multiple foreground instances and no-subject images. Confirm a failed/no-result request does not alter the whole image, source files remain byte-identical, and no Vision mask is written into Catalog or beside the source.
+- [ ] Sky-mask boundary: confirm no Sky Mask control is presented. It is deliberately unsupported because the target macOS SDK has no verified local generic Sky Mask request; do not treat a blue-sky heuristic as validation.
 
 ## RAW
 

@@ -30,5 +30,5 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 12.12 — Photo Pipeline Performance
 - [x] Phase 12.13 — Local Mask Canvas UX
 - [x] Phase 13 — Brush Mask
-- [ ] Phase 14 — Subject / Sky Mask
+- [x] Phase 14 — Subject / Sky Mask
 - [ ] Phase 15 — Similar Photo Detection

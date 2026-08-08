@@ -76,6 +76,9 @@ enum LocalMaskKind: String, Codable, Sendable, CaseIterable, Identifiable {
     case linearGradient
     case radialGradient
     case brush
+    /// Apple Vision foreground-instance selection. It intentionally means
+    /// salient foreground subject, not an unverified sky classifier.
+    case subject
 
     var id: String { rawValue }
 
@@ -84,6 +87,7 @@ enum LocalMaskKind: String, Codable, Sendable, CaseIterable, Identifiable {
         case .linearGradient: "线性渐变"
         case .radialGradient: "径向渐变"
         case .brush: "画笔"
+        case .subject: "主体（Vision 前景）"
         }
     }
 }

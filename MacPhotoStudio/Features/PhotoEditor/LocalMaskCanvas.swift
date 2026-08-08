@@ -126,6 +126,8 @@ struct LocalMaskCanvas: View {
             "拖动径向蒙版的中心、半径或羽化环。"
         case .brush:
             "在图像上拖动以\(brushTool.title)画笔蒙版。"
+        case .subject:
+            "主体蒙版由本机 Apple Vision 根据显著前景生成。"
         }
     }
 
@@ -164,6 +166,8 @@ struct LocalMaskCanvas: View {
                 .position(x: imageRect.midX, y: imageRect.midY)
         case .brush:
             brushOverlay(in: imageRect)
+        case .subject:
+            EmptyView()
         }
     }
 
@@ -212,6 +216,13 @@ struct LocalMaskCanvas: View {
             )
         case .brush:
             Text("\(brushTool.title)画笔：在图像上拖动")
+                .font(.caption2)
+                .foregroundStyle(.white)
+                .padding(4)
+                .background(.black.opacity(0.55), in: Capsule())
+                .position(x: imageRect.midX, y: imageRect.minY + 16)
+        case .subject:
+            Text("主体蒙版：本机 Vision 前景选择")
                 .font(.caption2)
                 .foregroundStyle(.white)
                 .padding(4)
@@ -339,6 +350,8 @@ struct LocalMaskCanvas: View {
             if abs(distance - mask.clampedRadius) < 0.035 { return .radialRadius }
             if abs(distance - (mask.clampedRadius + mask.clampedFeather)) < 0.035 { return .radialFeather }
         case .brush:
+            return nil
+        case .subject:
             return nil
         }
         return nil

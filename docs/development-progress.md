@@ -1036,3 +1036,37 @@ Known Limitations:
 
 Commit:
 - `feat: add non-destructive brush masks`
+
+## Phase 14 — Subject / Sky Mask
+
+Status:
+COMPLETED — foreground subject mask implemented; Sky Mask explicitly unsupported after SDK feasibility audit.
+
+Implemented:
+- `LocalMaskKind` 新增 `.subject`，普通照片编辑器提供“添加主体”入口。本机 Vision 前景实例请求在预览和新文件导出共享的 `PhotoImagePipeline` 路径中产生真实灰度蒙版，再由 `CIBlendWithMask` 应用局部曝光、对比度和饱和度；这不是 UI 占位或全图效果。
+- `VisionSubjectMaskRenderer` 使用 macOS 14+ 的 `VNGenerateForegroundInstanceMaskRequest`，将所有检测到的显著前景实例缩放并对齐到当前 `CIImage` extent。请求为空或异常时失败关闭，不产生白色替代蒙版，也不对整张图错误应用调整。
+- `.subject` 只持久化本阶段的开关、不透明度与局部调整；不保存 Vision 位图、PNG、派生纹理或用户原图。Vision 只在应用进程本地执行，预览/导出时重新计算。
+- 新增 `docs/subject-sky-mask-feasibility.md`。已确认目标 SDK 没有经验证的通用本地 Sky segmentation request，因此没有新增 Sky UI、enum、颜色阈值 heuristic 或伪实现。更新局部蒙版和真实媒体人工验收文档。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/SmartMaskTests -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests`；24 tests, 0 failures。覆盖 macOS 15 Vision 能力、无效 source 的失败关闭、蒙版 extent 对齐分支、Catalog 状态 round-trip 和无 Vision bitmap 持久化。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 真实 local-only Vision foreground subject 请求已接入像素渲染；不存在 cloud、mock、hardcode 语义类别或全图回退。Sky Mask 未标为实现，符合 SDK 审核结论和“安全拒绝优于错误调色”原则。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 81 tests, 0 failures。覆盖既有 Catalog、资料库、照片/RAW/LUT、局部蒙版、导出、视频、HDR guard、协调器和性能缓存边界，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的人像、宠物和常见物体照片，在简单/复杂背景、发丝/毛发、透明或反光物体、多主体、无主体，以及 24 MP / 48 MP 图像上核验选择边缘、无结果失败关闭、预览/新文件导出一致性、性能和原图字节不变；详见 `docs/manual-validation.md`。Sky 功能无需人工验收为“正确”，因本阶段明确不提供。
+
+Known Limitations:
+- “主体”仅表示 Vision 显著前景实例，可包含人、动物或物体；没有语义类别选择、单实例 picker、手动 refine 或独立 mask overlay。
+- 每次预览/导出重新运行 Vision，未引入持久化/磁盘缓存；复杂和高像素真实照片的延迟需人工检查。
+- macOS 目标 SDK 没有经验证的本地通用 Sky Mask API；未捆绑另一个本地 Core ML 模型，因此 Sky Mask 是 NOT IMPLEMENTED，而非部分支持。
+
+Commit:
+- `feat: add vision foreground subject masks`

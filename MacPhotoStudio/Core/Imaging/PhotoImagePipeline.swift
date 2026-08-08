@@ -89,7 +89,7 @@ struct PhotoImagePipeline {
         masks.reduce(source) { image, mask in
             guard mask.isRenderable else { return image }
             let adjusted = apply(mask.adjustments, to: image)
-            let maskImage = LocalMaskRenderer.image(for: mask, extent: image.extent)
+            let maskImage = LocalMaskRenderer.image(for: mask, source: image)
             guard let maskImage else { return image }
             return adjusted.applyingFilter("CIBlendWithMask", parameters: [
                 kCIInputBackgroundImageKey: image,
@@ -126,7 +126,8 @@ struct PhotoImagePipeline {
 }
 
 private enum LocalMaskRenderer {
-    static func image(for mask: LocalMask, extent: CGRect) -> CIImage? {
+    static func image(for mask: LocalMask, source: CIImage) -> CIImage? {
+        let extent = source.extent
         guard extent.width > 0, extent.height > 0 else { return nil }
         let maskImage: CIImage
         switch mask.kind {
@@ -166,6 +167,9 @@ private enum LocalMaskRenderer {
         case .brush:
             guard let brushMask = BrushMaskRenderer.image(for: mask.brushStrokes, extent: extent) else { return nil }
             maskImage = brushMask
+        case .subject:
+            guard let subjectMask = VisionSubjectMaskRenderer.image(for: source) else { return nil }
+            maskImage = subjectMask
         }
         guard mask.clampedOpacity < 1 else { return maskImage.cropped(to: extent) }
         return maskImage.applyingFilter("CIColorMatrix", parameters: [
