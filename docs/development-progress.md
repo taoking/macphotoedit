@@ -1405,3 +1405,35 @@ Known Limitations:
 
 Commit:
 - `feat: add visual similar photo review`
+
+## Phase 16.10 — ApplicationModel Incremental Refactor
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增 `PhotoEditingCoordinator`，由它组合 `PhotoEditingService` 和 `PresetRepository`，统一承担照片/RAW edit state、预览渲染、RAW 导出、LUT 操作、预设 CRUD/import/export、批量预设应用与实际批量照片导出。
+- `ApplicationModel` 移除对两个具体照片服务的直接持有，改为持有单一 coordinator；既有 SwiftUI-facing 方法名称、返回值、错误呈现、任务状态、进度、输出目录 security-scope 与 collision dialog 均保持不变，只作为转发与 UI orchestration 层。
+- 扩展 coordinator 边界测试，以无原始媒体的真实临时 Catalog 验证 Photo/RAW 状态持久化、从当前 edit state 创建预设、预设重命名/收藏与批量 preset application。更新 `docs/application-architecture.md`，明确当前已完成和仍待拆分的边界。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/CoordinatorTests -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/RAWColorPipelineTests -only-testing:MacPhotoStudioTests/RAWMediaDiagnosticTests`；25 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — `ApplicationModel` 的照片相关 UI 方法保留为稳定 forwarding API，但不再直接组合 `PhotoEditingService` 或 `PresetRepository`。照片、RAW、LUT、预设、批处理与 collision UI 的职责边界清晰；没有改变任何原始媒体读写契约。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（20.82 秒），覆盖 Phase 0–16.10 的 Catalog、资料库、照片/RAW/LUT、色彩、局部蒙版、视频、HDR guard、外置存储、相似照片与 coordinator 路径。
+
+Manual Verification:
+NOT REQUIRED — 此阶段仅为不改变 UI-facing API 或媒体行为的服务组合重构；所有变更均由自动化 coordinator、照片、RAW、LUT、导出和全量回归覆盖。已有真实媒体人工验证项继续适用，未在本阶段新增硬件依赖。
+
+Known Limitations:
+- `ApplicationModel` 仍直接负责资料库 root/scan/catalog refresh、缩略图与部分高级资料库操作，以及照片导出任务/冲突对话框的 presentation orchestration；这是刻意保留的后续小切片，而非未声明的完成状态。
+- Coordinator 不改变底层 decoder、LUT、RAW、渲染或外置存储的能力边界；这些真实媒体与硬件验证仍以已有文档为准。
+
+Commit:
+- `refactor: extract photo editing coordinator`

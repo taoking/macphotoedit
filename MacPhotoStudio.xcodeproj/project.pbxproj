@@ -78,6 +78,7 @@
 		CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7A4D7504F84F852D9D9998 /* AppLogger.swift */; };
 		CBD2C5942BEB942773E106EB /* StillImageColorDiagnosticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBFC122A94A5EC068DC791D /* StillImageColorDiagnosticService.swift */; };
 		CC6A0F951BAC2A28F94AF4E4 /* CoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB1B4687AE9B87A58623CC2 /* CoordinatorTests.swift */; };
+		CCD3BB5C6628EF7C0EF992FE /* PhotoEditingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE2B47AF74380343C973B /* PhotoEditingCoordinator.swift */; };
 		CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */; };
 		D266B7E77573EAB96D368C38 /* VideoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65412376C8CA35E5F64F0F93 /* VideoLibraryTests.swift */; };
 		D67A192455916CE2E0BA65E4 /* ColorManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B6EEB3E5F65D3D46E6B902 /* ColorManagementTests.swift */; };
@@ -160,6 +161,7 @@
 		7924F201BDA9AD64C9CFB654 /* LocalMaskCanvasGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMaskCanvasGeometryTests.swift; sourceTree = "<group>"; };
 		828290D177DB7F9B5734DBE7 /* RAWJPEGPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWJPEGPairing.swift; sourceTree = "<group>"; };
 		894B48CBFDB93F0118EA8DA9 /* RAWImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWImagePipeline.swift; sourceTree = "<group>"; };
+		8D3CE2B47AF74380343C973B /* PhotoEditingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditingCoordinator.swift; sourceTree = "<group>"; };
 		91FC8B9ABF39B23C03B797BC /* PhotoPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPreset.swift; sourceTree = "<group>"; };
 		95DDCE85D36047C692E0930A /* ColorOutputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorOutputTests.swift; sourceTree = "<group>"; };
 		96506D27A280F2BF34DEFB8E /* PhotoExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoExportOptions.swift; sourceTree = "<group>"; };
@@ -332,6 +334,7 @@
 			children = (
 				67C173E4222A8B55DAA80D09 /* ApplicationModel.swift */,
 				78DED69B086B20B81CA465BB /* MacPhotoStudioApp.swift */,
+				8D3CE2B47AF74380343C973B /* PhotoEditingCoordinator.swift */,
 				74CC05614B4A933B65E8F7B4 /* TaskCoordinator.swift */,
 				D0049AD35DC2B0B15B2B4CFE /* VideoEditingCoordinator.swift */,
 			);
@@ -622,6 +625,7 @@
 				35799B232BC2ABA978C9CD36 /* PhotoBatchEditing.swift in Sources */,
 				A8D21FE3E81CE098C0B8A6C2 /* PhotoColorPipeline.swift in Sources */,
 				01F5660411AFF757B419984B /* PhotoEditState.swift in Sources */,
+				CCD3BB5C6628EF7C0EF992FE /* PhotoEditingCoordinator.swift in Sources */,
 				EAEA6DCAFCE2CA9EDBCA0E72 /* PhotoEditorView.swift in Sources */,
 				80BDE6F3D368CDFEF9B47F94 /* PhotoExportOptions.swift in Sources */,
 				A13F2F03A8A014501652E4DA /* PhotoImagePipeline.swift in Sources */,

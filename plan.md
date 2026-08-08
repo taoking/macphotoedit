@@ -42,5 +42,5 @@ required, concise execution tracker for the long-running implementation.
   - [x] 16.7 External Storage Validation
   - [x] 16.8 Similar Photo Large-Library Benchmark
   - [x] 16.9 Similar Group Review UX
-  - [ ] 16.10 ApplicationModel Incremental Refactor
+  - [x] 16.10 ApplicationModel Incremental Refactor
   - [ ] 16.11 CI / Regression Gate

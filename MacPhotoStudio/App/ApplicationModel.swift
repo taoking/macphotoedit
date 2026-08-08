@@ -45,8 +45,7 @@ final class ApplicationModel: ObservableObject {
     private var thumbnailLoader: ThumbnailLoader?
     private var videoFilmstripLoader: VideoFilmstripLoader?
     private var videoCoordinator: VideoEditingCoordinator?
-    private var photoEditingService: PhotoEditingService?
-    private var presetRepository: PresetRepository?
+    private var photoCoordinator: PhotoEditingCoordinator?
     private var duplicateScanner: ExactDuplicateScanner?
     private var similarPhotoScanner: SimilarPhotoScanner?
     private var mediaTrashService: MediaTrashService?
@@ -85,12 +84,11 @@ final class ApplicationModel: ObservableObject {
                 lutDirectory: paths.lutDirectory,
                 videoProxiesDirectory: paths.videoProxiesDirectory
             )
-            self.photoEditingService = PhotoEditingService(
+            self.photoCoordinator = PhotoEditingCoordinator(
                 catalogStore: catalogStore,
                 mediaRootStore: mediaRootStore,
-                lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
+                lutDirectory: paths.lutDirectory
             )
-            self.presetRepository = PresetRepository(catalogStore: catalogStore)
             self.duplicateScanner = ExactDuplicateScanner(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
             self.similarPhotoScanner = SimilarPhotoScanner(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
             self.mediaTrashService = MediaTrashService(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
@@ -991,9 +989,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func photoEditState(for assetID: UUID) async -> PhotoEditState? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.editState(for: assetID)
+            return try await photoCoordinator.editState(for: assetID)
         } catch {
             report(error, activity: "Loading photo edit state")
             return nil
@@ -1001,9 +999,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func savePhotoEditState(_ state: PhotoEditState, for assetID: UUID) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.save(state, for: assetID)
+            try await photoCoordinator.save(state, for: assetID)
             return true
         } catch {
             report(error, activity: "Saving photo edit state")
@@ -1012,19 +1010,18 @@ final class ApplicationModel: ObservableObject {
     }
 
     func reloadPhotoPresets() async {
-        guard let presetRepository else { return }
+        guard let photoCoordinator else { return }
         do {
-            photoPresets = try await presetRepository.presets()
+            photoPresets = try await photoCoordinator.presets()
         } catch {
             report(error, activity: "Loading presets")
         }
     }
 
     func createPhotoPreset(named name: String, from assetID: UUID) async -> Bool {
-        guard let presetRepository, let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            let state = try await photoEditingService.editState(for: assetID)
-            _ = try await presetRepository.create(named: name, content: state.presetContent)
+            _ = try await photoCoordinator.createPreset(named: name, from: assetID)
             await reloadPhotoPresets()
             return true
         } catch {
@@ -1034,9 +1031,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func renamePhotoPreset(_ preset: PhotoPreset, to name: String) async -> Bool {
-        guard let presetRepository else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await presetRepository.rename(preset, to: name)
+            try await photoCoordinator.renamePreset(preset, to: name)
             await reloadPhotoPresets()
             return true
         } catch {
@@ -1046,9 +1043,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func setPhotoPresetFavorite(_ isFavorite: Bool, preset: PhotoPreset) async -> Bool {
-        guard let presetRepository else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await presetRepository.setFavorite(isFavorite, for: preset)
+            try await photoCoordinator.setPresetFavorite(isFavorite, preset: preset)
             await reloadPhotoPresets()
             return true
         } catch {
@@ -1058,9 +1055,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func deletePhotoPreset(_ preset: PhotoPreset) async -> Bool {
-        guard let presetRepository else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await presetRepository.delete(preset)
+            try await photoCoordinator.deletePreset(preset)
             await reloadPhotoPresets()
             return true
         } catch {
@@ -1070,9 +1067,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func exportPhotoPreset(_ preset: PhotoPreset, to destinationURL: URL) async -> Bool {
-        guard let presetRepository else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await presetRepository.export(preset, to: destinationURL)
+            try await photoCoordinator.exportPreset(preset, to: destinationURL)
             return true
         } catch {
             report(error, activity: "Exporting preset")
@@ -1081,9 +1078,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func importPhotoPreset(from sourceURL: URL) async -> Bool {
-        guard let presetRepository else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            _ = try await presetRepository.importPreset(from: sourceURL)
+            _ = try await photoCoordinator.importPreset(from: sourceURL)
             await reloadPhotoPresets()
             return true
         } catch {
@@ -1093,9 +1090,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func copyPhotoEdits(from assetID: UUID) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            copiedPhotoContent = try await photoEditingService.editState(for: assetID).presetContent
+            copiedPhotoContent = try await photoCoordinator.editState(for: assetID).presetContent
             return true
         } catch {
             report(error, activity: "Copying photo edits")
@@ -1127,7 +1124,7 @@ final class ApplicationModel: ObservableObject {
         outputDirectoryURL: URL,
         options: PhotoExportOptions
     ) async -> UUID? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(
             atPath: outputDirectoryURL.path(percentEncoded: false),
@@ -1148,7 +1145,7 @@ final class ApplicationModel: ObservableObject {
         )
         await refreshBatchTasks()
         let taskCoordinator = taskCoordinator
-        let worker = Task { [weak self, photoEditingService] in
+        let worker = Task { [weak self, photoCoordinator] in
             let didStartAccess = outputDirectoryURL.startAccessingSecurityScopedResource()
             defer {
                 if didStartAccess {
@@ -1158,7 +1155,7 @@ final class ApplicationModel: ObservableObject {
             do {
                 try await taskCoordinator.start(task.id)
                 await self?.refreshBatchTasks()
-                let report = try await photoEditingService.batchExport(
+                let report = try await photoCoordinator.batchExport(
                     assets: photos,
                     outputDirectoryURL: outputDirectoryURL,
                     options: options,
@@ -1195,9 +1192,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func rawEditState(for assetID: UUID) async -> RAWEditState? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.rawEditState(for: assetID)
+            return try await photoCoordinator.rawEditState(for: assetID)
         } catch {
             report(error, activity: "Loading RAW edit state")
             return nil
@@ -1205,9 +1202,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func saveRAWEditState(_ state: RAWEditState, for assetID: UUID) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.saveRaw(state, for: assetID)
+            try await photoCoordinator.saveRaw(state, for: assetID)
             return true
         } catch {
             report(error, activity: "Saving RAW edit state")
@@ -1220,9 +1217,9 @@ final class ApplicationModel: ObservableObject {
         state: PhotoEditState,
         maximumPixelSize: Int = 2_048
     ) async -> PhotoRenderResult? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.renderPreview(
+            return try await photoCoordinator.renderPreview(
                 for: asset,
                 state: state,
                 maximumPixelSize: maximumPixelSize
@@ -1241,9 +1238,9 @@ final class ApplicationModel: ObservableObject {
         photoState: PhotoEditState,
         maximumPixelSize: Int = 2_048
     ) async -> RAWRenderResult? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.renderRAWPreview(
+            return try await photoCoordinator.renderRAWPreview(
                 for: asset, rawState: rawState, photoState: photoState, maximumPixelSize: maximumPixelSize
             )
         } catch is CancellationError {
@@ -1261,9 +1258,9 @@ final class ApplicationModel: ObservableObject {
         destinationURL: URL,
         format: RAWExportFormat
     ) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.exportRAW(
+            try await photoCoordinator.exportRAW(
                 for: asset,
                 rawState: rawState,
                 photoState: photoState,
@@ -1280,9 +1277,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func photoLUTLibrary() async -> LUTLibrary? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.lutLibrary()
+            return try await photoCoordinator.lutLibrary()
         } catch {
             report(error, activity: "Loading LUT library")
             return nil
@@ -1294,9 +1291,9 @@ final class ApplicationModel: ObservableObject {
         kind: LUTKind = .creative,
         technicalMetadata: TechnicalLUTMetadata? = nil
     ) async -> CubeLUT? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         do {
-            return try await photoEditingService.importLUT(
+            return try await photoCoordinator.importLUT(
                 from: url,
                 kind: kind,
                 technicalMetadata: technicalMetadata
@@ -1308,9 +1305,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func renameLUT(identifier: UUID, to title: String) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.renameLUT(identifier: identifier, to: title)
+            try await photoCoordinator.renameLUT(identifier: identifier, to: title)
             return true
         } catch {
             report(error, activity: "Renaming LUT")
@@ -1319,9 +1316,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func deleteLUT(identifier: UUID) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.deleteLUT(identifier: identifier)
+            try await photoCoordinator.deleteLUT(identifier: identifier)
             return true
         } catch {
             report(error, activity: "Deleting LUT")
@@ -1330,9 +1327,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func setLUTFavorite(_ isFavorite: Bool, identifier: UUID) async -> Bool {
-        guard let photoEditingService else { return false }
+        guard let photoCoordinator else { return false }
         do {
-            try await photoEditingService.setLUTFavorite(isFavorite, identifier: identifier)
+            try await photoCoordinator.setLUTFavorite(isFavorite, identifier: identifier)
             return true
         } catch {
             report(error, activity: "Updating LUT favorite")
@@ -1351,12 +1348,12 @@ final class ApplicationModel: ObservableObject {
         components: Set<PhotoEditComponent> = PhotoEditComponent.allPresetComponents,
         activity: String
     ) async -> BatchEditReport? {
-        guard let photoEditingService else { return nil }
+        guard let photoCoordinator else { return nil }
         let task = await taskCoordinator.enqueue(kind: .photoBatchEdit, title: "\(activity)（\(assetIDs.count) 张）")
         do {
             try await taskCoordinator.start(task.id)
             await refreshBatchTasks()
-            let result = try await photoEditingService.applyPresetContent(
+            let result = try await photoCoordinator.applyPresetContent(
                 content,
                 to: assetIDs,
                 components: components,
