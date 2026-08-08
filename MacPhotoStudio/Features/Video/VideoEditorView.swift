@@ -278,7 +278,18 @@ struct VideoEditorView: View {
     private var audioSection: some View {
         adjustmentSection("音频") {
             Toggle("静音", isOn: editor.boolBinding(\.isMuted))
-            slider("增益", value: editor.doubleBinding(\.audioGain), range: -60...12, suffix: " dB")
+            slider(
+                "音量 / 衰减",
+                value: Binding(
+                    get: { editor.state.clampedAudioGain },
+                    set: { editor.state.audioGain = $0 }
+                ),
+                range: VideoAudioGain.minimumDecibels...VideoAudioGain.maximumDecibels,
+                suffix: " dB"
+            )
+            Text("当前只支持衰减（-60 至 0 dB）；正增益需要带 limiter 的独立音频处理管线。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             slider("音频淡入", value: editor.doubleBinding(\.audioFadeInDuration), range: 0...10, suffix: " s")
             slider("音频淡出", value: editor.doubleBinding(\.audioFadeOutDuration), range: 0...10, suffix: " s")
         }

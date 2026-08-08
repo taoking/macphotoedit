@@ -10,7 +10,9 @@ struct VideoEditState: Codable, Sendable, Equatable {
     var adjustments = VideoColorAdjustments()
     var lut: LUTApplication?
     var isMuted = false
-    /// Gain in dB. The export pipeline converts this to a linear AVAudioMix volume.
+    /// Attenuation in dB. Positive gain needs an explicit audio-processing
+    /// pipeline with clipping/limiting protection, so it is not represented by
+    /// the current AVAudioMix-only implementation.
     var audioGain: Double = 0
     var speed: Double = 1
     /// Video fades are rendered to black in the video composition.
@@ -36,7 +38,7 @@ struct VideoEditState: Codable, Sendable, Equatable {
         adjustments = try container.decodeIfPresent(VideoColorAdjustments.self, forKey: .adjustments) ?? .init()
         lut = try container.decodeIfPresent(LUTApplication.self, forKey: .lut)
         isMuted = try container.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
-        audioGain = try container.decodeIfPresent(Double.self, forKey: .audioGain) ?? 0
+        audioGain = VideoAudioGain.clamped(try container.decodeIfPresent(Double.self, forKey: .audioGain) ?? 0)
         speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? 1
         fadeInDuration = try container.decodeIfPresent(Double.self, forKey: .fadeInDuration) ?? 0
         fadeOutDuration = try container.decodeIfPresent(Double.self, forKey: .fadeOutDuration) ?? 0
@@ -47,7 +49,7 @@ struct VideoEditState: Codable, Sendable, Equatable {
     static let identity = VideoEditState()
 
     var clampedSpeed: Double { min(max(speed, 0.25), 4) }
-    var clampedAudioGain: Double { min(max(audioGain, -60), 12) }
+    var clampedAudioGain: Double { VideoAudioGain.clamped(audioGain) }
     var clampedFadeInDuration: Double { max(0, fadeInDuration) }
     var clampedFadeOutDuration: Double { max(0, fadeOutDuration) }
     var clampedAudioFadeInDuration: Double { max(0, audioFadeInDuration) }
@@ -63,6 +65,23 @@ struct VideoEditState: Codable, Sendable, Equatable {
             throw StudioError.exportFailed(message: "裁剪结束时间必须晚于开始时间。")
         }
         return VideoTrimRange(start: start, end: end)
+    }
+}
+
+/// `AVMutableAudioMixInputParameters` reliably represents a 0...1 volume
+/// envelope. This project therefore implements attenuation only until a real
+/// audio-processing and limiter path is added for positive gain.
+enum VideoAudioGain {
+    static let minimumDecibels = -60.0
+    static let maximumDecibels = 0.0
+
+    static func clamped(_ decibels: Double) -> Double {
+        guard decibels.isFinite else { return maximumDecibels }
+        return min(max(decibels, minimumDecibels), maximumDecibels)
+    }
+
+    static func linearVolume(for decibels: Double) -> Float {
+        Float(pow(10, clamped(decibels) / 20))
     }
 }
 

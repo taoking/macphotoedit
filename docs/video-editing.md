@@ -55,6 +55,11 @@ speed 之后仍和实际输出时长一致。音频由独立的 `AVAudioMix` 音
 淡入和淡出重叠时会生成与画面一致的三角包络，而不是让两个 AVFoundation
 坡道覆盖彼此。
 
+音频音量目前只支持 `-60...0 dB` 衰减，换算后的 `AVAudioMix` volume 永远位于
+`0...1`。正增益（例如 +6 dB）需要独立的离线/实时 audio processing、峰值检测和
+limiter 才能避免削波；当前没有该管线，因此 UI、持久化解码与输出都会将旧的正值
+归一为 0 dB，而不会错误声称已提升音量。
+
 ## 导出与安全
 
 导出服务通过 AVFoundation 的受支持 preset 选择 H.264 或 HEVC，并创建

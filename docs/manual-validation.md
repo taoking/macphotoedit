@@ -30,6 +30,7 @@ automatically marked as passed by unit tests.
 - [ ] While playing around 35 seconds, continuously change exposure, contrast, temperature, LUT strength and crop. Confirm each rebuilt preview resumes at the prior output time with the same play/pause state, rate, mute and volume instead of jumping to zero.
 - [ ] After several preview rebuilds, let the current item play to its end and confirm the playback control changes back to Play. Also verify that an unreadable or removed source shows a visible playback error rather than leaving the controls in a playing state.
 - [ ] Confirm trim + speed keeps audio and video in sync, including audio fades.
+- [ ] With authorised material containing audio, compare 0 dB, -6 dB and -60 dB export/preview attenuation and fade timing. Confirm the UI provides no positive gain control; +6 dB and limiter/normalisation are not implemented.
 
 ## Storage and permissions
 

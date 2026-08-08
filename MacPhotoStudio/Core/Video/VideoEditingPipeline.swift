@@ -247,12 +247,12 @@ private enum VideoCompositionBuilder {
     ) -> AVAudioMix? {
         let audioTracks = composition.tracks(withMediaType: .audio)
         guard !audioTracks.isEmpty else { return nil }
-        let gain = state.isMuted ? 0 : min(4, max(0, pow(10, state.clampedAudioGain / 20)))
+        let gain: Float = state.isMuted ? 0 : VideoAudioGain.linearVolume(for: state.audioGain)
         let fadeIn = VideoFadeEnvelope.clampedDuration(state.clampedAudioFadeInDuration, within: duration)
         let fadeOut = VideoFadeEnvelope.clampedDuration(state.clampedAudioFadeOutDuration, within: duration)
         let parameters = audioTracks.map { track -> AVMutableAudioMixInputParameters in
             let parameter = AVMutableAudioMixInputParameters(track: track)
-            let volume = Float(gain)
+            let volume = gain
             if fadeIn > 0, fadeOut > 0, fadeIn + fadeOut > duration {
                 // AVAudioMix ramps do not combine multiplicatively. For overlapping
                 // fades, use the exact triangular envelope shared by the video fade:

@@ -781,3 +781,42 @@ Known Limitations:
 
 Commit:
 - `fix: rebind video playback item observers`
+
+## Phase 12.8 — Audio Gain
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED — attenuation only; positive gain is intentionally NOT IMPLEMENTED.
+
+Implemented:
+- 审核并移除了将 +12 dB 映射到大于 1 `AVAudioMix` volume 的错误实现。`VideoAudioGain` 统一把 audio level 限制为 `-60...0 dB`，线性 volume 永远在 `0...1`。
+- 编辑器名称改为“音量 / 衰减”，只显示 `-60...0 dB`，并明确提示正增益需要带 limiter 的独立音频处理管线。
+- 旧 `VideoEditState` JSON 的正 gain 在 decode 时归一为 0 dB；渲染管线同样经统一 helper 取值，因此不会因旧 Catalog state 生成超 unity audio mix。
+- 新增 `VideoAudioTests`，覆盖 -60/-6/0 dB 转换、+6/+12 dB 安全归一和 legacy JSON 正值迁移；未伪称实际 +dB、limiter、peak 或 normalisation 已实现。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；65 tests, 0 failures。专项 `VideoAudioTests` 2 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — UI、持久化解码与 `AVAudioMix` 实现均只输出 0...1 的 attenuation envelope；不会再以 +dB label 或超 unity volume 假装支持正增益。P0/P1 阻塞问题已修复并完成复测。
+
+Regression:
+PASS — 全量 65 项测试覆盖 Phase 0–12.7 的 Catalog、资料库、照片/RAW/LUT、导出、视频编辑、fade、Proxy、geometry、preview state、item observer 与局部蒙版能力，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的含音轨 MOV/MP4 听检 0/-6/-60 dB、mute、trim/speed 后 audio sync 以及淡入淡出；真实音频 fixture、扬声器/耳机响度和外置盘不进入仓库。
+
+Production Readiness:
+PARTIAL — attenuation 数学、legacy state 归一和 AVAudioMix 边界已自动验证；含音轨的真实导出/听检仍需人工核验。
+
+Known Limitations:
+- Positive gain、limiter、peak metering、normalisation、AVAudioEngine/MTAudioProcessingTap/offline audio render 均为 NOT IMPLEMENTED，不能声称 +6/+12 dB 无削波。
+- HDR video 编辑/导出及 HDR video 色彩管线仍明确不支持。
+
+Commit:
+- `fix: restrict video audio gain to attenuation`
