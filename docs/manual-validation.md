@@ -10,6 +10,8 @@ automatically marked as passed by unit tests.
 - [ ] HEIC: import, thumbnail, edit, export and ICC profile round trip.
 - [ ] PNG and TIFF: import, edit and export.
 - [ ] sRGB and Display P3: compare preview and exported file on a colour-managed display.
+- [ ] Technical LUT: use a user-authorised, correctly declared sRGB/Display P3/Rec.709/Rec.2020 source and LUT; compare the transform with a ColorSync-aware reference application and confirm source files remain unchanged.
+- [ ] Technical LUT safety: select correctly catalogued S-Log3, HLG and PQ Technical LUTs and confirm the app rejects application with the stated unsupported-encoding error instead of approximating the result.
 - [ ] 24 MP and 48 MP images: sustained slider interaction, cancellation, memory and full-resolution export.
 
 ## RAW

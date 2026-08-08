@@ -583,3 +583,43 @@ Known Limitations:
 
 Commit:
 - `fix: establish linear photo working space`
+
+## Phase 12.3 — Technical LUT Correctness
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- Technical LUT 不再只校验 metadata：对 ColorSync 可表达的标准 SDR contract，先将原始 profile-attached source 实际转换为 metadata.input，再在无隐式 colour matching 的半浮点 context 中执行 cube，最后将 metadata.output 的 ICC profile 附着到 cube 原始输出并送入共用线性 working pipeline。
+- 明确支持 sRGB、Display P3、Rec.709、Rec.2020 及相应 standard transfer descriptor；Rec.2020 SDR 默认归一化为 Rec.709 transfer，避免错误标为 sRGB gamma。
+- S-Log3、HLG、PQ 或任意非系统 ColorSync profile 可可靠表达的 Technical LUT contract 会在应用前被拒绝并给出明确错误，不会以 sRGB/Rec.709 近似、也不会在错误编码中套用。
+- 新增针对 unsupported transfer rejection 和 bridge 输出实际携带 declared output ICC profile 的自动化测试；更新色彩管线与人工核验文档。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；56 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — metadata.input 与 source descriptor 仍严格完全匹配；metadata.output 现在实际参与渲染图的 ICC contract，而不是只记录在 state 中。
+PASS — Technical LUT 与 Creative LUT 槽位保持隔离；无可靠系统 bridge 的 Log/HDR transfer 安全拒绝。P0/P1 阻塞问题已修复并复测通过。
+
+Regression:
+PASS — 全量 56 项测试覆盖 Phase 0–12.2 的 Catalog、资料库、照片/RAW/LUT、输出 ICC、视频、Proxy 与局部蒙版能力。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 以用户授权且正确声明的 sRGB、Display P3、Rec.709 与 Rec.2020 Technical LUT/reference media 对照 ColorSync-aware 参考应用；并验证 S-Log3、HLG、PQ contract 的拒绝提示。清单见 `docs/manual-validation.md`。
+
+Production Readiness:
+PARTIAL — 标准 SDR Technical LUT 已有可执行、可测试的 ColorSync bridge；S-Log3、HLG、PQ 仍有意不支持，直至建立并以真实参考素材验证专用曲线实现。
+
+Known Limitations:
+- S-Log3/S-Gamut3.Cine、HLG、PQ Technical LUT 不能套用；应用会安全失败而非错误调色。
+- HDR gain-map still export、HDR video edit/export 仍明确不支持。
+
+Commit:
+- `fix: enforce technical lut color contracts`

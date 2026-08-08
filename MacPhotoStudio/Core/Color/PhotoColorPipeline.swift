@@ -104,9 +104,22 @@ struct PhotoColorDescriptor: Codable, Sendable, Equatable, Hashable {
 
     var title: String { "\(colorSpace.title) · \(transferFunction.title)" }
 
+    /// A descriptor is safe for the Phase 12.3 Technical LUT bridge only when
+    /// its transfer function is represented by an Apple-provided ColorSync
+    /// profile. S-Log3, PQ and HLG need a different, explicitly validated
+    /// colour-management implementation and must not be approximated here.
+    var colorSyncColorSpace: CGColorSpace? {
+        guard transferFunction == colorSpace.defaultTransferFunction else { return nil }
+        return colorSpace.cgColorSpace
+    }
+
+    var supportsColorSyncTechnicalWorkflow: Bool {
+        colorSyncColorSpace != nil
+    }
+
     static func inferred(fromProfileName profileName: String?) -> Self {
         let profile = profileName?.lowercased() ?? ""
-        let transfer: PhotoTransferFunction
+        var transfer: PhotoTransferFunction
         if profile.contains("s-log3") || profile.contains("slog3") {
             transfer = .sLog3
         } else if profile.contains("hlg") {
@@ -132,6 +145,12 @@ struct PhotoColorDescriptor: Codable, Sendable, Equatable, Hashable {
             colorSpace = .linearSRGB
         } else {
             colorSpace = .sRGB
+        }
+        // SDR BT.2020 uses the BT.709 transfer curve. Image profile names often
+        // only mention "Rec.2020", so normalize that otherwise ambiguous case
+        // instead of tagging the source as Rec.2020 primaries with sRGB gamma.
+        if colorSpace == .rec2020, transfer == .sRGB {
+            transfer = .rec709
         }
         return Self(colorSpace: colorSpace, transferFunction: transfer)
     }
@@ -186,6 +205,12 @@ struct ColorPipelinePlan: Sendable, Equatable {
             }
             guard metadata.input == source else {
                 throw StudioError.invalidLUT(message: "Technical LUT 期望 \(metadata.input.title)，当前源为 \(source.title)。")
+            }
+            guard metadata.input.supportsColorSyncTechnicalWorkflow,
+                  metadata.output.supportsColorSyncTechnicalWorkflow else {
+                throw StudioError.invalidLUT(
+                    message: "Technical LUT 的 \(metadata.input.title) → \(metadata.output.title) 编码无法由当前 ColorSync bridge 可靠转换；已拒绝套用，避免错误调色。"
+                )
             }
         }
         if let creativeLUT, creativeLUT.kind != .creative {
@@ -270,10 +295,20 @@ enum PhotoColorPipeline {
         // the filters below.
         var image = source
 
-        // Working → Technical Transform. The metadata validation above makes an
-        // S-Log3→Rec.709 LUT impossible to accidentally apply to an sRGB JPEG.
+        // Technical LUTs are a specialised bridge: materialise the original
+        // source into the declared input encoding, evaluate the cube without
+        // implicit colour matching, attach the declared output ICC, then let
+        // the normal renderer match that output into the shared working space.
         if let technicalLUT, let application = state.technicalLUT {
-            image = LUTProcessor.apply(technicalLUT, to: image, strength: application.clampedStrength)
+            guard let metadata = technicalLUT.technicalMetadata else {
+                throw StudioError.invalidLUT(message: "Technical LUT 缺少输入/输出色彩元数据。")
+            }
+            image = try TechnicalLUTProcessor.apply(
+                technicalLUT,
+                to: image,
+                metadata: metadata,
+                strength: application.clampedStrength
+            )
         }
 
         // Creative adjustments → Creative LUT → Output Transform.
@@ -288,5 +323,70 @@ enum PhotoColorPipeline {
             image = HDRToneMapper.toneMapToSDR(image)
         }
         return (image, plan)
+    }
+}
+
+/// Applies a Technical LUT in its declared input/output encodings. A normal
+/// `CIColorCube` in the app's linear working context would otherwise ignore
+/// the metadata and evaluate the LUT against the wrong code values.
+enum TechnicalLUTProcessor {
+    static func apply(
+        _ lut: CubeLUT,
+        to source: CIImage,
+        metadata: TechnicalLUTMetadata,
+        strength: Double
+    ) throws -> CIImage {
+        let normalizedStrength = min(max(strength, 0), 1)
+        guard normalizedStrength > 0 else { return source }
+        guard let inputColorSpace = metadata.input.colorSyncColorSpace,
+              let outputColorSpace = metadata.output.colorSyncColorSpace else {
+            throw StudioError.invalidLUT(
+                message: "Technical LUT 的输入或输出编码未得到当前 ColorSync bridge 支持。"
+            )
+        }
+        let extent = source.extent.integral
+        guard !extent.isEmpty else {
+            throw StudioError.invalidLUT(message: "Technical LUT 没有可处理的图像范围。")
+        }
+
+        // This first render performs a genuine ColorSync conversion from the
+        // source attachment into the LUT's declared input encoding.
+        let inputContext = CIContext(options: [
+            .workingColorSpace: inputColorSpace,
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ])
+        guard let inputImage = inputContext.createCGImage(
+            source,
+            from: extent,
+            format: .RGBAh,
+            colorSpace: inputColorSpace
+        ) else {
+            throw StudioError.invalidLUT(message: "无法转换 Technical LUT 的输入色彩空间。")
+        }
+
+        // A cube maps encoded RGB numbers. Disable implicit working/output
+        // matching for this exact operation, then explicitly label its raw
+        // result with the LUT's declared output profile.
+        let rawContext = CIContext(options: [
+            .workingColorSpace: NSNull(),
+            .outputColorSpace: NSNull(),
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ])
+        let encodedInput = CIImage(cgImage: inputImage)
+        let encodedOutput = LUTProcessor.apply(lut, to: encodedInput, strength: normalizedStrength)
+        guard let outputImage = rawContext.createCGImage(
+            encodedOutput,
+            from: extent,
+            format: .RGBAh,
+            colorSpace: outputColorSpace
+        ) else {
+            throw StudioError.invalidLUT(message: "无法写入 Technical LUT 的输出色彩空间。")
+        }
+        // `rawContext` intentionally leaves the cube's RGB code values
+        // untouched. Re-attaching the declared output profile tells the next
+        // renderer exactly how to interpret those values, so its normal
+        // working/output ColorSync conversion is based on LUT metadata rather
+        // than the original source profile.
+        return CIImage(cgImage: outputImage, options: [.colorSpace: outputColorSpace])
     }
 }

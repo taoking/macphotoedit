@@ -55,6 +55,50 @@ final class ColorManagementTests: XCTestCase {
         }
     }
 
+    func testTechnicalLUTRejectsTransferFunctionsWithoutValidatedColorSyncBridge() throws {
+        let unsupported = try technicalIdentityLUT(
+            metadata: TechnicalLUTMetadata(
+                input: PhotoColorDescriptor(colorSpace: .rec2020, transferFunction: .sLog3),
+                output: .rec709
+            )
+        )
+        XCTAssertThrowsError(try ColorPipelinePlan.make(
+            source: PhotoColorDescriptor(colorSpace: .rec2020, transferFunction: .sLog3),
+            settings: .sdr,
+            technicalLUT: unsupported,
+            creativeLUT: nil
+        )) { error in
+            XCTAssertTrue(error.localizedDescription.contains("ColorSync bridge"))
+        }
+    }
+
+    func testTechnicalLUTMaterializesItsDeclaredOutputColorSpace() throws {
+        let technical = try technicalIdentityLUT(
+            metadata: TechnicalLUTMetadata(input: .displayP3, output: .rec709)
+        )
+        let source = CIImage(color: CIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 12, height: 8))
+        let bridged = try TechnicalLUTProcessor.apply(
+            technical,
+            to: source,
+            metadata: try XCTUnwrap(technical.technicalMetadata),
+            strength: 1
+        )
+        let technicalOutputColorSpace = try XCTUnwrap(bridged.colorSpace)
+        XCTAssertTrue(PhotoColorSpace.rec709.matchesEmbeddedProfile(of: technicalOutputColorSpace))
+
+        var state = PhotoEditState.identity
+        state.technicalLUT = LUTApplication(identifier: technical.id, strength: 1)
+        let rendered = try PhotoColorPipeline.apply(
+            source: source,
+            state: state,
+            sourceColor: .displayP3,
+            technicalLUT: technical,
+            creativeLUT: nil
+        )
+        XCTAssertEqual(rendered.plan.technicalTransform, technical.technicalMetadata)
+    }
+
     func testPhotoRenderContextsUseExplicitExtendedLinearWorkingSpace() {
         let context = RendererContextFactory.makeContext()
         let workingColorSpace = try? XCTUnwrap(context.workingColorSpace)
