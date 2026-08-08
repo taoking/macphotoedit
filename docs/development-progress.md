@@ -1448,15 +1448,16 @@ Implemented:
 - 工作流最小权限为 `contents: read`，没有 secrets、媒体上传或生成文件归档。`docs/**` 和 `plan.md` 的纯文档 push 不重复消耗 macOS runner；任何代码、工程或 workflow 变化仍会触发门禁。
 - 新增 `docs/ci.md`，并在 README 中链接，记录本地与 GitHub-hosted runner/Xcode 矩阵以及工具链漂移时的可见失败策略。
 - 首次远端运行 `31267655377` 真实暴露了 AAC 轨时长元数据的跨 runner 量化差异：`VideoExportAudioTests` 的固定 −40 ms 下限会把三个 AAC access unit 以内的 encoder priming/padding 误判为 A/V 失步。测试现改为读取实际输出 AAC access-unit size 和 sample rate，以三个 packet 为严格、可解释的双向边界；仍检查音轨存在、起点与视频对齐及输出/视频时长。远端复验待本次修复推送后完成。
+- 第二次远端运行 `31267896166` 继续执行到 `VideoPlaybackSessionTests`，并显示该测试在 `AVPlayerItem.status` 变为 ready 后、KVO 回调异步回填时长前就读取 `session.duration`。测试现等待 ready 和非零时长两个真实完成条件，仍严格断言时长为 1 秒以及新 item 的结束观察者行为；不会掩盖加载失败或错误时长。
 
 Tests:
-PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。完整 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（24.81 秒）。
+PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。`VideoPlaybackSessionTests` 连续运行 5 次，均为 1 test, 0 failures。完整 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（22.72 秒）。
 
 Build:
 PASS (local) — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
 
 Acceptance:
-PENDING — 初次 GitHub-hosted `macos-26` run 的确执行并失败（105 tests 中 1 个 AAC packet-quantization 断言）；原因已在本地修复且复测通过。必须等待修复提交的完整远端 test + Debug build 成功，不能将本地结果伪装为远端 CI 结果。
+PENDING — 初次 GitHub-hosted `macos-26` run 的确执行并失败（105 tests 中 1 个 AAC packet-quantization 断言）；第二次 retry 发现并未丢失、而是暴露出 `AVPlayerItem` KVO 回填时序的测试竞态。两项原因均须在本地复测后等待新的完整远端 test + Debug build 成功；不能将本地结果伪装为远端 CI 结果。
 
 Regression:
 PASS (local) — 当前全部 105 项自动化回归通过；远程 CI retry status 待记录。
@@ -1466,8 +1467,9 @@ NOT REQUIRED — 本阶段 CI workflow 不读取真实媒体，也不依赖外�
 
 Known Limitations:
 - GitHub-hosted runner image 会更新；workflow 故意固定 `macos-26` 和 Xcode 26.6 path，镜像移除该 path 会失败并要求显式更新矩阵。
-- 初次远程运行 `31267655377` 已记录为失败，原因是 AAC access-unit 元数据量化，不是被忽略的 CI 失败；修复后的运行仍未完成，因此本阶段不能标记为完成。
+- 初次远程运行 `31267655377`（AAC access-unit 元数据量化）与第二次 `31267896166`（AVPlayerItem KVO 回填时序）均已记录为失败，不会被忽略；最新修复的运行仍未完成，因此本阶段不能标记为完成。
 
 Commit:
 - `ci: add macos regression gate`
-- Pending — `test: account for AAC export packet quantization`
+- `test: account for AAC export packet quantization`
+- Pending — `test: wait for playback item metadata`

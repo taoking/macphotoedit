@@ -24,7 +24,7 @@ final class VideoPlaybackSessionTests: XCTestCase {
 
         let replacement = AVPlayerItem(url: sourceURL)
         session.replaceCurrentItem(with: replacement, duration: 0)
-        for _ in 0..<100 where replacement.status == .unknown {
+        for _ in 0..<100 where replacement.status == .unknown || session.duration <= 0 {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(replacement.status, .readyToPlay)
