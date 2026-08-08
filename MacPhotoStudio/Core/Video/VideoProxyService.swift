@@ -25,7 +25,8 @@ actor VideoProxyService {
     }
 
     func proxyURL(for asset: LibraryAssetRecord) async throws -> URL? {
-        guard asset.mediaType == .video, asset.videoIsHDR != true,
+        guard asset.mediaType == .video,
+              (asset.videoIsHDR != true || HDRVideoCapabilities.supportsProxy),
               let record = try await catalogStore.videoProxy(for: asset.id),
               record.sourceFileSize == asset.fileSize,
               datesMatch(record.sourceModifiedAt, asset.modifiedAt)
@@ -46,8 +47,8 @@ actor VideoProxyService {
         guard asset.mediaType == .video else {
             throw StudioError.exportFailed(message: "只能为视频生成 Proxy。")
         }
-        guard asset.videoIsHDR != true else {
-            throw StudioError.exportFailed(message: "HDR 视频 Proxy 需要保留 HDR 色彩契约，将在后续 HDR 视频路径中实现。")
+        guard asset.videoIsHDR != true || HDRVideoCapabilities.supportsProxy else {
+            throw StudioError.exportFailed(message: "HDR 视频 Proxy 不受支持（Unsupported），因为当前 Proxy 路径无法保留经验证的 HDR 色彩契约。")
         }
         guard FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false)) else {
             throw StudioError.exportFailed(message: "找不到需要生成 Proxy 的原始视频。")

@@ -93,16 +93,27 @@ metadata remains possible for cataloguing, but applying that Technical LUT is
 rejected with a clear error. The app does not approximate those curves as
 sRGB/Rec.709 or silently apply a cube in the wrong encoding.
 
-## HDR and SDR
+## Extended range, HDR and SDR capability boundary
 
-The HDR editor path renders a half-float TIFF preview into an AppKit layer with
-`wantsExtendedDynamicRangeContent` enabled. On an HDR-capable display this
-preserves extended-range content; macOS performs the appropriate mapping on an
-SDR display. SDR output applies `CIToneMapHeadroom` when available, with a
-highlight-compression fallback.
+The persisted `.hdr` preview option is deliberately labelled **Extended Range
+Preview (not HDR export)** in the UI. Its renderer creates a half-float TIFF,
+but the AppKit view enables `wantsExtendedDynamicRangeContent` only when the
+actual window screen reports
+`maximumPotentialExtendedDynamicRangeColorComponentValue > 1`. On an SDR
+screen the layer remains in the normal system SDR tone-mapping path. The
+automated policy test covers the headroom threshold; luminance, display
+headroom and visual matching require the HDR-display manual checklist.
 
-The current portable ImageIO encoder path intentionally reports HDR still
-export as unavailable: it does not have a cross-version reliable HDR gain-map
-writer. Selecting HDR export fails clearly rather than creating an 8-bit
-JPEG/HEIC/TIFF incorrectly labelled as HDR. SDR JPEG, HEIF and TIFF exports
-remain supported and take the user-selected output colour space.
+This is not an HDR mastering pipeline. The current portable ImageIO encoder
+intentionally reports HDR still / gain-map export as **Unsupported**: it has no
+cross-version reliable gain-map writer. Selecting HDR export fails clearly
+rather than creating an 8-bit JPEG/HEIC/TIFF incorrectly labelled as HDR. SDR
+output applies `CIToneMapHeadroom` when available, with a
+highlight-compression fallback; SDR JPEG, HEIF and TIFF retain their selected
+ColorSync output profile.
+
+Likewise, HLG, PQ, Rec.2020 and an HDR badge are metadata or colour-space
+descriptions, not evidence of an implemented HDR video workflow. Detected HDR
+video may use native AVPlayer playback only. HDR video editing, export, Proxy
+generation and video Technical LUT processing are all **Unsupported** because
+the present AVFoundation paths cannot preserve a verified HDR colour contract.

@@ -41,5 +41,5 @@ automatically marked as passed by unit tests.
 
 ## HDR / display
 
-- [ ] On an HDR-capable macOS display, verify extended-range still preview remains visually correct.
-- [ ] Confirm HDR still export and HDR video editing remain unavailable rather than being silently converted or mislabelled.
+- [ ] On an HDR-capable macOS display, move the editor window between HDR and SDR screens and verify extended-range still preview only gains EDR headroom on the HDR screen while the SDR screen remains system tone-mapped.
+- [ ] Confirm HDR still / gain-map export, HDR video editing, HDR video export and HDR Proxy generation remain unavailable rather than being silently converted or mislabelled; native HDR video playback may remain available.

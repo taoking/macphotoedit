@@ -171,7 +171,10 @@ enum PhotoDynamicRange: String, Codable, Sendable, CaseIterable, Identifiable {
     case hdr
 
     var id: String { rawValue }
-    var title: String { self == .sdr ? "SDR" : "HDR（扩展动态范围）" }
+    /// `.hdr` is a persisted name retained for compatibility. The current
+    /// product only offers an extended-range *preview* request; it does not
+    /// claim HDR mastering or an HDR still-image export format.
+    var title: String { self == .sdr ? "SDR" : "扩展范围预览（非 HDR 导出）" }
 }
 
 struct PhotoColorPipelineSettings: Codable, Sendable, Equatable {
@@ -243,16 +246,36 @@ struct ColorPipelinePlan: Sendable, Equatable {
 }
 
 enum HDRPhotoCapabilities {
-    /// The app has a real extended-range preview path (half-float CI rendering
-    /// plus an EDR-capable AppKit layer). Actual luminance/headroom is still a
-    /// property of the user's display and is therefore manually verified.
-    static let supportsExtendedRangePreview = true
+    /// The app contains a real half-float TIFF + AppKit EDR preview path. It is
+    /// deliberately separate from whether the window's current screen has EDR
+    /// headroom, which must be checked at the AppKit boundary.
+    static let hasExtendedRangePreviewPath = true
+
+    /// `NSScreen.maximumPotentialExtendedDynamicRangeColorComponentValue` is
+    /// greater than one only when the display is capable of EDR. Keeping this
+    /// pure makes the capability policy testable without claiming that the CI
+    /// host or an arbitrary external display is HDR-capable.
+    static func supportsExtendedRangePreview(potentialHeadroom: CGFloat) -> Bool {
+        hasExtendedRangePreviewPath && potentialHeadroom > 1.0
+    }
 
     /// ImageIO's portable still-image APIs used by this app do not expose a
     /// reliable HDR gain-map writer on every supported macOS release. Returning
     /// false is deliberate: callers must tone-map to SDR rather than label an
     /// ordinary 8-bit HEIC/TIFF/JPEG as HDR.
+    static let supportsHDRGainMapExport = false
     static let supportsHDRExport = false
+}
+
+/// AVFoundation can natively play detected HDR sources, but the editing,
+/// proxy and export pipeline is SDR-only. Keep these capability declarations
+/// central so labels such as HLG, PQ or Rec.2020 cannot be mistaken for HDR
+/// production support.
+enum HDRVideoCapabilities {
+    static let supportsNativePlayback = true
+    static let supportsEditing = false
+    static let supportsExport = false
+    static let supportsProxy = false
 }
 
 enum HDRToneMapper {

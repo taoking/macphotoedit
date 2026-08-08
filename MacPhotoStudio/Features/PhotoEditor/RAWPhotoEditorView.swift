@@ -244,7 +244,7 @@ struct RAWPhotoEditorView: View {
                 ForEach(PhotoDynamicRange.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.menu)
-            Text("RAW 解码后的标准照片管线与普通照片相同：HDR 预览保留扩展范围；导出仍只允许可验证的 SDR 输出。")
+            Text("RAW 解码后的标准照片管线与普通照片相同：扩展范围预览仅在 EDR 显示器上启用；HDR gain-map 导出不受支持，导出仍只允许可验证的 SDR 输出。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

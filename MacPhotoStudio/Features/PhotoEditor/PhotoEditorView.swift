@@ -533,7 +533,7 @@ struct PhotoEditorView: View {
             }
             .pickerStyle(.menu)
             Text(editor.state.colorPipeline.dynamicRange == .hdr
-                ? "HDR 预览保留扩展范围；SDR 屏幕由系统色调映射。当前 ImageIO 导出仅允许真实 SDR，避免伪 HDR 文件。"
+                ? "扩展范围预览只会在当前窗口所在显示器具备 EDR headroom 时启用；其它显示器由系统映射为 SDR。HDR gain-map 导出不受支持。"
                 : "SDR 输出由 ColorSync 转换到所选输出色彩空间。")
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -25,11 +25,11 @@ struct VideoPreviewSheet: View {
                         .foregroundStyle(.orange)
                 }
                 Button("编辑") { editorAsset = asset }
-                    .disabled(session == nil || asset.videoIsHDR == true)
+                    .disabled(session == nil || (asset.videoIsHDR == true && !HDRVideoCapabilities.supportsEditing))
                     .help(asset.videoIsHDR == true
-                        ? "当前 SDR 编辑管线不会处理 HDR 视频；仍可原生播放原视频。"
+                        ? "HDR 视频编辑不受支持（Unsupported）；当前 SDR 编辑管线不会处理 HDR 视频，仍可原生播放原视频。"
                         : "编辑此视频")
-                if asset.videoIsHDR != true {
+                if asset.videoIsHDR != true || HDRVideoCapabilities.supportsProxy {
                     Button(isGeneratingProxy ? "正在生成 Proxy…" : "生成 Proxy") {
                         Task {
                             isGeneratingProxy = await applicationModel.startVideoProxyGeneration(for: asset) != nil

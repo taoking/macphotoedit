@@ -162,6 +162,20 @@ final class ColorManagementTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
     }
 
+    func testHDRCapabilityAuditKeepsDisplayAndProductionClaimsSeparate() {
+        XCTAssertTrue(HDRPhotoCapabilities.hasExtendedRangePreviewPath)
+        XCTAssertFalse(HDRPhotoCapabilities.supportsExtendedRangePreview(potentialHeadroom: 1.0))
+        XCTAssertTrue(HDRPhotoCapabilities.supportsExtendedRangePreview(potentialHeadroom: 1.01))
+        XCTAssertFalse(HDRPhotoCapabilities.supportsHDRGainMapExport)
+        XCTAssertFalse(HDRPhotoCapabilities.supportsHDRExport)
+
+        XCTAssertTrue(HDRVideoCapabilities.supportsNativePlayback)
+        XCTAssertFalse(HDRVideoCapabilities.supportsEditing)
+        XCTAssertFalse(HDRVideoCapabilities.supportsExport)
+        XCTAssertFalse(HDRVideoCapabilities.supportsProxy)
+        XCTAssertEqual(PhotoDynamicRange.hdr.title, "扩展范围预览（非 HDR 导出）")
+    }
+
     private func technicalIdentityLUT(metadata: TechnicalLUTMetadata) throws -> CubeLUT {
         var lut = try CubeLUTParser.parse(data: identityCubeData(dimension: 17))
         lut.kind = .technical

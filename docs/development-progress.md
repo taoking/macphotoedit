@@ -858,3 +858,43 @@ Known Limitations:
 
 Commit:
 - `fix: verify video export audio pipeline`
+
+## Phase 12.10 — HDR Capability Audit
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED — capability declarations and UI labels now distinguish extended-range preview from HDR production support.
+
+Implemented:
+- 审核 `HDRPhotoCapabilities`、`ExtendedRangeImageView`、ImageIO still export、HDR video metadata、编辑/导出/Proxy 服务和相关 UI。原有 HDR still gain-map export、HDR video editing/export/Proxy 均保持 `Unsupported`；检测到 HDR 的视频仍只可走原生播放。
+- 移除了把扩展范围预览写死为可用的声明。`EDRImageView` 现在读取其实际 window screen 的 `maximumPotentialExtendedDynamicRangeColorComponentValue`，只有 headroom 大于 1 且用户请求扩展范围时才设置 `wantsExtendedDynamicRangeContent`；窗口移动或 backing display 变化时重新评估。
+- `.hdr` 持久化值保持兼容，但 UI 改为“扩展范围预览（非 HDR 导出）”。照片/RAW/批量导出文本明确 HDR gain-map 不受支持，避免把 Display P3、Rec.2020、PQ、HLG 或 HDR 标签误读为完成了 HDR 文件工作流。
+- 新增集中 `HDRVideoCapabilities`，并将编辑、导出和 Proxy 的服务/UI guard 绑定到明确为 false 的能力；修正旧错误信息中“将在 Phase 10 提供”的过期承诺。
+- 更新色彩管线和人工验证文档，明确实际 EDR headroom、HDR 显示器与真实 HLG/PQ 素材只能人工确认。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/ColorManagementTests`；9 tests, 0 failures。新增能力审计测试覆盖 SDR/EDR headroom 边界、still gain-map export 与 HDR video capability 均为 Unsupported，以及 UI 标签语义。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 应用不再以固定 true 声称任何显示器均可 EDR；HDR gain-map still export、HDR video editing/export/Proxy 与 video Technical LUT 没有完整实现时均保持明确 Unsupported。P0/P1 阻塞问题已修复并完成全量复测。
+
+Regression:
+PASS — 全量 67 项测试，0 failures，覆盖 Phase 0–12.10 的 Catalog、照片/RAW/LUT、SDR 导出、视频编辑/Proxy、实际含音轨导出、EDR headroom 能力策略和 HDR Unsupported guard；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 在真实 HDR 和 SDR 显示器之间移动编辑窗口，检查 EDR headroom、系统 tone mapping 与视觉亮度；以用户授权的 HLG/PQ/BT.2100 still/video 验证 metadata、原生播放及所有 Unsupported guard。此仓库不包含 HDR display、真实 HDR 媒体或 gain-map fixture。
+
+Production Readiness:
+PARTIAL — SDR ColorSync 导出和显示器感知的扩展范围预览请求具备明确边界；HDR still gain map、HDR video pipeline、HDR mastering/metadata write 与硬件视觉校准未实现。
+
+Known Limitations:
+- EDR headroom 依赖当前窗口所在显示器和 macOS；自动化只验证阈值策略，不能测量实际峰值亮度、色彩或能耗。
+- HLG/PQ/Rec.2020 标记不会打开 HDR 编辑、导出、Proxy 或 video Technical LUT；这些功能均为 NOT IMPLEMENTED。
+
+Commit:
+- `fix: audit hdr capability boundaries`

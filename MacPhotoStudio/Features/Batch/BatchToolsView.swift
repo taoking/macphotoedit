@@ -242,8 +242,8 @@ struct BatchExportSheet: View {
                 Toggle("保留元数据", isOn: $keepsMetadata)
                 Toggle("移除 GPS 位置", isOn: $removesGPS)
                     .disabled(!keepsMetadata)
-                if !HDRPhotoCapabilities.supportsHDRExport {
-                    Text("此 macOS 的安全 ImageIO 路径不提供可靠 HDR gain-map 写入；批量导出会执行真实 SDR 色调映射，而不会伪标为 HDR。")
+                if !HDRPhotoCapabilities.supportsHDRGainMapExport {
+                    Text("HDR gain-map 批量导出不受支持；此 macOS 的安全 ImageIO 路径只会写出真实 SDR，不会伪标为 HDR。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

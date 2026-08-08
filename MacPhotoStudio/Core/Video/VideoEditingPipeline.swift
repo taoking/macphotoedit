@@ -480,8 +480,8 @@ final class VideoEditingService {
         guard asset.mediaType == .video else {
             throw StudioError.exportFailed(message: "只能导出视频媒体。")
         }
-        guard asset.videoIsHDR != true else {
-            throw StudioError.exportFailed(message: "HDR 视频编辑与导出将在 Phase 10 提供；当前不会以 SDR 管线错误处理 HDR 源文件。")
+        guard asset.videoIsHDR != true || (HDRVideoCapabilities.supportsEditing && HDRVideoCapabilities.supportsExport) else {
+            throw StudioError.exportFailed(message: "HDR 视频编辑和导出不受支持（Unsupported）；当前不会以 SDR 管线错误处理 HDR 源文件。")
         }
         guard let root = try await catalogStore.mediaRoot(id: asset.rootID) else {
             throw StudioError.mediaRootNotFound(id: asset.rootID)

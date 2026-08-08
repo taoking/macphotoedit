@@ -25,7 +25,7 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 12.7 — PlayerItem Observer
 - [x] Phase 12.8 — Audio Gain
 - [x] Phase 12.9 — Video Export Reliability
-- [ ] Phase 12.10 — HDR Capability Audit
+- [x] Phase 12.10 — HDR Capability Audit
 - [ ] Phase 12.11 — ApplicationModel Refactor
 - [ ] Phase 12.12 — Photo Pipeline Performance
 - [ ] Phase 12.13 — Local Mask Canvas UX

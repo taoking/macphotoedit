@@ -2,9 +2,10 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-/// AppKit owns the backing layer used for the editor preview. Opting that layer
-/// into EDR lets a half-float TIFF preview reach a compatible HDR display while
-/// retaining normal system tone mapping on an SDR display.
+/// AppKit owns the backing layer used for the editor preview. The layer opts
+/// into EDR only when its actual window screen reports headroom above SDR;
+/// otherwise Core Animation keeps the preview on its normal SDR tone-mapping
+/// path. This is a preview capability, not an HDR export contract.
 struct ExtendedRangeImageView: NSViewRepresentable {
     let image: NSImage
     let enablesExtendedRange: Bool
@@ -44,8 +45,16 @@ final class EDRImageView: NSImageView {
         updateEDRMode()
     }
 
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateEDRMode()
+    }
+
     private func updateEDRMode() {
         wantsLayer = true
-        layer?.wantsExtendedDynamicRangeContent = wantsExtendedRange
+        let potentialHeadroom = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
+        layer?.wantsExtendedDynamicRangeContent = HDRPhotoCapabilities.supportsExtendedRangePreview(
+            potentialHeadroom: potentialHeadroom
+        ) && wantsExtendedRange
     }
 }

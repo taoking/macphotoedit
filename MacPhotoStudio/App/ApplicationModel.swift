@@ -403,7 +403,7 @@ final class ApplicationModel: ObservableObject {
             libraryError = "请选择一个可导出的视频。"
             return nil
         }
-        guard asset.videoIsHDR != true else {
+        guard asset.videoIsHDR != true || (HDRVideoCapabilities.supportsEditing && HDRVideoCapabilities.supportsExport) else {
             libraryError = "当前编辑与导出管线仅支持 SDR；HDR 视频保持原生播放，不会用 SDR 管线处理。"
             return nil
         }
@@ -476,7 +476,7 @@ final class ApplicationModel: ObservableObject {
             libraryError = "请选择一个当前可访问的视频生成 Proxy。"
             return nil
         }
-        guard asset.videoIsHDR != true else {
+        guard asset.videoIsHDR != true || HDRVideoCapabilities.supportsProxy else {
             libraryError = "HDR 视频 Proxy 需要保留 HDR 色彩契约；当前不会使用 SDR Proxy 替代原视频。"
             return nil
         }

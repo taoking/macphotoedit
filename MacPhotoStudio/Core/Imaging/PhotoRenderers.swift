@@ -150,8 +150,8 @@ enum ImageFileExporter {
         guard options.format.isSupported else {
             throw StudioError.exportFailed(message: "系统不支持 \(options.format.title) 编码。")
         }
-        if options.dynamicRange == .hdr, !HDRPhotoCapabilities.supportsHDRExport {
-            throw StudioError.exportFailed(message: "此 macOS ImageIO 导出路径无法可靠写入 HDR gain map；请导出 SDR 色调映射结果，避免生成被误标为 HDR 的文件。")
+        if options.dynamicRange == .hdr, !HDRPhotoCapabilities.supportsHDRGainMapExport {
+            throw StudioError.exportFailed(message: "HDR still / gain-map 导出不受支持（Unsupported）：此 macOS ImageIO 路径无法可靠写入 HDR gain map；请导出 SDR 色调映射结果，避免生成被误标为 HDR 的文件。")
         }
         if let sourceURL,
            sourceURL.standardizedFileURL.resolvingSymlinksInPath() == destinationURL.standardizedFileURL.resolvingSymlinksInPath() {
