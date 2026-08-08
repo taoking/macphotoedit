@@ -1237,3 +1237,36 @@ Known Limitations:
 
 Commit:
 - `feat: add RAW media diagnostics`
+
+## Phase 16.5 — Still Image Color Real Validation
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增 **File → 运行静态图像色彩验证…**。用户授权 JPEG、HEIC/HEIF、PNG 或 TIFF 源文件与输出文件夹后，`StillImageColorDiagnosticService` 只读源图，并在唯一新建的用户输出子目录中，对 sRGB、Display P3、Rec.709、Rec.2020 SDR 分别执行真实 preview 及 JPEG、HEIF/HEIC（系统支持时）、TIFF full-resolution export。
+- 每个 preview 的编码数据和每张新导出图均由 ImageIO 重新打开；报告记录实际 profile 名、严格 ICC payload 与请求输出的匹配结果、输入 descriptor、输出目录与源签名。任何缺失或未知的源 ICC 都会被记录并停止矩阵，不会猜测为 sRGB。
+- 新增 `docs/still-image-color-validation.md` 与详细手工清单。Rec.2020 明确保持 BT.709 transfer 的 SDR 路径，绝不声称 HDR、PQ、HLG 或 gain-map 导出。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/StillImageColorDiagnosticTests -only-testing:MacPhotoStudioTests/ColorOutputTests`；4 tests, 0 failures。新增测试创建带 sRGB ICC 的临时 PNG，并实际执行四种 preview、每个系统支持 JPEG/HEIF/TIFF encoder、逐项 ImageIO 重读与源字节不变；覆盖不支持输入的失败关闭。既有全输出格式 ICC round-trip 测试保留。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — 诊断命令、全 SDR 输出矩阵、ImageIO 重读与严格 ICC 验证已实际运行；所有输出都在用户选定目录的新子目录中，不会覆盖来源或已有文件。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 96 tests, 0 failures，覆盖 Phase 0–16.5 的 Catalog、资料库、照片/RAW、LUT、色彩、局部蒙版、视频、HDR guard 与相似照片检测。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 当前仓库不含用户的 JPEG sRGB/P3、HEIC sRGB/P3、PNG、TIFF 或真实色彩管理显示器。按 `docs/still-image-color-validation.md` 对每种来源运行命令，使用 ColorSync-aware 参考应用进行视觉比较并记录显示器/系统/应用；这不能由合成 PNG 自动测试替代。
+
+Known Limitations:
+- 自动化验证的是带精确 sRGB ICC 的临时 PNG 及系统当前 encoder；真实 JPEG/HEIC P3 profile、第三方 profile、显示器色域和视觉结果必须人工验证。
+- PNG 作为真实输入被检查；当前产品导出格式仍为 JPEG、HEIF/HEIC、TIFF，不虚称生成 PNG 导出。
+- Rec.2020 行为是 SDR，HDR still/gain-map 输出仍不支持。
+
+Commit:
+- `feat: add still image color validation`

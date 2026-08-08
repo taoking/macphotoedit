@@ -67,9 +67,11 @@
 		B98C6F43DF189C7674063047 /* VideoPlaybackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E939691C923B1B116EF94156 /* VideoPlaybackSession.swift */; };
 		BA22654C90B81136DC514474 /* VideoProxyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2546CC391D757C51FC00F684 /* VideoProxyService.swift */; };
 		BDCC5910B9DA2F3CF436E347 /* VideoAudioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317FBE0CAB3AB91131D0B6D4 /* VideoAudioTests.swift */; };
+		BEB26DEFB69AB54ADD6299DC /* StillImageColorDiagnosticTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F06BCB8789890A8E7CB817 /* StillImageColorDiagnosticTests.swift */; };
 		C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2325DD61230BAF602472DE97 /* ScanCoordinator.swift */; };
 		C9C0A136C4E5FCD63AECF2BA /* BrushMaskRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3774B2794900ABD119737302 /* BrushMaskRenderer.swift */; };
 		CAF982A7B33466F3AE6586CF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7A4D7504F84F852D9D9998 /* AppLogger.swift */; };
+		CBD2C5942BEB942773E106EB /* StillImageColorDiagnosticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBFC122A94A5EC068DC791D /* StillImageColorDiagnosticService.swift */; };
 		CC6A0F951BAC2A28F94AF4E4 /* CoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB1B4687AE9B87A58623CC2 /* CoordinatorTests.swift */; };
 		CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DCCE9DCA615FEFE504D482 /* SQLiteConnection.swift */; };
 		D266B7E77573EAB96D368C38 /* VideoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65412376C8CA35E5F64F0F93 /* VideoLibraryTests.swift */; };
@@ -126,6 +128,7 @@
 		3974A84F9C07C917F6FDE8C4 /* AdvancedPhotoManagementServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPhotoManagementServices.swift; sourceTree = "<group>"; };
 		3B9682F4368FE59D124D1D17 /* PhotoEditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditState.swift; sourceTree = "<group>"; };
 		3BA6351F922CB5F33C151E95 /* RAWMediaDiagnosticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWMediaDiagnosticService.swift; sourceTree = "<group>"; };
+		3BBFC122A94A5EC068DC791D /* StillImageColorDiagnosticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StillImageColorDiagnosticService.swift; sourceTree = "<group>"; };
 		3CD1B5184F9BE9E26C0B1AB8 /* PhotoTransformGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTransformGeometryTests.swift; sourceTree = "<group>"; };
 		3ED52DD2AB2468F2990ABE0B /* LocalMaskCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMaskCanvas.swift; sourceTree = "<group>"; };
 		4184E3DD9D5FC8CA19D55928 /* MediaScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScannerTests.swift; sourceTree = "<group>"; };
@@ -164,6 +167,7 @@
 		B515B470A089F80BA08883B9 /* VideoPreviewStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPreviewStateTests.swift; sourceTree = "<group>"; };
 		B664DA0F706264557BB77D5B /* PhotoTransformGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTransformGeometry.swift; sourceTree = "<group>"; };
 		B6FBDD5E73DA8C1F291D986D /* MediaScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScanner.swift; sourceTree = "<group>"; };
+		B9F06BCB8789890A8E7CB817 /* StillImageColorDiagnosticTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StillImageColorDiagnosticTests.swift; sourceTree = "<group>"; };
 		BB563DBC5DE57415E0393212 /* VideoGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoGeometry.swift; sourceTree = "<group>"; };
 		BF4ECA44EAD4C75FE5BC6700 /* VisionSubjectMaskRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionSubjectMaskRenderer.swift; sourceTree = "<group>"; };
 		C5C6A58E982A21696BB9C067 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -223,6 +227,7 @@
 				69158A53FC5F79900A9AD38D /* RAWMediaDiagnosticTests.swift */,
 				9884177D9500D102BD3C281B /* SimilarPhotoDetectionTests.swift */,
 				CA2666F4538BFB9FB0AF0B02 /* SmartMaskTests.swift */,
+				B9F06BCB8789890A8E7CB817 /* StillImageColorDiagnosticTests.swift */,
 				E61401E925D436DD21C52B45 /* SubjectMaskProviderTests.swift */,
 				AC6DB86DC433940227A338F8 /* ThumbnailLoaderTests.swift */,
 				317FBE0CAB3AB91131D0B6D4 /* VideoAudioTests.swift */,
@@ -242,6 +247,7 @@
 			children = (
 				C8182313FADC84092D8D3CB4 /* ExtendedRangeImageView.swift */,
 				099BBE50669EE33400F3CFC0 /* PhotoColorPipeline.swift */,
+				3BBFC122A94A5EC068DC791D /* StillImageColorDiagnosticService.swift */,
 			);
 			path = Color;
 			sourceTree = "<group>";
@@ -612,6 +618,7 @@
 				CFC844C79B1168F376C8890F /* SQLiteConnection.swift in Sources */,
 				DF8674701F242EAE75A1B294 /* ScanControl.swift in Sources */,
 				C4E4C81DF52D00F869948009 /* ScanCoordinator.swift in Sources */,
+				CBD2C5942BEB942773E106EB /* StillImageColorDiagnosticService.swift in Sources */,
 				DBD3A8A56734244DA9BC4425 /* StudioError.swift in Sources */,
 				72510946831F79ACDE73A89A /* SubjectMaskProvider.swift in Sources */,
 				88712A9616317F52B1CB7499 /* TaskCoordinator.swift in Sources */,
@@ -651,6 +658,7 @@
 				E4BDBD13EDBAB2FD49EE7A5C /* RAWMediaDiagnosticTests.swift in Sources */,
 				B29DCFF698D564F4E4E52A7D /* SimilarPhotoDetectionTests.swift in Sources */,
 				0FD0A6BF456905B6F0F6F9FF /* SmartMaskTests.swift in Sources */,
+				BEB26DEFB69AB54ADD6299DC /* StillImageColorDiagnosticTests.swift in Sources */,
 				DB6A9A226C0B633848BA0476 /* SubjectMaskProviderTests.swift in Sources */,
 				E9475AE7BCB6623DCBF9A709 /* ThumbnailLoaderTests.swift in Sources */,
 				BDCC5910B9DA2F3CF436E347 /* VideoAudioTests.swift in Sources */,

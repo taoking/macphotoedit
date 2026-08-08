@@ -20,6 +20,9 @@ struct MacPhotoStudioApp: App {
                 Button("运行 RAW 诊断…") {
                     applicationModel.presentRAWDiagnosticPanel()
                 }
+                Button("运行静态图像色彩验证…") {
+                    applicationModel.presentStillImageColorDiagnosticPanels()
+                }
             }
         }
     }

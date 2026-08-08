@@ -30,6 +30,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestSimilarPhotoScanReport: SimilarPhotoScanReport?
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var latestRAWDiagnosticReportURL: URL?
+    @Published private(set) var latestStillImageColorDiagnosticReportURL: URL?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -173,6 +174,57 @@ final class ApplicationModel: ObservableObject {
         case .alertFirstButtonReturn: return .sRGB
         case .alertSecondButtonReturn: return .displayP3
         default: return nil
+        }
+    }
+
+    /// Selects a real still image and a user-authorised output directory for
+    /// the Phase 16.5 colour validation matrix. The service creates a unique
+    /// child directory, so this command never overwrites the selected source
+    /// or an existing user export.
+    func presentStillImageColorDiagnosticPanels() {
+        guard case .ready = startupState else { return }
+        let sourcePanel = NSOpenPanel()
+        sourcePanel.title = "运行静态图像色彩验证"
+        sourcePanel.message = "选择 JPEG、HEIC、PNG 或 TIFF。原始文件只读；验证会为四个 SDR 色彩空间创建新的导出文件。"
+        sourcePanel.prompt = "选择图像"
+        sourcePanel.canChooseFiles = true
+        sourcePanel.canChooseDirectories = false
+        sourcePanel.allowsMultipleSelection = false
+        sourcePanel.allowedContentTypes = [
+            .jpeg,
+            .heic,
+            .png,
+            .tiff,
+            UTType(filenameExtension: "heif")
+        ].compactMap { $0 }
+        guard sourcePanel.runModal() == .OK, let sourceURL = sourcePanel.url else { return }
+
+        let outputPanel = NSOpenPanel()
+        outputPanel.title = "选择色彩验证输出文件夹"
+        outputPanel.message = "应用将在此文件夹内创建唯一的验证子目录，写入 JPEG、HEIC（如系统支持）和 TIFF 的 sRGB、Display P3、Rec.709、Rec.2020 SDR 新文件。"
+        outputPanel.prompt = "选择输出文件夹"
+        outputPanel.canChooseFiles = false
+        outputPanel.canChooseDirectories = true
+        outputPanel.allowsMultipleSelection = false
+        outputPanel.canCreateDirectories = false
+        guard outputPanel.runModal() == .OK, let outputRootURL = outputPanel.url else { return }
+
+        Task { await runStillImageColorDiagnostic(sourceURL: sourceURL, outputRootURL: outputRootURL) }
+    }
+
+    func runStillImageColorDiagnostic(sourceURL: URL, outputRootURL: URL) async {
+        guard case let .ready(paths) = startupState else { return }
+        let diagnosticReport = await StillImageColorDiagnosticService.validate(
+            sourceURL: sourceURL,
+            outputRootURL: outputRootURL
+        )
+        do {
+            let reportURL = try diagnosticReport.write(to: paths.logsDirectory)
+            latestStillImageColorDiagnosticReportURL = reportURL
+            AppLogger.app.info("Still image color validation report written to \(reportURL.path(percentEncoded: false), privacy: .public)")
+            NSWorkspace.shared.activateFileViewerSelecting([diagnosticReport.validationDirectoryURL ?? reportURL])
+        } catch {
+            report(error, activity: "Writing still image color validation report")
         }
     }
 
