@@ -79,11 +79,16 @@ Phase 12.3 makes the Technical Transform metadata operational rather than
 descriptive. For a supported Technical LUT, the source is first rendered by
 ColorSync into the declared input encoding. The cube then runs in an unmanaged
 half-float context, so it receives and produces the LUT's declared encoded RGB
-numbers instead of Extended Linear sRGB values. Its result is re-attached to
-the LUT's declared output ICC profile before it rejoins the common Extended
-Linear sRGB working pipeline. The downstream preview/export context can
-therefore perform the required output-to-working conversion from the actual
-LUT result.
+numbers instead of Extended Linear sRGB values. For a partial Technical LUT
+strength, the untouched input is independently converted into that same
+declared output encoding first; only then are the full-LUT and untouched
+output-encoded values blended. At 0% the bridge performs this conversion but
+does not evaluate the cube, and at 100% it uses the full cube branch. This
+avoids treating a blend of, for example, Display P3 and Rec.709 numeric RGB as
+Rec.709. The final result is re-attached to the LUT's declared output ICC
+profile before it rejoins the common Extended Linear sRGB working pipeline.
+The downstream preview/export context can therefore perform the required
+output-to-working conversion from the actual LUT result.
 
 This bridge is deliberately limited to descriptors represented by an
 Apple-provided ColorSync profile: sRGB, Display P3, Rec.709, Rec.2020 and the

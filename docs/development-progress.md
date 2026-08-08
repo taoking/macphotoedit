@@ -1137,3 +1137,35 @@ Known Limitations:
 
 Commit:
 - Pending — `fix: align local masks with photo transforms`
+
+## Phase 16.2 — Technical LUT Strength Correctness
+
+Status:
+COMPLETED
+
+Implemented:
+- 修复 `TechnicalLUTProcessor` 的部分强度路径：先把源图物化到声明的 Technical LUT 输入编码，完整 LUT 分支以非托管半精度运行；未处理分支独立 ColorSync 转换至同一声明输出编码后，才进行数值混合，并统一附加该输出 ICC。
+- `strength = 0` 不再错误返回保留原输入 profile 的 source；它返回正确转换的未处理输出分支且跳过 cube。`strength = 1` 直接使用完整 LUT 输出，避免无意义的未处理分支转换。
+- 保持 S-Log3、HLG、PQ 的安全拒绝边界；未扩展未验证 transfer-function 支持。更新色彩管线文档和真实媒体检查项。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/ColorManagementTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；28 tests, 0 failures。新增非恒等 Display P3 → Rec.709 Technical LUT 断言，独立构造 0%、50%、100% 的正确输出编码参考分支，并核对像素与输出 ICC。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — Technical LUT 部分强度不会再混合不同 primaries/transfer 的数值；0% 是正确转换的未处理输出，100% 是完整 LUT，50% 是同输出编码分支混合。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 87 tests, 0 failures，覆盖 Phase 0–16.2。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权且有明确 input != output 色彩契约的 LUT（例如 Display P3 → Rec.709）和真实照片，在 0%/50%/100% 比较预览、新文件导出与 ColorSync-aware 参考应用，核对视觉连续性、嵌入 profile 和原图字节不变；详见 `docs/manual-validation.md`。
+
+Known Limitations:
+- 部分强度的颜色数学已经由自动化确认，但真实 LUT 的创作意图、显示器表现和第三方参考应用仍需人工判断。
+- S-Log3、HLG、PQ 仍被明确拒绝，直到存在经过验证的 transfer-function bridge；本阶段没有以近似实现扩大支持面。
+
+Commit:
+- Pending — `fix: preserve color space in technical LUT blends`

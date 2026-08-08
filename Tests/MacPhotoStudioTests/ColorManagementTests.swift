@@ -99,6 +99,46 @@ final class ColorManagementTests: XCTestCase {
         XCTAssertEqual(rendered.plan.technicalTransform, technical.technicalMetadata)
     }
 
+    func testTechnicalLUTStrengthBlendsOnlyOutputEncodedBranches() throws {
+        let metadata = TechnicalLUTMetadata(input: .displayP3, output: .rec709)
+        let technical = try technicalColorShiftLUT(metadata: metadata)
+        let source = try taggedSolidImage(
+            red: 0.74,
+            green: 0.28,
+            blue: 0.62,
+            colorSpace: PhotoColorSpace.displayP3.cgColorSpace
+        )
+
+        let zero = try TechnicalLUTProcessor.apply(technical, to: source, metadata: metadata, strength: 0)
+        let half = try TechnicalLUTProcessor.apply(technical, to: source, metadata: metadata, strength: 0.5)
+        let full = try TechnicalLUTProcessor.apply(technical, to: source, metadata: metadata, strength: 1)
+
+        for output in [zero, half, full] {
+            let colorSpace = try XCTUnwrap(output.colorSpace)
+            XCTAssertTrue(PhotoColorSpace.rec709.matchesEmbeddedProfile(of: colorSpace))
+        }
+
+        // Independently construct the three expected output-encoded branches:
+        // P3 source → P3 LUT input → untouched Rec.709, full raw cube result
+        // tagged Rec.709, then a raw Rec.709-code-value blend.
+        let encodedInput = try colorConverted(source, to: PhotoColorSpace.displayP3.cgColorSpace)
+        let expectedZero = try colorConverted(encodedInput, to: PhotoColorSpace.rec709.cgColorSpace)
+        let expectedFull = try rawMaterialized(
+            LUTProcessor.apply(technical, to: encodedInput, strength: 1),
+            tagged: PhotoColorSpace.rec709.cgColorSpace
+        )
+        let expectedHalf = try rawBlended(
+            foreground: expectedFull,
+            background: expectedZero,
+            strength: 0.5,
+            tagged: PhotoColorSpace.rec709.cgColorSpace
+        )
+
+        assertPixel(zero, matches: expectedZero)
+        assertPixel(half, matches: expectedHalf)
+        assertPixel(full, matches: expectedFull)
+    }
+
     func testPhotoRenderContextsUseExplicitExtendedLinearWorkingSpace() {
         let context = RendererContextFactory.makeContext()
         let workingColorSpace = try? XCTUnwrap(context.workingColorSpace)
@@ -181,6 +221,86 @@ final class ColorManagementTests: XCTestCase {
         lut.kind = .technical
         lut.technicalMetadata = metadata
         return lut
+    }
+
+    private func technicalColorShiftLUT(metadata: TechnicalLUTMetadata) throws -> CubeLUT {
+        var lut = try technicalIdentityLUT(metadata: metadata)
+        lut.title = "P3-to-709-Color-Shift"
+        for index in lut.values.indices {
+            let value = lut.values[index]
+            lut.values[index] = SIMD3<Float>(
+                min(1, 0.08 + value.x * 0.68 + value.y * 0.12),
+                min(1, 0.04 + value.y * 0.78 + value.z * 0.10),
+                min(1, 0.10 + value.z * 0.66 + value.x * 0.16)
+            )
+        }
+        return lut
+    }
+
+    private func taggedSolidImage(red: CGFloat, green: CGFloat, blue: CGFloat, colorSpace: CGColorSpace) throws -> CIImage {
+        let image = CIImage(color: CIColor(red: red, green: green, blue: blue, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
+        return try colorConverted(image, to: colorSpace)
+    }
+
+    private func colorConverted(_ image: CIImage, to colorSpace: CGColorSpace) throws -> CIImage {
+        let context = CIContext(options: [
+            .workingColorSpace: colorSpace,
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ])
+        let cgImage = try XCTUnwrap(context.createCGImage(
+            image,
+            from: image.extent.integral,
+            format: .RGBAh,
+            colorSpace: colorSpace
+        ))
+        return CIImage(cgImage: cgImage, options: [.colorSpace: colorSpace])
+    }
+
+    private func rawMaterialized(_ image: CIImage, tagged colorSpace: CGColorSpace) throws -> CIImage {
+        let context = CIContext(options: [
+            .workingColorSpace: NSNull(),
+            .outputColorSpace: NSNull(),
+            .workingFormat: CIFormat.RGBAh.rawValue
+        ])
+        let cgImage = try XCTUnwrap(context.createCGImage(
+            image,
+            from: image.extent.integral,
+            format: .RGBAh,
+            colorSpace: colorSpace
+        ))
+        return CIImage(cgImage: cgImage, options: [.colorSpace: colorSpace])
+    }
+
+    private func rawBlended(
+        foreground: CIImage,
+        background: CIImage,
+        strength: CGFloat,
+        tagged colorSpace: CGColorSpace
+    ) throws -> CIImage {
+        let mask = CIImage(color: CIColor(red: strength, green: strength, blue: strength, alpha: 1))
+            .cropped(to: foreground.extent)
+        let blended = foreground.applyingFilter("CIBlendWithAlphaMask", parameters: [
+            kCIInputBackgroundImageKey: background,
+            kCIInputMaskImageKey: mask
+        ])
+        return try rawMaterialized(blended, tagged: colorSpace)
+    }
+
+    private func assertPixel(_ actual: CIImage, matches expected: CIImage, file: StaticString = #filePath, line: UInt = #line) {
+        let colorSpace = PhotoColorSpace.rec709.cgColorSpace
+        let context = CIContext(options: [.workingColorSpace: colorSpace])
+        let actualCG = context.createCGImage(actual, from: actual.extent.integral, format: .RGBA8, colorSpace: colorSpace)
+        let expectedCG = context.createCGImage(expected, from: expected.extent.integral, format: .RGBA8, colorSpace: colorSpace)
+        let actualData = actualCG?.dataProvider?.data as Data?
+        let expectedData = expectedCG?.dataProvider?.data as Data?
+        XCTAssertNotNil(actualData, file: file, line: line)
+        XCTAssertNotNil(expectedData, file: file, line: line)
+        guard let actualData, let expectedData else { return }
+        XCTAssertEqual(actualData.count, expectedData.count, file: file, line: line)
+        for (actualByte, expectedByte) in zip(actualData, expectedData) {
+            XCTAssertLessThanOrEqual(abs(Int(actualByte) - Int(expectedByte)), 2, file: file, line: line)
+        }
     }
 
     private func identityCubeData(dimension: Int) -> Data {

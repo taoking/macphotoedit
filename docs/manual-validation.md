@@ -11,6 +11,7 @@ automatically marked as passed by unit tests.
 - [ ] PNG and TIFF: import, edit and export.
 - [ ] sRGB and Display P3: compare preview and exported file on a colour-managed display.
 - [ ] Technical LUT: use a user-authorised, correctly declared sRGB/Display P3/Rec.709/Rec.2020 source and LUT; compare the transform with a ColorSync-aware reference application and confirm source files remain unchanged.
+- [ ] Technical LUT strength: with a user-authorised LUT whose input and output encodings differ (for example Display P3 → Rec.709), compare 0%, 50% and 100% preview and new-file export with a ColorSync-aware reference. Confirm 0% is the correctly converted untouched branch, 50% is a blend of two output-encoded branches, 100% is the complete LUT result, and every output carries the declared Technical LUT output profile.
 - [ ] Technical LUT safety: select correctly catalogued S-Log3, HLG and PQ Technical LUTs and confirm the app rejects application with the stated unsupported-encoding error instead of approximating the result.
 - [ ] 24 MP and 48 MP images: sustained slider interaction, cancellation, memory and full-resolution export.
 - [ ] Brush mask: on JPEG/HEIC and a user-authorised RAW-derived photo, paint overlapping hard and soft strokes, change size/feather/flow, erase, undo and clear; compare preview with a new-file export at full resolution. Verify strokes remain aligned after window resize, crop/rotate, reopening the asset and switching between horizontal/vertical images.

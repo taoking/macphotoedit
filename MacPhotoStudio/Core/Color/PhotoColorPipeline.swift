@@ -370,7 +370,6 @@ enum TechnicalLUTProcessor {
         strength: Double
     ) throws -> CIImage {
         let normalizedStrength = min(max(strength, 0), 1)
-        guard normalizedStrength > 0 else { return source }
         guard let inputColorSpace = metadata.input.colorSyncColorSpace,
               let outputColorSpace = metadata.output.colorSyncColorSpace else {
             throw StudioError.invalidLUT(
@@ -397,29 +396,83 @@ enum TechnicalLUTProcessor {
             throw StudioError.invalidLUT(message: "无法转换 Technical LUT 的输入色彩空间。")
         }
 
+        let encodedInput = CIImage(cgImage: inputImage, options: [.colorSpace: inputColorSpace])
+
+        // The untouched branch must make the same input → output encoding
+        // conversion as the LUT branch before a partial-strength blend. Mixing
+        // input-encoded RGB with output-encoded RGB and then labelling it as
+        // output would be colourimetrically invalid.
+        func convertedUntouchedOutput() throws -> CIImage {
+            let outputContext = CIContext(options: [
+                .workingColorSpace: outputColorSpace,
+                .workingFormat: CIFormat.RGBAh.rawValue
+            ])
+            guard let untouchedOutputImage = outputContext.createCGImage(
+                encodedInput,
+                from: extent,
+                format: .RGBAh,
+                colorSpace: outputColorSpace
+            ) else {
+                throw StudioError.invalidLUT(message: "无法转换 Technical LUT 的未处理输出色彩空间。")
+            }
+            return CIImage(cgImage: untouchedOutputImage, options: [.colorSpace: outputColorSpace])
+        }
+
+        // Zero strength still crosses the declared input → output bridge; it
+        // must not return the source attachment. It intentionally avoids the
+        // expensive cube evaluation while doing so.
+        if normalizedStrength == 0 {
+            return try convertedUntouchedOutput()
+        }
+
         // A cube maps encoded RGB numbers. Disable implicit working/output
-        // matching for this exact operation, then explicitly label its raw
-        // result with the LUT's declared output profile.
+        // matching for this exact operation. Both branches below are then
+        // explicitly materialised and tagged with the same output profile
+        // before their numeric values are blended.
         let rawContext = CIContext(options: [
             .workingColorSpace: NSNull(),
             .outputColorSpace: NSNull(),
             .workingFormat: CIFormat.RGBAh.rawValue
         ])
-        let encodedInput = CIImage(cgImage: inputImage)
-        let encodedOutput = LUTProcessor.apply(lut, to: encodedInput, strength: normalizedStrength)
-        guard let outputImage = rawContext.createCGImage(
-            encodedOutput,
+        let encodedLUTOutput = LUTProcessor.apply(lut, to: encodedInput, strength: 1)
+        guard let fullLUTOutputImage = rawContext.createCGImage(
+            encodedLUTOutput,
             from: extent,
             format: .RGBAh,
             colorSpace: outputColorSpace
         ) else {
             throw StudioError.invalidLUT(message: "无法写入 Technical LUT 的输出色彩空间。")
         }
+
+        let fullLUTOutput = CIImage(cgImage: fullLUTOutputImage, options: [.colorSpace: outputColorSpace])
+        if normalizedStrength == 1 {
+            return fullLUTOutput
+        }
+        let untouchedOutput = try convertedUntouchedOutput()
+        let blendedOutput = fullLUTOutput.applyingFilter("CIBlendWithAlphaMask", parameters: [
+            kCIInputBackgroundImageKey: untouchedOutput,
+            kCIInputMaskImageKey: CIImage(color: CIColor(
+                red: CGFloat(normalizedStrength),
+                green: CGFloat(normalizedStrength),
+                blue: CGFloat(normalizedStrength),
+                alpha: 1
+            )).cropped(to: extent)
+        ])
+
+        guard let outputImage = rawContext.createCGImage(
+            blendedOutput,
+            from: extent,
+            format: .RGBAh,
+            colorSpace: outputColorSpace
+        ) else {
+            throw StudioError.invalidLUT(message: "无法混合 Technical LUT 的输出色彩空间。")
+        }
         // `rawContext` intentionally leaves the cube's RGB code values
-        // untouched. Re-attaching the declared output profile tells the next
-        // renderer exactly how to interpret those values, so its normal
-        // working/output ColorSync conversion is based on LUT metadata rather
-        // than the original source profile.
+        // untouched after the two branches have become output-encoded.
+        // Re-attaching the declared output profile tells the next renderer how
+        // to interpret the result, so its normal working/output ColorSync
+        // conversion is based on LUT metadata rather than the original source
+        // profile.
         return CIImage(cgImage: outputImage, options: [.colorSpace: outputColorSpace])
     }
 }

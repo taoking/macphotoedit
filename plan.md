@@ -34,7 +34,7 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 15 — Similar Photo Detection
 - [ ] Phase 16 — Editing Correctness & Real Media Validation
   - [x] 16.1 Local Mask Transform Coordinate Correctness
-  - [ ] 16.2 Technical LUT Strength Correctness
+  - [x] 16.2 Technical LUT Strength Correctness
   - [ ] 16.3 Subject Mask Stable Source + Cache
   - [ ] 16.4 RAW Real-Media Validation Infrastructure
   - [ ] 16.5 Still Image Color Real Validation
