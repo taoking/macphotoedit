@@ -67,7 +67,15 @@ struct AssetBrowserView: View {
             StackCreatorSheet(assets: selectedAssets, create: createStack)
         }
         .sheet(isPresented: $showsDuplicateResults) {
-            DuplicateResultsSheet(model: model)
+            DuplicateResultsSheet(
+                model: model,
+                selectAssetInLibrary: { assetID in
+                    selectedAssetIDs = [assetID]
+                    selectionAnchor = assetID
+                    Task { await model.loadTags(for: assetID) }
+                },
+                openPreview: { asset in previewAsset = asset }
+            )
         }
         .confirmationDialog(
             "将所选原始文件移到废纸篓？",
@@ -386,7 +394,14 @@ private struct StackCreatorSheet: View {
 
 private struct DuplicateResultsSheet: View {
     @ObservedObject var model: ApplicationModel
+    let selectAssetInLibrary: (UUID) -> Void
+    let openPreview: (LibraryAssetRecord) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var reviewAssetsByID: [UUID: LibraryAssetRecord] = [:]
+    @State private var selectedReviewAssetIDs: Set<UUID> = []
+    @State private var isLoadingReviewAssets = false
+    @State private var showsStackCreator = false
+    @State private var showsTrashConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -399,11 +414,12 @@ private struct DuplicateResultsSheet: View {
             Text("精确重复项先按文件大小分组，再以 SHA-256 确认。相似照片使用仅本地 dHash 的 Hamming 距离作为复核线索；两类分析都不会删除、移动或上传原始文件。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            similarReviewActions
             List {
                 exactDuplicateSection
                 similarPhotoSection
             }
-            .frame(minHeight: 320)
+            .frame(minHeight: 420)
             if isScanning {
                 ProgressView("正在本地分析照片…")
             } else if model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil {
@@ -411,7 +427,28 @@ private struct DuplicateResultsSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 720, height: 620)
+        .frame(width: 980, height: 720)
+        .task(id: reviewAssetIDs) {
+            await loadReviewAssets()
+        }
+        .sheet(isPresented: $showsStackCreator) {
+            StackCreatorSheet(assets: selectedReviewAssets) { kind, title in
+                Task {
+                    _ = await model.createStack(kind: kind, title: title, assets: selectedReviewAssets)
+                }
+            }
+        }
+        .confirmationDialog(
+            "将所选原始文件移到废纸篓？",
+            isPresented: $showsTrashConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("移到废纸篓（\(selectedReviewAssets.count) 项）", role: .destructive) {
+                moveSelectedReviewAssetsToTrash()
+            }
+        } message: {
+            Text("此操作会请求 macOS 将实际源文件移到废纸篓，不会永久删除。Catalog 中的评分、标签和编辑记录会保留；相似检测不会自动处理任何项目。")
+        }
     }
 
     private var isScanning: Bool {
@@ -457,22 +494,21 @@ private struct DuplicateResultsSheet: View {
     private var similarPhotoSection: some View {
         if let report = model.latestSimilarPhotoScanReport {
             Section("相似照片（dHash）") {
-                Text("候选 \(report.candidateCount) 张；新计算 \(report.hashedCount) 张；复用有效哈希 \(report.reusedHashCount) 张；相似组 \(report.groups.count) 组。分数是 dHash 像素结构接近度，不是语义识别或删除建议。")
+                Text("候选 \(report.candidateCount) 张；新计算 \(report.hashedCount) 张；复用有效哈希 \(report.reusedHashCount) 张；相似组 \(report.groups.count) 组。缩略图来自本地 ThumbnailStore；分数是 dHash 像素结构接近度，不是语义识别或删除建议。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if isLoadingReviewAssets {
+                    ProgressView("正在读取相似组的 Catalog 元数据…")
+                }
                 ForEach(report.groups) { group in
-                    Section("相似组 · \(group.assets.count) 张 · 最高 \(group.highestSimilarityScore)%") {
-                        ForEach(group.matches) { match in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("\(match.first.relativePath) ↔ \(match.second.relativePath)")
-                                    .font(.system(.body, design: .monospaced))
-                                    .textSelection(.enabled)
-                                Text("相似度 \(match.similarityScore)% · dHash Hamming \(match.hammingDistance)/64")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                    SimilarPhotoGroupReviewCard(
+                        group: group,
+                        assets: reviewAssets(for: group),
+                        model: model,
+                        selectedAssetIDs: selectedReviewAssetIDs,
+                        toggleSelection: toggleReviewSelection,
+                        openPreview: openPreview
+                    )
                 }
                 if !report.failures.isEmpty {
                     Section("相似照片无法分析") {
@@ -489,6 +525,260 @@ private struct DuplicateResultsSheet: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var similarReviewActions: some View {
+        if !selectedReviewAssets.isEmpty {
+            HStack(spacing: 8) {
+                Text("相似组已选择 \(selectedReviewAssets.count) 项")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("打开预览") {
+                    if let asset = selectedReviewAssets.first {
+                        openPreview(asset)
+                    }
+                }
+                Menu("评分") {
+                    ForEach(0...5, id: \.self) { rating in
+                        Button("\(rating) 星") { updateReviewRating(rating) }
+                    }
+                }
+                Menu("标记") {
+                    Button("选取") { updateReviewFlag(.pick) }
+                    Button("拒绝") { updateReviewFlag(.reject) }
+                    Button("取消标记") { updateReviewFlag(.unflagged) }
+                }
+                Menu("添加到相册") {
+                    let manualAlbums = model.albums.filter { $0.kind == .album }
+                    if manualAlbums.isEmpty {
+                        Text("请先在侧边栏创建相册")
+                    } else {
+                        ForEach(manualAlbums) { album in
+                            Button(album.name) { addReviewAssets(to: album) }
+                        }
+                    }
+                }
+                Button("创建堆栈…") { showsStackCreator = true }
+                    .disabled(selectedReviewAssets.count < 2)
+                Button("移到废纸篓", role: .destructive) {
+                    showsTrashConfirmation = true
+                }
+                Spacer()
+                Button("取消选择") { selectedReviewAssetIDs.removeAll() }
+                    .buttonStyle(.borderless)
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private var reviewAssetIDs: [UUID] {
+        guard let groups = model.latestSimilarPhotoScanReport?.groups else { return [] }
+        var seen: Set<UUID> = []
+        return groups.flatMap(\.assets).compactMap { candidate in
+            seen.insert(candidate.id).inserted ? candidate.id : nil
+        }
+    }
+
+    private var selectedReviewAssets: [LibraryAssetRecord] {
+        reviewAssetIDs.compactMap { assetID in
+            guard selectedReviewAssetIDs.contains(assetID) else { return nil }
+            return reviewAssetsByID[assetID]
+        }
+    }
+
+    private func reviewAssets(for group: SimilarPhotoGroup) -> [LibraryAssetRecord] {
+        group.assets.compactMap { reviewAssetsByID[$0.id] }
+    }
+
+    private func loadReviewAssets() async {
+        guard !reviewAssetIDs.isEmpty else {
+            reviewAssetsByID = [:]
+            selectedReviewAssetIDs.removeAll()
+            return
+        }
+        isLoadingReviewAssets = true
+        let assets = await model.similarPhotoReviewAssets(for: reviewAssetIDs)
+        guard !Task.isCancelled else { return }
+        reviewAssetsByID = Dictionary(uniqueKeysWithValues: assets.map { ($0.id, $0) })
+        selectedReviewAssetIDs.formIntersection(Set(reviewAssetsByID.keys))
+        isLoadingReviewAssets = false
+    }
+
+    private func toggleReviewSelection(_ asset: LibraryAssetRecord) {
+        if selectedReviewAssetIDs.contains(asset.id) {
+            selectedReviewAssetIDs.remove(asset.id)
+        } else {
+            selectedReviewAssetIDs.insert(asset.id)
+            selectAssetInLibrary(asset.id)
+        }
+    }
+
+    private func updateReviewRating(_ rating: Int) {
+        let assets = selectedReviewAssets
+        Task {
+            await model.setRating(rating, for: assets.map(\.id))
+            await loadReviewAssets()
+        }
+    }
+
+    private func updateReviewFlag(_ flag: AssetFlag) {
+        let assets = selectedReviewAssets
+        Task {
+            await model.setFlag(flag, for: assets.map(\.id))
+            await loadReviewAssets()
+        }
+    }
+
+    private func addReviewAssets(to album: AlbumRecord) {
+        let assetIDs = selectedReviewAssets.map(\.id)
+        Task { await model.addAssets(assetIDs, toAlbum: album) }
+    }
+
+    private func moveSelectedReviewAssetsToTrash() {
+        let assets = selectedReviewAssets.filter { $0.availability == .available }
+        Task {
+            let report = await model.moveAssetsToTrash(assets)
+            if let report {
+                selectedReviewAssetIDs.subtract(report.movedAssetIDs)
+                await loadReviewAssets()
+            }
+        }
+    }
+}
+
+private struct SimilarPhotoGroupReviewCard: View {
+    let group: SimilarPhotoGroup
+    let assets: [LibraryAssetRecord]
+    @ObservedObject var model: ApplicationModel
+    let selectedAssetIDs: Set<UUID>
+    let toggleSelection: (LibraryAssetRecord) -> Void
+    let openPreview: (LibraryAssetRecord) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("相似组 · \(group.assets.count) 张", systemImage: "rectangle.3.group")
+                    .font(.headline)
+                Spacer()
+                Text("最高相似度 \(group.highestSimilarityScore)%")
+                    .font(.subheadline.weight(.semibold))
+            }
+            if assets.isEmpty {
+                ContentUnavailableView(
+                    "相似组元数据不可用",
+                    systemImage: "externaldrive.badge.xmark",
+                    description: Text("Catalog 记录可能已被移除；不会为结果 UI 读取全分辨率原文件。")
+                )
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 12) {
+                        ForEach(assets) { asset in
+                            SimilarPhotoReviewThumbnail(
+                                item: SimilarPhotoReviewItem(asset: asset),
+                                selected: selectedAssetIDs.contains(asset.id),
+                                model: model,
+                                toggleSelection: { toggleSelection(asset) },
+                                openPreview: { openPreview(asset) }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(minHeight: 255)
+            }
+            if !group.matches.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("形成分组的连接")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(group.matches) { match in
+                        Text("\(match.first.relativePath) ↔ \(match.second.relativePath) · \(match.similarityScore)% · Hamming \(match.hammingDistance)/64")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+private struct SimilarPhotoReviewThumbnail: View {
+    let item: SimilarPhotoReviewItem
+    let selected: Bool
+    @ObservedObject var model: ApplicationModel
+    let toggleSelection: () -> Void
+    let openPreview: () -> Void
+    @State private var image: NSImage?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Rectangle()
+                            .fill(Color(nsColor: .windowBackgroundColor))
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                }
+                .frame(width: 164, height: 124)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                Button(action: toggleSelection) {
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? Color.accentColor : .white)
+                        .font(.title3)
+                        .padding(5)
+                        .background(.black.opacity(0.42), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+            }
+            Text(item.asset.filename)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Text("\(item.dimensionsText) · \(item.fileSizeText)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text("\(item.ratingText) · \(item.flagText)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(item.formatText)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(RAWFormat.isRAW(item.asset.fileExtension) ? .orange : .secondary)
+            Text(item.asset.displayDate?.formatted(date: .abbreviated, time: .omitted) ?? "拍摄日期未知")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            HStack(spacing: 6) {
+                Button(selected ? "取消选择" : "选择", action: toggleSelection)
+                Button("预览", action: openPreview)
+            }
+            .controlSize(.mini)
+        }
+        .frame(width: 164, alignment: .leading)
+        .padding(6)
+        .background(selected ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 9))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(selected ? Color.accentColor : .clear, lineWidth: 1.5)
+        }
+        .task(id: item.id) {
+            image = nil
+            guard let data = await model.thumbnailData(for: item.asset, maximumPixelSize: 256), !Task.isCancelled else { return }
+            image = NSImage(data: data)
+        }
+        .accessibilityLabel("\(item.asset.filename)，\(item.dimensionsText)，\(item.fileSizeText)，\(item.ratingText)，\(item.flagText)，\(item.formatText)")
     }
 }
 

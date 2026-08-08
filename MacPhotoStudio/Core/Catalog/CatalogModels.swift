@@ -405,3 +405,37 @@ struct LibraryAssetRecord: Identifiable, Sendable, Equatable {
         captureDate ?? videoCreationDate ?? createdAt
     }
 }
+
+/// Presentation-safe metadata for a similarity-review card. It intentionally
+/// contains only Catalog fields and is paired with a ThumbnailStore image in
+/// the UI; creating a card never requires a full-resolution source decode.
+struct SimilarPhotoReviewItem: Identifiable, Sendable, Equatable {
+    let asset: LibraryAssetRecord
+
+    var id: UUID { asset.id }
+
+    var dimensionsText: String {
+        guard let width = asset.width, let height = asset.height else { return "尺寸未知" }
+        return "\(width) × \(height)"
+    }
+
+    var fileSizeText: String {
+        ByteCountFormatter.string(fromByteCount: asset.fileSize, countStyle: .file)
+    }
+
+    var ratingText: String {
+        asset.rating > 0 ? "\(asset.rating) 星" : "未评分"
+    }
+
+    var flagText: String {
+        switch asset.flag {
+        case .pick: "选取"
+        case .reject: "拒绝"
+        case .unflagged: "未标记"
+        }
+    }
+
+    var formatText: String {
+        RAWFormat.isRAW(asset.fileExtension) ? "RAW · \(asset.fileExtension.uppercased())" : asset.fileExtension.uppercased()
+    }
+}

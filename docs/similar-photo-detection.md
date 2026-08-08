@@ -56,6 +56,26 @@ transitively. The UI shows the comparison edges that formed the group, rather
 than pretending every member has been directly compared with every other
 member.
 
+## Visual review workflow
+
+The Similar Group sheet presents every Catalog-backed member as a compact card
+with a `ThumbnailStore` image limited to 256 pixels, rather than opening a
+full-resolution original. Each card shows filename, pixel dimensions, Catalog
+file size, rating, flag, RAW/JPEG format indicator and capture date. If a
+Catalog record is unavailable, the sheet reports that state without attempting
+to decode the source file.
+
+Review selection is local to the sheet and can be used for only the following
+explicit actions: select the corresponding Library item, open its thumbnail
+preview, set 0–5 stars, Pick/Reject/clear flag, add to an existing manual
+album, create a stack, or move available selected items to Trash. Moving to
+Trash always requires the system confirmation dialog; it is never inferred
+from a similarity score. All actions reuse the normal Library services, so the
+same availability and referenced-source safeguards apply.
+
+There is deliberately no keeper ranking or automatic non-keeper action. A
+similarity score is an inspection aid, not an AI best-photo decision.
+
 ## Instrumentation and developer benchmark
 
 Each similarity scan reports candidate-fetch time, hash reuse/new-hash counts,
@@ -84,8 +104,9 @@ roots, before/after each ImageIO hash and at bounded intervals during grouping.
 ## Deliberate boundaries
 
 - No automatic deletion, source move, trash action or rating change is
-  attached to similarity results. Existing source deletion still requires the
-  separate explicit Move to Trash flow.
+  attached to similarity results. The review sheet can invoke those existing
+  Library actions only after the user explicitly selects assets; Trash still
+  requires confirmation.
 - No cloud API, Vision feature print, face grouping or semantic search is used.
 - dHash can miss heavy crops, rotation, major retouching or non-uniform edits;
   it can also produce false positives for simple repetitive graphics. Users

@@ -264,6 +264,45 @@ actor CatalogStore {
         return rows.compactMap(libraryAsset(from:))
     }
 
+    /// Fetches the lightweight Catalog/metadata records needed by the
+    /// similarity-review UI. Source media is neither opened nor decoded here.
+    func libraryAssets(ids assetIDs: [UUID]) throws -> [LibraryAssetRecord] {
+        let uniqueIDs = Array(Set(assetIDs))
+        guard !uniqueIDs.isEmpty else { return [] }
+        // Keep the review usable for large connected components without
+        // relying on a platform-specific SQLite bind-variable limit.
+        let batchSize = 900
+        var records: [LibraryAssetRecord] = []
+        records.reserveCapacity(uniqueIDs.count)
+
+        for offset in stride(from: 0, to: uniqueIDs.count, by: batchSize) {
+            let upperBound = min(offset + batchSize, uniqueIDs.count)
+            let batch = Array(uniqueIDs[offset..<upperBound])
+            let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ", ")
+            let rows = try requireConnection().query(
+                """
+                SELECT
+                    a.id, a.root_id, r.display_name, r.last_known_path, a.relative_path,
+                    a.media_type, a.file_extension, a.file_size, a.created_at, a.modified_at,
+                    a.availability, a.metadata_state, a.rating, a.flag,
+                    p.width, p.height, p.capture_date, p.camera_make, p.camera_model,
+                    p.lens_model, p.focal_length, p.aperture, p.shutter_speed, p.iso,
+                    p.orientation, p.color_profile, p.gps_latitude, p.gps_longitude,
+                    v.width, v.height, v.duration, v.frame_rate, v.codec, v.creation_date,
+                    v.audio_track_count, v.color_primaries, v.transfer_function, v.ycbcr_matrix, v.is_hdr
+                FROM media_assets a
+                JOIN media_roots r ON r.id = a.root_id
+                LEFT JOIN photo_metadata p ON p.asset_id = a.id
+                LEFT JOIN video_metadata v ON v.asset_id = a.id
+                WHERE a.id IN (\(placeholders));
+                """,
+                bindings: batch.map { .text($0.uuidString) }
+            )
+            records.append(contentsOf: rows.compactMap(libraryAsset(from:)))
+        }
+        return records
+    }
+
     func updateRating(_ rating: Int, for assetIDs: [UUID]) throws {
         guard (0...5).contains(rating) else {
             throw StudioError.databaseExecutionFailed(message: "Rating must be between 0 and 5.")

@@ -1371,3 +1371,37 @@ Known Limitations:
 
 Commit:
 - `feat: benchmark large similar-photo libraries`
+
+## Phase 16.9 — Similar Group Review UX
+
+Status:
+COMPLETED
+
+Implemented:
+- 将原有的文本 pair 列表替换为按 Similar Group 横向展示的可视化审阅卡片。卡片显示 ThumbnailStore 的 256 px 缩略图、文件名、尺寸、Catalog 文件大小、评分、Flag、RAW/JPEG 指示符及拍摄日期；无 Catalog metadata 时明确提示，绝不为结果 UI 解码全分辨率原图。
+- 新增仅从 Catalog 读取的相似审阅 metadata 查询，并由 ApplicationModel 保持 Similar Group 的原始顺序；大组件按 900 个 ID 分批查询，避免 SQLite bind-variable 上限。
+- 审阅选择独立于当前资料库分页。用户可显式同步选中资料库项目、打开缩略图预览、设置 0–5 星、Pick/Reject/取消标记、加入已有手动相册、创建 stack，或将可用的已选条目移到 Trash。Trash 一律先显示确认对话框；没有 keeper 评分、AI 表述或自动操作。
+- 更新 `docs/similar-photo-detection.md` 与 `docs/manual-validation.md`，明确缩略图上限、可用操作、确认边界和真实媒体人工验证方式。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/SimilarPhotoReviewTests -only-testing:MacPhotoStudioTests/AdvancedPhotoManagementTests -only-testing:MacPhotoStudioTests/SimilarPhotoDetectionTests`；8 tests, 0 failures。新回归以没有任何媒体文件的 901 条 Catalog 记录验证分批 metadata 读取、RAW/评分/Flag/尺寸展示字段，现有 tests 覆盖相册、stack、相似扫描与源文件保护。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — 相似组以缩略图和完整要求的 Catalog metadata 审阅；预览和全部修改性操作均使用已有安全服务，Trash 要求明确选择和确认。901-ID 查询测试证明大结果不会触发单次 SQL 参数上限，且不依赖原始媒体读取。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 104 tests, 0 failures（25.94 秒），覆盖 Phase 0–16.9 的 Catalog、资料库、照片/RAW/LUT、色彩、局部蒙版、视频、HDR guard、外置存储和相似照片路径。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 需要用户授权的 JPEG/HEIC/PNG/TIFF/RAW-derived 文件，在真实 macOS UI 检查缩略图视觉、元数据、Preview、评分/Flag/相册/stack 操作，以及 Trash 的确认弹窗和原文件字节不变；按 `docs/manual-validation.md` 执行。
+
+Known Limitations:
+- 相似分数仍只是 dHash 结构接近度；不会也不能代表场景、身份或“最佳照片”。
+- 离线/已移除 Catalog 项目不会回读原图，卡片会报告 metadata 不可用；实际缩略图质量、真实大组滚动性能与 Finder Trash 行为需人工验证。
+- 当前只提供已有手动相册目标和 stack 创建，不创建自动相册或基于启发式的 keeper 建议。
+
+Commit:
+- `feat: add visual similar photo review`

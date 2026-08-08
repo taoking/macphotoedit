@@ -438,6 +438,20 @@ final class ApplicationModel: ObservableObject {
         }
     }
 
+    /// Loads only Catalog metadata for the Similar Group review sheet. The
+    /// sheet obtains visible previews separately through ThumbnailStore.
+    func similarPhotoReviewAssets(for assetIDs: [UUID]) async -> [LibraryAssetRecord] {
+        guard let catalogStore else { return [] }
+        do {
+            let records = try await catalogStore.libraryAssets(ids: assetIDs)
+            let recordByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            return assetIDs.compactMap { recordByID[$0] }
+        } catch {
+            report(error, activity: "Loading similar-photo review metadata")
+            return []
+        }
+    }
+
     func videoFilmstripData(for asset: LibraryAssetRecord) async -> [Data]? {
         guard let videoFilmstripLoader,
               let root = mediaRoots.first(where: { $0.id == asset.rootID })
