@@ -38,7 +38,7 @@ required, concise execution tracker for the long-running implementation.
   - [x] 16.3 Subject Mask Stable Source + Cache
   - [x] 16.4 RAW Real-Media Validation Infrastructure
   - [x] 16.5 Still Image Color Real Validation
-  - [ ] 16.6 Video Real-Media Validation
+  - [x] 16.6 Video Real-Media Validation
   - [ ] 16.7 External Storage Validation
   - [ ] 16.8 Similar Photo Large-Library Benchmark
   - [ ] 16.9 Similar Group Review UX

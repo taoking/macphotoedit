@@ -1270,3 +1270,36 @@ Known Limitations:
 
 Commit:
 - `feat: add still image color validation`
+
+## Phase 16.6 — Video Real-Media Validation
+
+Status:
+COMPLETED
+
+Implemented:
+- 扩展 `VideoPreviewStateTests`，以真实临时 H.264 MOV 连续替换三次 `AVPlayerItem`，验证 seek/逐帧、播放头、播放状态、倍率、静音/音量恢复；旧 item 的结束通知被忽略，而最新 item 的 observer 能正确停止播放。
+- 扩展实际 H.264 导出测试：带 Creative LUT、裁剪和 resize 的导出重新从 AVFoundation 取帧并核对 LUT 色彩与输出尺寸；已有真实 AAC 路径继续核对 trim + speed + 画面/音频 fade 后音视频轨时长同步、竖向 transform/resize、Proxy 与源字节不变。
+- 新增 `docs/video-real-media-validation.md`，并把 iPhone MOV、Sony MP4、H.264/HEVC、横竖向、30/60 fps、4K、有/无音轨以及三类高风险组合纳入人工验证矩阵。音频仍严格仅支持 `-60 dB ... 0 dB` 衰减，未新增正增益。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoEditingTests -only-testing:MacPhotoStudioTests/VideoExportAudioTests -only-testing:MacPhotoStudioTests/VideoPlaybackSessionTests -only-testing:MacPhotoStudioTests/VideoPreviewStateTests -only-testing:MacPhotoStudioTests/VideoAudioTests -only-testing:MacPhotoStudioTests/VideoGeometryTests -only-testing:MacPhotoStudioTests/VideoLibraryTests`；20 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — 所有不依赖私有素材的 AVFoundation 路径均以临时 H.264/AAC 媒体实际执行；新 observer、播放状态、音画同步、方向/resize、LUT+crop export、Proxy 与衰减限制均有回归。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 98 tests, 0 failures，覆盖 Phase 0–16.6 的 Catalog、资料库、照片/RAW、LUT、色彩、局部蒙版、视频、HDR guard 与相似照片检测。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 仓库不含 iPhone MOV、Sony MP4、真实 HEVC、4K、60 fps、长视频、真实听感环境或外置盘素材。按 `docs/video-real-media-validation.md` 执行矩阵，尤其检查 35 秒附近连续 preview rebuild、设备 codec 兼容性与实际 A/V 同步。
+
+Known Limitations:
+- 自动化临时 H.264/AAC 不能替代 iPhone/Sony 编码差异、长时播放、4K 性能、外置存储和真实听感。
+- HEVC 仍受当前 macOS/源视频可用 export preset 限制；不支持时明确失败。
+- HDR 视频编辑/Proxy/导出和正音频增益仍不支持，绝不伪称完成。
+
+Commit:
+- `test: strengthen video media validation`

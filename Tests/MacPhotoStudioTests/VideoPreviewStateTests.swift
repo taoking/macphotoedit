@@ -68,6 +68,60 @@ final class VideoPreviewStateTests: XCTestCase {
         XCTAssertEqual(session.player.volume, 0.35, accuracy: 0.001)
     }
 
+    func testRepeatedPreviewRebuildsKeepLatestObserverAndPlaybackState() async throws {
+        let sourceURL = temporaryDirectory.appending(path: "repeated-preview-source.mov")
+        try await makeVideo(at: sourceURL)
+        let session = VideoPlaybackSession(
+            sourceURL: sourceURL,
+            securityScopedRootURL: temporaryDirectory,
+            duration: 1,
+            frameRate: 30
+        )
+        defer { session.close() }
+
+        session.seek(to: 0.5)
+        session.step(frames: 3)
+        XCTAssertEqual(session.currentTime, 0.6, accuracy: 0.001)
+        session.step(frames: -60)
+        XCTAssertEqual(session.currentTime, 0, accuracy: 0.001)
+        session.seek(to: 0.5)
+        session.setPlaybackRate(1.5)
+        session.setVolume(0.35)
+        session.toggleMute()
+        session.play()
+
+        var replacedItems: [AVPlayerItem] = []
+        for _ in 0..<3 {
+            let item = AVPlayerItem(url: sourceURL)
+            replacedItems.append(item)
+            session.replaceCurrentItem(with: item, duration: 1)
+            for _ in 0..<100 where item.status == .unknown {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            for _ in 0..<100 where !session.isPlaying {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTAssertTrue(session.isPlaying)
+        }
+
+        XCTAssertEqual(session.currentTime, 0.5, accuracy: 0.05)
+        XCTAssertEqual(session.playbackRate, 1.5)
+        XCTAssertTrue(session.isMuted)
+        XCTAssertEqual(session.volume, 0.35, accuracy: 0.001)
+
+        let staleItem = try XCTUnwrap(replacedItems.first)
+        let latestItem = try XCTUnwrap(replacedItems.last)
+        NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: staleItem)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(session.isPlaying, "旧 AVPlayerItem 的结束通知不能改变最新预览状态。")
+
+        NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: latestItem)
+        for _ in 0..<20 where session.isPlaying {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(session.isPlaying, "最新 AVPlayerItem 的结束通知必须结束播放状态。")
+    }
+
     private func makeVideo(at url: URL) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(

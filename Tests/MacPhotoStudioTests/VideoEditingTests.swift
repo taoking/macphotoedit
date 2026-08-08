@@ -200,6 +200,61 @@ final class VideoEditingTests: XCTestCase {
         XCTAssertTrue(formatDescriptions.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 })
     }
 
+    func testH264VideoExportAppliesCreativeLUTCropAndResizeToRealFrames() async throws {
+        let sourceURL = temporaryDirectory.appending(path: "lut-crop-source.mov")
+        try await makeVideo(at: sourceURL)
+        let sourceData = try Data(contentsOf: sourceURL)
+        let lut = CubeLUT(
+            id: UUID(),
+            title: "Validation green LUT",
+            kind: .creative,
+            dimension: 17,
+            domainMinimum: SIMD3<Float>(repeating: 0),
+            domainMaximum: SIMD3<Float>(repeating: 1),
+            values: Array(repeating: SIMD3<Float>(0.04, 0.88, 0.12), count: 17 * 17 * 17),
+            technicalMetadata: nil,
+            sourceURL: nil,
+            isImported: false,
+            isFavorite: false
+        )
+        var state = VideoEditState.identity
+        state.lut = LUTApplication(identifier: lut.id, strength: 1)
+        state.transform.crop = NormalizedCrop(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+        let destinationURL = temporaryDirectory.appending(path: "lut-crop-edited.mp4")
+
+        _ = try await VideoExportService().export(
+            sourceURL: sourceURL,
+            state: state,
+            lut: lut,
+            destinationURL: destinationURL,
+            options: VideoExportOptions(
+                format: .h264,
+                quality: .high,
+                resize: .maximum(24),
+                namingRule: .editedName,
+                collisionPolicy: .rename
+            ),
+            allowsOverwrite: false
+        )
+
+        XCTAssertEqual(try Data(contentsOf: sourceURL), sourceData)
+        let outputAsset = AVURLAsset(url: destinationURL)
+        let outputVideoTracks = try await outputAsset.loadTracks(withMediaType: .video)
+        let outputVideoTrack = try XCTUnwrap(outputVideoTracks.first)
+        let outputSize = try await outputVideoTrack.load(.naturalSize)
+        XCTAssertEqual(outputSize, CGSize(width: 24, height: 18))
+
+        let imageGenerator = AVAssetImageGenerator(asset: outputAsset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        let frame = try imageGenerator.copyCGImage(
+            at: CMTime(seconds: 0.2, preferredTimescale: 600),
+            actualTime: nil
+        )
+        let pixel = try rgba(of: CIImage(cgImage: frame))
+        XCTAssertGreaterThan(pixel.y, pixel.x + 0.3)
+        XCTAssertGreaterThan(pixel.y, pixel.z + 0.3)
+    }
+
     func testVideoExportRejectsOriginalAsDestinationBeforeWriting() async throws {
         let sourceURL = temporaryDirectory.appending(path: "protected.mov")
         let service = VideoExportService()
