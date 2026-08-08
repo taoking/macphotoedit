@@ -1474,4 +1474,4 @@ Commit:
 - `ci: add macos regression gate`
 - `test: account for AAC export packet quantization`
 - `test: wait for playback item metadata`
-- Pending — `docs: record CI verification`
+- `docs: record CI verification`
