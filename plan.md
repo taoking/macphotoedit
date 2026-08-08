@@ -22,7 +22,7 @@ required, concise execution tracker for the long-running implementation.
 - [x] Phase 12.4 — RAW Color Pipeline
 - [x] Phase 12.5 — Video Geometry / Metadata
 - [x] Phase 12.6 — Video Preview State
-- [ ] Phase 12.7 — PlayerItem Observer
+- [x] Phase 12.7 — PlayerItem Observer
 - [ ] Phase 12.8 — Audio Gain
 - [ ] Phase 12.9 — Video Export Reliability
 - [ ] Phase 12.10 — HDR Capability Audit

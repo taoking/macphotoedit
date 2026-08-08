@@ -28,6 +28,7 @@ automatically marked as passed by unit tests.
 - [ ] Material with audio and without audio; 30 fps, 60 fps and 4K sources.
 - [ ] Metadata, playback, seek, frame stepping, trim, speed, LUT, crop, rotate, audio, fades, Proxy and export.
 - [ ] While playing around 35 seconds, continuously change exposure, contrast, temperature, LUT strength and crop. Confirm each rebuilt preview resumes at the prior output time with the same play/pause state, rate, mute and volume instead of jumping to zero.
+- [ ] After several preview rebuilds, let the current item play to its end and confirm the playback control changes back to Play. Also verify that an unreadable or removed source shows a visible playback error rather than leaving the controls in a playing state.
 - [ ] Confirm trim + speed keeps audio and video in sync, including audio fades.
 
 ## Storage and permissions

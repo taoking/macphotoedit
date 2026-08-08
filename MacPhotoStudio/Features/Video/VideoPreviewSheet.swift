@@ -118,6 +118,13 @@ private struct VideoPlaybackView: View {
                 }
             }
 
+            if let playbackError = session.playbackError {
+                Label("播放失败：\(playbackError)", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: 700, alignment: .leading)
+            }
+
             if !filmstrip.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(Array(filmstrip.enumerated()), id: \.offset) { _, image in

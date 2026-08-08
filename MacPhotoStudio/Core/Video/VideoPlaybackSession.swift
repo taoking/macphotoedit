@@ -31,6 +31,7 @@ final class VideoPlaybackSession: ObservableObject {
     @Published private(set) var playbackRate: Double = 1
     @Published private(set) var isMuted = false
     @Published private(set) var volume: Double = 1
+    @Published private(set) var playbackError: String?
 
     let player: AVPlayer
     let sourceURL: URL
@@ -43,6 +44,9 @@ final class VideoPlaybackSession: ObservableObject {
     private var hasSecurityScopedAccess: Bool
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var itemStatusObserver: NSKeyValueObservation?
+    private var itemDurationObserver: NSKeyValueObservation?
+    private var itemErrorObserver: NSKeyValueObservation?
     private var replacementGeneration = 0
 
     init(
@@ -108,6 +112,7 @@ final class VideoPlaybackSession: ObservableObject {
         let generation = replacementGeneration
         pause()
         player.replaceCurrentItem(with: item)
+        observeCurrentItem(item)
         applyPreviewPlaybackState(preservedState, duration: duration)
         seekForReplacement(to: preservedState.currentTime) { [weak self] finished in
             guard let self, finished, self.replacementGeneration == generation else { return }
@@ -130,15 +135,13 @@ final class VideoPlaybackSession: ObservableObject {
     }
 
     func close() {
+        replacementGeneration += 1
         pause()
         if let timeObserver {
             player.removeTimeObserver(timeObserver)
             self.timeObserver = nil
         }
-        if let endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-            self.endObserver = nil
-        }
+        removeCurrentItemObservers()
         if hasSecurityScopedAccess {
             securityScopedRootURL.stopAccessingSecurityScopedResource()
             hasSecurityScopedAccess = false
@@ -155,15 +158,7 @@ final class VideoPlaybackSession: ObservableObject {
                 self?.currentTime = seconds
             }
         }
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.isPlaying = false
-            }
-        }
+        observeCurrentItem(player.currentItem)
     }
 
     private var previewPlaybackState: VideoPreviewPlaybackState {
@@ -206,5 +201,94 @@ final class VideoPlaybackSession: ObservableObject {
         }
         player.playImmediately(atRate: Float(state.playbackRate))
         isPlaying = true
+    }
+
+    /// All item-scoped observation is replaced together. This keeps callbacks
+    /// from a previous editor composition from changing the current preview.
+    private func observeCurrentItem(_ item: AVPlayerItem?) {
+        removeCurrentItemObservers()
+        guard let item else {
+            isPlaying = false
+            playbackError = nil
+            return
+        }
+
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self, weak item] _ in
+            Task { @MainActor [weak self, weak item] in
+                guard let self, let item, self.player.currentItem === item else { return }
+                self.isPlaying = false
+            }
+        }
+        itemStatusObserver = item.observe(\.status, options: [.initial, .new]) { [weak self, weak item] _, _ in
+            guard let item else { return }
+            let status = item.status
+            let duration = item.duration.seconds
+            let errorDescription = item.error?.localizedDescription
+            Task { @MainActor [weak self, weak item] in
+                guard let self, let item, self.player.currentItem === item else { return }
+                self.handleItemStatus(status, duration: duration, errorDescription: errorDescription)
+            }
+        }
+        itemDurationObserver = item.observe(\.duration, options: [.initial, .new]) { [weak self, weak item] _, _ in
+            guard let item else { return }
+            let duration = item.duration.seconds
+            Task { @MainActor [weak self, weak item] in
+                guard let self, let item, self.player.currentItem === item else { return }
+                self.updateDurationIfAvailable(duration)
+            }
+        }
+        itemErrorObserver = item.observe(\.error, options: [.new]) { [weak self, weak item] _, _ in
+            guard let item else { return }
+            let errorDescription = item.error?.localizedDescription
+            Task { @MainActor [weak self, weak item] in
+                guard let self, let item, self.player.currentItem === item else { return }
+                guard let errorDescription else { return }
+                self.playbackError = errorDescription
+                self.isPlaying = false
+            }
+        }
+    }
+
+    private func removeCurrentItemObservers() {
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+        itemStatusObserver?.invalidate()
+        itemStatusObserver = nil
+        itemDurationObserver?.invalidate()
+        itemDurationObserver = nil
+        itemErrorObserver?.invalidate()
+        itemErrorObserver = nil
+    }
+
+    private func handleItemStatus(
+        _ status: AVPlayerItem.Status,
+        duration: Double,
+        errorDescription: String?
+    ) {
+        updateDurationIfAvailable(duration)
+        switch status {
+        case .readyToPlay:
+            playbackError = nil
+        case .failed:
+            playbackError = errorDescription ?? "视频预览项目无法播放。"
+            isPlaying = false
+        case .unknown:
+            break
+        @unknown default:
+            playbackError = "视频预览项目处于未知状态。"
+            isPlaying = false
+        }
+    }
+
+    private func updateDurationIfAvailable(_ candidate: Double) {
+        guard candidate.isFinite, candidate >= 0 else { return }
+        duration = candidate
+        currentTime = min(currentTime, candidate)
     }
 }

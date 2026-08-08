@@ -169,6 +169,12 @@ struct VideoEditorView: View {
                 VStack(spacing: 12) {
                     VideoPlayer(player: session.player)
                         .background(.black, in: RoundedRectangle(cornerRadius: 8))
+                    if let playbackError = session.playbackError {
+                        Label("预览播放失败：\(playbackError)", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     VideoEditorPlaybackControls(session: session)
                 }
                 .padding(14)

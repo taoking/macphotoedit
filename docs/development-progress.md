@@ -742,3 +742,42 @@ Known Limitations:
 
 Commit:
 - `fix: stabilize video editor preview`
+
+## Phase 12.7 — PlayerItem Observer
+
+Status:
+COMPLETED
+
+Implementation:
+COMPLETED
+
+Implemented:
+- `VideoPlaybackSession` 新增统一 `observeCurrentItem` / `removeCurrentItemObservers` 生命周期：每次 preview item replace 均撤销旧的结束通知、status、duration、error KVO，再绑定新 item。
+- 回调先验证当前 `AVPlayerItem` 身份，避免被替换 item 的延迟 end/status/duration/error 回调篡改当前会话；close 时同样完整解除所有 observer。
+- 新 item 可用时更新实际 duration；失败时停止播放并发布 `playbackError`。视频预览和编辑器都显示该错误，不再只留下失真的播放控件状态。
+- 新增 `VideoPlaybackSessionTests`，用真实临时 H.264 replacement item 验证 ready 状态、item duration 更新、无错误，以及新 item 的结束通知会将 `isPlaying` 归为 false。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；63 tests, 0 failures。专项 `VideoPlaybackSessionTests` 1 test, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — replace 后旧 observer 被撤销、新 observer 被注册；当前 item 到结尾会停止播放，status/duration/error 由同一会话路径管理且错误可见。P0/P1 阻塞问题已修复并完成复测。
+
+Regression:
+PASS — 全量 63 项测试覆盖 Phase 0–12.6 的 Catalog、资料库、照片/RAW/LUT、导出、视频编辑、fade、Proxy、几何 metadata、preview state 与局部蒙版能力，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的长 MOV/MP4 在多次调色/裁剪 preview rebuild 后播放至结尾；同时断开外置卷或移除原文件，确认 Preview/Editor 停止并显示实际 AVFoundation 错误。真实权限、设备和长片缓冲不进入自动化 fixture。
+
+Production Readiness:
+PARTIAL — item observer 解绑/重绑、duration 和结束状态已由真实临时 H.264 验证；外置卷断连、损坏/受保护媒体、长片和不同 codec 的 status/error 行为仍需人工核验。
+
+Known Limitations:
+- `playbackError` 反映 AVPlayerItem 可见的播放失败；更细的 codec/DRM/网络诊断和恢复策略不在本地 referenced media 的当前范围。
+- HDR video 编辑/导出以及 HDR video 色彩管线仍明确不支持。
+
+Commit:
+- `fix: rebind video playback item observers`

@@ -40,6 +40,14 @@ metadata、Inspector、最终导出的 render canvas 和生成后的 Proxy metad
 再恢复上述状态。replace generation 会忽略已被更新请求取代的异步 seek completion，
 因此连续拖动滑块不会由旧预览恢复覆盖最新预览状态。
 
+## Player item observation
+
+每个 `AVPlayerItem` 的结束通知、status、duration 和 error 都由
+`VideoPlaybackSession.observeCurrentItem` 统一管理。replace 前先移除旧 item 的
+Notification/KVO observation，再为新 item 注册；所有异步回调均核对
+`player.currentItem` 身份。新 item 的 duration 会在可用时更新控制条，failed 状态会
+停止播放并在 Preview/Editor 中显示错误，避免替换后的 item 播放结束仍显示为播放中。
+
 ## 淡入淡出
 
 画面淡入/淡出在 composition 的**输出时间线**上渲染到黑场，因此在 trim 和
