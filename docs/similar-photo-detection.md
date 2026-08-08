@@ -40,12 +40,46 @@ The UI score is `(64 - distance) / 64 × 100`, rounded to an integer. It is a
 pixel-structure proximity score, not a probability that two photos are the
 same scene.
 
-A BK-tree indexes Hamming distance. It evaluates nearby visual hashes without
-an all-pairs scan; duplicate digest nodes use one representative edge to keep
-large duplicate/burst clusters from expanding quadratically. Similar groups are
-connected components, so a member may be connected transitively. The UI shows
-the comparison edges that formed the group, rather than pretending every member
-has been directly compared with every other member.
+A BK-tree indexes Hamming distance for smaller Catalogs; duplicate digest nodes
+use one representative edge to keep large duplicate/burst clusters from
+expanding quadratically. Profiling a 50k generated, high-entropy dHash Catalog
+showed the BK-tree range traversal becoming the grouping hotspot. For Catalogs
+at or above 25k records (with the current threshold `≤ 8`), the app therefore
+uses an exact local 4×16-bit Hamming index instead: any pair differing by at
+most eight bits must differ by at most two bits in at least one 16-bit block.
+All 0–2-bit variants of each block are fetched and every returned candidate is
+then checked against the complete 64-bit Hamming distance. This has no false
+negatives for the threshold and is neither semantic nor cloud search.
+
+Similar groups are connected components, so a member may be connected
+transitively. The UI shows the comparison edges that formed the group, rather
+than pretending every member has been directly compared with every other
+member.
+
+## Instrumentation and developer benchmark
+
+Each similarity scan reports candidate-fetch time, hash reuse/new-hash counts,
+ImageIO decode attempts and time, grouping time, total time, group/failure
+counts and an observed process resident-memory sample. These are diagnostics,
+not pass/fail thresholds: storage speed, image formats, cache warmth and
+hardware all affect them.
+
+Use **File → 运行相似照片基准（开发者）** to write a text report under the
+app's Application Support `logs` directory. It has two deliberately separate
+sections:
+
+- **Live-media scan** reads the current available Catalog photos through their
+  security-scoped roots and is the only section that may measure actual
+  ImageIO/dHash work.
+- **Catalog-only generated scales** create and remove isolated temporary SQLite
+  Catalogs with 10,000, 50,000 and 100,000 synthetic rows. They measure Catalog
+  population/fetch and in-memory grouping, run no ImageIO decode and make no
+  claim about real images, external storage or real-media hashing.
+
+The generated fixture includes deterministic pairs separated by eight bits
+across all four 16-bit blocks, which structurally exercises the large-library
+index without relying on equal hashes. Cancellation is checked while resolving
+roots, before/after each ImageIO hash and at bounded intervals during grouping.
 
 ## Deliberate boundaries
 
@@ -56,6 +90,8 @@ has been directly compared with every other member.
 - dHash can miss heavy crops, rotation, major retouching or non-uniform edits;
   it can also produce false positives for simple repetitive graphics. Users
   must inspect displayed photos before taking any action.
-- The first scan necessarily reads available photo originals. Later scans reuse
-  hashes whose file size and modification time still match; actual 10k–100k
-  library timing remains a manual performance check.
+- The first live-media scan necessarily reads available photo originals. Later
+  scans reuse hashes only when both file size and modification time still
+  match; unavailable/offline assets do not participate or retain a valid
+  comparison hash. Real 10k–100k media performance, physical storage and UI
+  responsiveness remain manual checks.

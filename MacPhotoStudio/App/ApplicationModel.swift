@@ -32,6 +32,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestRAWDiagnosticReportURL: URL?
     @Published private(set) var latestStillImageColorDiagnosticReportURL: URL?
     @Published private(set) var latestMediaRootAvailabilityReportURL: URL?
+    @Published private(set) var latestSimilarPhotoBenchmarkReportURL: URL?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
     @Published private(set) var libraryError: String?
@@ -341,6 +342,33 @@ final class ApplicationModel: ObservableObject {
             NSWorkspace.shared.activateFileViewerSelecting([reportURL])
         } catch {
             report(error, activity: "Diagnosing media-root availability")
+        }
+    }
+
+    func runSimilarPhotoBenchmark() async {
+        guard case .ready(let paths) = startupState,
+              let similarPhotoScanner
+        else { return }
+
+        do {
+            libraryError = nil
+            let liveReport = try await similarPhotoScanner.scan()
+            let catalogOnlyBenchmarks = try await SimilarPhotoBenchmarkService.runCatalogOnly()
+            let reportURL = try SimilarPhotoBenchmarkReport(
+                generatedAt: .now,
+                liveMediaHashedCount: liveReport.hashedCount,
+                liveMediaReusedHashCount: liveReport.reusedHashCount,
+                liveMediaMetrics: liveReport.metrics,
+                catalogOnlyBenchmarks: catalogOnlyBenchmarks
+            ).write(to: paths.logsDirectory)
+            latestSimilarPhotoScanReport = liveReport
+            latestSimilarPhotoBenchmarkReportURL = reportURL
+            AppLogger.app.info("Similar-photo benchmark report written to \(reportURL.path(percentEncoded: false), privacy: .public)")
+            NSWorkspace.shared.activateFileViewerSelecting([reportURL])
+        } catch is CancellationError {
+            libraryError = "相似照片基准已取消。"
+        } catch {
+            report(error, activity: "Benchmarking similar photos")
         }
     }
 

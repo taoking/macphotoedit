@@ -26,6 +26,9 @@ struct MacPhotoStudioApp: App {
                 Button("运行媒体根目录可用性诊断") {
                     Task { await applicationModel.runMediaRootAvailabilityDiagnostics() }
                 }
+                Button("运行相似照片基准（开发者）") {
+                    Task { await applicationModel.runSimilarPhotoBenchmark() }
+                }
             }
         }
     }

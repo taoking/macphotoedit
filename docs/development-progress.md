@@ -1336,3 +1336,38 @@ Known Limitations:
 
 Commit:
 - `feat: add external storage diagnostics`
+
+## Phase 16.8 — Similar Photo Large-Library Benchmark
+
+Status:
+COMPLETED
+
+Implemented:
+- 相似扫描现在记录候选查询、真实 ImageIO/dHash decode attempt、hash reuse/new hash、分组、总耗时、组/失败数和采样 RSS；File → `运行相似照片基准（开发者）` 先扫描当前 Catalog 的真实媒体指标，再写入 10k/50k/100k 隔离 Catalog-only 基准报告。
+- 基准的 Catalog-only 段会真实创建、读取和清理临时 SQLite rows，并在内存中运行分组；它明确不读 ImageIO、不访问外置卷且不宣称真实图片吞吐。fixture 包含跨四个 16-bit block 的八位差异对。
+- 50k 随机 dHash profile 证明 BK-tree range traversal 是大型库热点。小库仍使用 dHash + BK-tree；≥25k 且阈值≤8 时改用精确 4×16-bit Hamming candidate index。距离≤8 的任意 pair 至少有一个 block 相差≤2，枚举后再做完整 64-bit 精确验证，因此没有阈值内漏检。
+- 扫描在根目录解析、ImageIO hash 前后及分组每 128 项均检查取消；缓存签名保持 file size + modifiedAt，offline/missing 资产不会作为有效 hash 参与比较。
+- 新增 `docs/similar-photo-benchmark.md`，并更新相似检测和人工验证文档，区分生成 Catalog 规模与真实媒体测试。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/SimilarPhotoDetectionTests -only-testing:MacPhotoStudioTests/SimilarPhotoBenchmarkTests`；4 tests, 0 failures。实际执行 10k/50k/100k 隔离 Catalog-only fixture（17.18 秒，无固定耗时断言），覆盖跨 block distance-8 分组、缓存 reuse/modifiedAt/file-size 失效、offline 无 false hash，以及 hash/root-switch/grouping cancellation。
+
+Build:
+PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+AUTOMATED PASS — 所有要求的计时/计数/报告字段、开发者入口、三档生成规模、真实媒体与 Catalog-only 区分、取消路径和缓存失效均有实际代码与自动化验证。采样 profile 所确认的 BK-tree 大库瓶颈已用可证明完整的本地 Hamming index 处理；未引入 AI/semantic search、云端、自动删除或源文件写入。未发现 P0/P1 自动化阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 103 tests, 0 failures（20.42 秒）。覆盖 Phase 0–16.8 的 Catalog、资料库、照片/RAW/LUT、色彩、局部蒙版、视频、HDR guard、外置存储和相似照片路径。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 必须用用户授权的真实 10k/50k/100k JPEG/HEIC/PNG/TIFF/RAW-derived 媒体及 internal/external SSD/HDD/SD card 执行 `docs/similar-photo-benchmark.md` 与 `docs/manual-validation.md`：分别保留 live-media 与 Catalog-only 报告，确认响应性、RSS、误报/漏报、hash/root-switch/grouping 取消后的任务状态、offline/reconnect 和原文件字节不变。
+
+Known Limitations:
+- 生成 10k/50k/100k 结果只证明 SQLite Catalog 与内存 grouping 规模；并不代表同数目的真实 ImageIO decode、RAW、外置盘、权限或 UI 性能。
+- dHash 仍然只是低分辨率亮度结构比较；重度 crop/rotation/非均匀修图可漏检，重复几何图案可误报。当前阈值仍固定为 Hamming ≤8，绝不作语义或“最佳照片”结论。
+- 大库精确 Hamming index 为当前阈值优化；若未来改变阈值或比较模型，必须重新证明无漏检和执行新的 profile/benchmark，不能将该结果外推。
+
+Commit:
+- `feat: benchmark large similar-photo libraries`

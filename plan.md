@@ -40,7 +40,7 @@ required, concise execution tracker for the long-running implementation.
   - [x] 16.5 Still Image Color Real Validation
   - [x] 16.6 Video Real-Media Validation
   - [x] 16.7 External Storage Validation
-  - [ ] 16.8 Similar Photo Large-Library Benchmark
+  - [x] 16.8 Similar Photo Large-Library Benchmark
   - [ ] 16.9 Similar Group Review UX
   - [ ] 16.10 ApplicationModel Incremental Refactor
   - [ ] 16.11 CI / Regression Gate

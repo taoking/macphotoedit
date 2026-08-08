@@ -273,12 +273,60 @@ struct SimilarPhotoGroup: Identifiable, Sendable, Equatable {
     var highestSimilarityScore: Int { matches.map(\.similarityScore).max() ?? 0 }
 }
 
+/// Monotonic, locally observed measurements from one similarity scan. They are
+/// diagnostic data rather than pass/fail performance limits: device, storage,
+/// cache warmth and real image formats can legitimately change timings.
+struct SimilarPhotoScanMetrics: Sendable, Equatable {
+    let candidateFetchDuration: TimeInterval
+    let imageIODecodeDuration: TimeInterval
+    let groupingDuration: TimeInterval
+    let totalScanDuration: TimeInterval
+    let imageIODecodeCount: Int
+    let groupCount: Int
+    let failureCount: Int
+    let observedPeakResidentMemoryBytes: UInt64?
+
+    static let empty = Self(
+        candidateFetchDuration: 0,
+        imageIODecodeDuration: 0,
+        groupingDuration: 0,
+        totalScanDuration: 0,
+        imageIODecodeCount: 0,
+        groupCount: 0,
+        failureCount: 0,
+        observedPeakResidentMemoryBytes: nil
+    )
+}
+
+enum SimilarPhotoScanCheckpoint: Sendable, Equatable {
+    case rootResolution
+    case hashing
+    case grouping
+}
+
 struct SimilarPhotoScanReport: Sendable, Equatable {
     let candidateCount: Int
     let hashedCount: Int
     let reusedHashCount: Int
     let groups: [SimilarPhotoGroup]
     let failures: [String]
+    let metrics: SimilarPhotoScanMetrics
+
+    init(
+        candidateCount: Int,
+        hashedCount: Int,
+        reusedHashCount: Int,
+        groups: [SimilarPhotoGroup],
+        failures: [String],
+        metrics: SimilarPhotoScanMetrics = .empty
+    ) {
+        self.candidateCount = candidateCount
+        self.hashedCount = hashedCount
+        self.reusedHashCount = reusedHashCount
+        self.groups = groups
+        self.failures = failures
+        self.metrics = metrics
+    }
 }
 
 struct TrashMoveReport: Sendable, Equatable {
