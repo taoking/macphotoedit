@@ -32,6 +32,11 @@ struct PhotoRenderResult: Sendable {
 /// CIContext alive and only accepts a downsampled image into the edit pipeline.
 actor PreviewRenderer {
     private let context = RendererContextFactory.makeContext()
+    private let subjectMaskProvider: SubjectMaskProvider
+
+    init(subjectMaskProvider: SubjectMaskProvider = SubjectMaskProvider(capacity: 8)) {
+        self.subjectMaskProvider = subjectMaskProvider
+    }
 
     func render(
         sourceURL: URL,
@@ -40,6 +45,67 @@ actor PreviewRenderer {
         technicalLUT: CubeLUT? = nil,
         sourceColor: PhotoColorDescriptor = .sRGB,
         maximumPixelSize: Int = 2_048
+    ) throws -> PhotoRenderResult {
+        guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
+            throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
+        }
+        let preview = PhotoImagePipeline.previewImage(from: source, maximumPixelSize: max(128, maximumPixelSize))
+        return try render(
+            source: preview,
+            state: state,
+            lut: lut,
+            technicalLUT: technicalLUT,
+            sourceColor: sourceColor,
+            maximumPixelSize: maximumPixelSize,
+            subjectMaskCacheKey: SubjectMaskCacheKey(
+                sourceURL: sourceURL,
+                rendition: .preview,
+                extent: preview.extent
+            )
+        )
+    }
+
+    func render(
+        source: CIImage,
+        state: PhotoEditState,
+        lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB,
+        maximumPixelSize: Int = 2_048,
+        subjectMaskCacheKey: SubjectMaskCacheKey? = nil
+    ) throws -> PhotoRenderResult {
+        try Task.checkCancellation()
+        let preview = PhotoImagePipeline.previewImage(from: source, maximumPixelSize: max(128, maximumPixelSize))
+        try Task.checkCancellation()
+        let output = try PhotoColorPipeline.apply(
+            source: preview,
+            state: state,
+            sourceColor: sourceColor,
+            technicalLUT: technicalLUT,
+            creativeLUT: lut,
+            subjectMaskProvider: subjectMaskProvider,
+            subjectMaskCacheKey: subjectMaskCacheKey ?? .transient(for: preview.extent)
+        )
+        return try RendererOutput.make(from: output.image, context: context, calculateHistogram: true, pipeline: output.plan)
+    }
+}
+
+/// Export rendering deliberately has a distinct context and never downscales the
+/// source. Phase 5 owns writing exports to a user-selected destination.
+actor ExportRenderer {
+    private let context = RendererContextFactory.makeContext()
+    private let subjectMaskProvider: SubjectMaskProvider
+
+    init(subjectMaskProvider: SubjectMaskProvider = SubjectMaskProvider(capacity: 1)) {
+        self.subjectMaskProvider = subjectMaskProvider
+    }
+
+    func render(
+        sourceURL: URL,
+        state: PhotoEditState,
+        lut: CubeLUT?,
+        technicalLUT: CubeLUT? = nil,
+        sourceColor: PhotoColorDescriptor = .sRGB
     ) throws -> PhotoRenderResult {
         guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
             throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
@@ -50,7 +116,11 @@ actor PreviewRenderer {
             lut: lut,
             technicalLUT: technicalLUT,
             sourceColor: sourceColor,
-            maximumPixelSize: maximumPixelSize
+            subjectMaskCacheKey: SubjectMaskCacheKey(
+                sourceURL: sourceURL,
+                rendition: .export,
+                extent: source.extent
+            )
         )
     }
 
@@ -60,46 +130,7 @@ actor PreviewRenderer {
         lut: CubeLUT?,
         technicalLUT: CubeLUT? = nil,
         sourceColor: PhotoColorDescriptor = .sRGB,
-        maximumPixelSize: Int = 2_048
-    ) throws -> PhotoRenderResult {
-        try Task.checkCancellation()
-        let preview = PhotoImagePipeline.previewImage(from: source, maximumPixelSize: max(128, maximumPixelSize))
-        try Task.checkCancellation()
-        let output = try PhotoColorPipeline.apply(
-            source: preview,
-            state: state,
-            sourceColor: sourceColor,
-            technicalLUT: technicalLUT,
-            creativeLUT: lut
-        )
-        return try RendererOutput.make(from: output.image, context: context, calculateHistogram: true, pipeline: output.plan)
-    }
-}
-
-/// Export rendering deliberately has a distinct context and never downscales the
-/// source. Phase 5 owns writing exports to a user-selected destination.
-actor ExportRenderer {
-    private let context = RendererContextFactory.makeContext()
-
-    func render(
-        sourceURL: URL,
-        state: PhotoEditState,
-        lut: CubeLUT?,
-        technicalLUT: CubeLUT? = nil,
-        sourceColor: PhotoColorDescriptor = .sRGB
-    ) throws -> PhotoRenderResult {
-        guard let source = CIImage(contentsOf: sourceURL, options: [.applyOrientationProperty: true]) else {
-            throw StudioError.metadataExtractionFailed(path: sourceURL.path(percentEncoded: false))
-        }
-        return try render(source: source, state: state, lut: lut, technicalLUT: technicalLUT, sourceColor: sourceColor)
-    }
-
-    func render(
-        source: CIImage,
-        state: PhotoEditState,
-        lut: CubeLUT?,
-        technicalLUT: CubeLUT? = nil,
-        sourceColor: PhotoColorDescriptor = .sRGB
+        subjectMaskCacheKey: SubjectMaskCacheKey? = nil
     ) throws -> PhotoRenderResult {
         try Task.checkCancellation()
         let output = try PhotoColorPipeline.apply(
@@ -107,7 +138,9 @@ actor ExportRenderer {
             state: state,
             sourceColor: sourceColor,
             technicalLUT: technicalLUT,
-            creativeLUT: lut
+            creativeLUT: lut,
+            subjectMaskProvider: subjectMaskProvider,
+            subjectMaskCacheKey: subjectMaskCacheKey ?? .transient(for: source.extent)
         )
         return try RendererOutput.make(from: output.image, context: context, calculateHistogram: false, pipeline: output.plan)
     }

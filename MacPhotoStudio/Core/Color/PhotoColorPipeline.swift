@@ -311,7 +311,9 @@ enum PhotoColorPipeline {
         sourceColor: PhotoColorDescriptor,
         technicalLUT: CubeLUT?,
         creativeLUT: CubeLUT?,
-        settings: PhotoColorPipelineSettings? = nil
+        settings: PhotoColorPipelineSettings? = nil,
+        subjectMaskProvider: SubjectMaskProvider? = nil,
+        subjectMaskCacheKey: SubjectMaskCacheKey? = nil
     ) throws -> (image: CIImage, plan: ColorPipelinePlan) {
         let effectiveSettings = settings ?? state.colorPipeline
         let plan = try ColorPipelinePlan.make(
@@ -326,6 +328,10 @@ enum PhotoColorPipeline {
         // graph deliberately starts with the original, profile-attached source;
         // Core Image color-matches it into `workingColorSpace` before executing
         // the filters below.
+        // Subject segmentation always sees this decoded, orientation-applied
+        // source. Keeping it outside the global-edit sequence means exposure,
+        // white balance, HSL and curve changes reuse the same valid mask.
+        let subjectSegmentationSource = source
         var image = source
 
         // Technical LUTs are a specialised bridge: materialise the original
@@ -346,7 +352,13 @@ enum PhotoColorPipeline {
 
         // Creative adjustments → Creative LUT → Output Transform.
         image = PhotoImagePipeline.applyCreativeAdjustments(state, to: image)
-        image = PhotoImagePipeline.applyLocalMasks(state.localMasks, to: image)
+        image = PhotoImagePipeline.applyLocalMasks(
+            state.localMasks,
+            to: image,
+            subjectSegmentationSource: subjectSegmentationSource,
+            subjectMaskProvider: subjectMaskProvider,
+            subjectMaskCacheKey: subjectMaskCacheKey
+        )
         if let creativeLUT, let application = state.lut {
             image = LUTProcessor.apply(creativeLUT, to: image, strength: application.clampedStrength)
         }

@@ -50,6 +50,18 @@ Each field blends the locally adjusted image against the current image with
 than a separate UI effect implementation. If Vision finds no foreground or
 fails, it applies no adjustment rather than applying one to the whole image.
 
+Subject segmentation taps the decoded, orientation-applied image before global
+and local adjustments. Therefore changing exposure, contrast, saturation,
+temperature, HSL, curves, or the order of prior local masks neither changes the
+Vision input nor starts another request. A `SubjectMaskProvider` keeps a
+disposable LRU cache keyed by source URL plus file size/modification time,
+preview/export rendition, input extent and Vision request revision. The preview
+renderer holds at most eight derived masks; the full-resolution export renderer
+holds only one. A no-subject/failed result is cached as a fail-closed result.
+These masks are memory-only: no subject bitmap is written to Catalog SQLite,
+beside the source, or to a persistent cache. A source revision or input
+geometry change creates a new key.
+
 ## Canvas interaction
 
 Phase 12.13 adds direct manipulation to the ordinary photo editor without

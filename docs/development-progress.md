@@ -1136,7 +1136,7 @@ Known Limitations:
 - 本阶段不改变 RAW 编辑器没有局部蒙版选择器的既有产品边界。
 
 Commit:
-- Pending — `fix: align local masks with photo transforms`
+- `fc7f312 fix: align local masks with photo transforms`
 
 ## Phase 16.2 — Technical LUT Strength Correctness
 
@@ -1168,4 +1168,38 @@ Known Limitations:
 - S-Log3、HLG、PQ 仍被明确拒绝，直到存在经过验证的 transfer-function bridge；本阶段没有以近似实现扩大支持面。
 
 Commit:
-- Pending — `fix: preserve color space in technical LUT blends`
+- `af42de0 fix: preserve color space in technical LUT blends`
+
+## Phase 16.3 — Subject Mask Stable Source + Cache
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增可注入的 `SubjectMaskProvider`。它以源文件规范路径、文件大小、修改时间、preview/export rendition、输入 extent 和 Vision request revision 组成键，并以线程安全 LRU 仅保存可丢弃的内存蒙版或失败结果；Preview 最多保留 8 个，full-resolution Export 最多保留 1 个。
+- 主体分割的稳定基准明确为“已解码且应用方向后的源图”，在 global creative adjustment、任何 local mask 与 LUT 之前取得。局部蒙版仍按数组顺序合成，但前置蒙版、曝光、对比度、饱和度、色温、HSL 和曲线都不会改变 Vision 输入。
+- 同一 render 的多个 Subject Mask 与相同预览源的后续无关 slider render 复用同一 Vision 结果；源签名或输入几何变化会失效。无主体/失败结果缓存为 fail-closed，不会退化为全图调整。
+- 缓存只保存派生 `CIImage` 于进程内存；没有向 Catalog SQLite、源媒体目录或持久化缓存写入任何 Subject bitmap。补充局部蒙版和真实媒体人工验证说明。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/SubjectMaskProviderTests -only-testing:MacPhotoStudioTests/SmartMaskTests -only-testing:MacPhotoStudioTests/PhotoEditingTests`；26 tests, 0 failures。覆盖三主体蒙版单次生成、局部蒙版顺序稳定、全局 slider 的实际 `PreviewRenderer` 缓存复用和稳定输入、源签名/几何失效、失败关闭以及真实 Vision capability boundary。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — Subject Mask 不会再读取逐步经局部或全局调色后的图像；每个 render 的三枚 Subject Mask 只触发一次生成，预览无关 slider 复用有界派生缓存，export 以其自身 full-resolution key 生成/复用。没有 SQLite、磁盘或媒体写入，失败仍关闭。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 92 tests, 0 failures，覆盖 Phase 0–16.3 的 Catalog、资料库、照片/RAW/LUT、局部蒙版、导出、视频、HDR guard、协调器与相似照片检测。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 使用用户授权的人像、宠物和常见物体照片，在简单/复杂背景、发丝/毛发、多主体、无主体以及 24 MP / 48 MP 图上添加多个 Subject Mask；实际拖动 global slider、重排局部蒙版、改变预览尺寸、替换/更新源文件，并与 full-resolution 新文件导出比较质量、延迟、内存和原图字节不变。详见 `docs/manual-validation.md`。
+
+Known Limitations:
+- Vision foreground selection 仍是显著前景实例，并非语义类别、单实例 picker、手动 refine 或 Sky Mask；真实选择边界由 Apple Vision 和用户照片决定。
+- 缓存是有界的进程内存缓存，应用重启后会重新生成；它刻意不以大位图持久化换取性能。高像素真实图像的实际延迟与内存需要人工验证。
+- 无可靠 source URL 的内部调用仅共享当前 render 的 transient key；正常文件预览/导出路径使用可失效的文件签名键。
+
+Commit:
+- `fix: stabilize subject mask rendering`

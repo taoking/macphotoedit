@@ -16,9 +16,21 @@ struct PhotoImagePipeline {
         return filter.outputImage ?? source
     }
 
-    static func apply(_ state: PhotoEditState, to source: CIImage, lut: CubeLUT? = nil) -> CIImage {
+    static func apply(
+        _ state: PhotoEditState,
+        to source: CIImage,
+        lut: CubeLUT? = nil,
+        subjectMaskProvider: SubjectMaskProvider? = nil,
+        subjectMaskCacheKey: SubjectMaskCacheKey? = nil
+    ) -> CIImage {
         var image = applyCreativeAdjustments(state, to: source)
-        image = applyLocalMasks(state.localMasks, to: image)
+        image = applyLocalMasks(
+            state.localMasks,
+            to: image,
+            subjectSegmentationSource: source,
+            subjectMaskProvider: subjectMaskProvider,
+            subjectMaskCacheKey: subjectMaskCacheKey
+        )
         if let lut, let application = state.lut { image = LUTProcessor.apply(lut, to: image, strength: application.clampedStrength) }
         return applyTransform(image, using: state.transform)
     }
@@ -85,11 +97,30 @@ struct PhotoImagePipeline {
     /// Applies every mask sequentially to the pre-transform image. Sequential
     /// composition makes mask ordering deterministic and keeps preview/export
     /// identical at every resolution.
-    static func applyLocalMasks(_ masks: [LocalMask], to source: CIImage) -> CIImage {
-        masks.reduce(source) { image, mask in
+    static func applyLocalMasks(
+        _ masks: [LocalMask],
+        to source: CIImage,
+        subjectSegmentationSource: CIImage? = nil,
+        subjectMaskProvider: SubjectMaskProvider? = nil,
+        subjectMaskCacheKey: SubjectMaskCacheKey? = nil
+    ) -> CIImage {
+        let provider = subjectMaskProvider ?? SubjectMaskProvider()
+        let cacheKey = subjectMaskCacheKey ?? .transient(for: source.extent)
+        // Subject selection starts at the decoded, orientation-applied source
+        // before global or local photo adjustments. Ordinary local masks remain
+        // sequential, but neither an earlier local mask nor an irrelevant
+        // global slider can alter the image sent to Vision.
+        let stableSubjectSource = subjectSegmentationSource ?? source
+        return masks.reduce(source) { image, mask in
             guard mask.isRenderable else { return image }
             let adjusted = apply(mask.adjustments, to: image)
-            let maskImage = LocalMaskRenderer.image(for: mask, source: image)
+            let maskImage = LocalMaskRenderer.image(
+                for: mask,
+                source: image,
+                stableSubjectSource: stableSubjectSource,
+                subjectMaskProvider: provider,
+                subjectMaskCacheKey: cacheKey
+            )
             guard let maskImage else { return image }
             return adjusted.applyingFilter("CIBlendWithMask", parameters: [
                 kCIInputBackgroundImageKey: image,
@@ -118,7 +149,13 @@ struct PhotoImagePipeline {
 }
 
 private enum LocalMaskRenderer {
-    static func image(for mask: LocalMask, source: CIImage) -> CIImage? {
+    static func image(
+        for mask: LocalMask,
+        source: CIImage,
+        stableSubjectSource: CIImage,
+        subjectMaskProvider: SubjectMaskProvider,
+        subjectMaskCacheKey: SubjectMaskCacheKey
+    ) -> CIImage? {
         let extent = source.extent
         guard extent.width > 0, extent.height > 0 else { return nil }
         let maskImage: CIImage
@@ -160,7 +197,7 @@ private enum LocalMaskRenderer {
             guard let brushMask = BrushMaskRenderer.image(for: mask.brushStrokes, extent: extent) else { return nil }
             maskImage = brushMask
         case .subject:
-            guard let subjectMask = VisionSubjectMaskRenderer.image(for: source) else { return nil }
+            guard let subjectMask = subjectMaskProvider.mask(for: stableSubjectSource, key: subjectMaskCacheKey) else { return nil }
             maskImage = subjectMask
         }
         guard mask.clampedOpacity < 1 else { return maskImage.cropped(to: extent) }
