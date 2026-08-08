@@ -1437,3 +1437,35 @@ Known Limitations:
 
 Commit:
 - `refactor: extract photo editing coordinator`
+
+## Phase 16.11 — CI / Regression Gate
+
+Status:
+IMPLEMENTED — REMOTE CI PENDING
+
+Implemented:
+- 新增公开仓库的 `.github/workflows/macos-regression.yml`。它在 `main` push、针对 `main` 的 PR 和手动触发时，使用 `macos-26`，明确选择 `/Applications/Xcode_26.6.app`，通过 Homebrew 安装 XcodeGen，运行完整 unsigned macOS test 和 Debug build。
+- 工作流最小权限为 `contents: read`，没有 secrets、媒体上传或生成文件归档。`docs/**` 和 `plan.md` 的纯文档 push 不重复消耗 macOS runner；任何代码、工程或 workflow 变化仍会触发门禁。
+- 新增 `docs/ci.md`，并在 README 中链接，记录本地与 GitHub-hosted runner/Xcode 矩阵以及工具链漂移时的可见失败策略。
+
+Tests:
+PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（20.50 秒）。
+
+Build:
+PASS (local) — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PENDING — 本地 workflow 语法、完整 test 和 Debug build 已通过；需在推送后等待 GitHub-hosted `macos-26` job 的实际状态，绝不将本地结果伪装成远程 CI 结果。
+
+Regression:
+PASS (local) — 当前全部 105 项自动化回归通过；远程 CI status 待记录。
+
+Manual Verification:
+NOT REQUIRED — 本阶段 CI workflow 不读取真实媒体，也不依赖外置盘、HDR 屏幕或权限弹窗。已有真实媒体/硬件人工验证项继续适用。
+
+Known Limitations:
+- GitHub-hosted runner image 会更新；workflow 故意固定 `macos-26` 和 Xcode 26.6 path，镜像移除该 path 会失败并要求显式更新矩阵。
+- 初次远程运行的结果尚未取得；在 Actions 实际完成前，本阶段不能标记为完成。
+
+Commit:
+- Pending — `ci: add macos regression gate`
