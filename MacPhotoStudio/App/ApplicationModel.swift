@@ -26,6 +26,7 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var latestVideoExportReport: VideoExportReport?
     @Published private(set) var latestVideoProxyReport: VideoProxyReport?
     @Published private(set) var latestDuplicateScanReport: DuplicateScanReport?
+    @Published private(set) var latestSimilarPhotoScanReport: SimilarPhotoScanReport?
     @Published private(set) var latestTrashMoveReport: TrashMoveReport?
     @Published private(set) var hasMoreLibraryAssets = false
     @Published private(set) var isLoadingLibraryAssets = false
@@ -42,6 +43,7 @@ final class ApplicationModel: ObservableObject {
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
     private var duplicateScanner: ExactDuplicateScanner?
+    private var similarPhotoScanner: SimilarPhotoScanner?
     private var mediaTrashService: MediaTrashService?
     private let taskCoordinator = TaskCoordinator()
     private var copiedPhotoContent: PhotoPresetContent?
@@ -85,6 +87,7 @@ final class ApplicationModel: ObservableObject {
             )
             self.presetRepository = PresetRepository(catalogStore: catalogStore)
             self.duplicateScanner = ExactDuplicateScanner(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
+            self.similarPhotoScanner = SimilarPhotoScanner(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
             self.mediaTrashService = MediaTrashService(catalogStore: catalogStore, mediaRootStore: mediaRootStore)
             startupState = .ready(paths)
             await refreshLibrary(validateRoots: true)
@@ -763,6 +766,32 @@ final class ApplicationModel: ObservableObject {
         return task.id
     }
 
+    func startSimilarPhotoScan() async -> UUID? {
+        guard let similarPhotoScanner else { return nil }
+        let task = await taskCoordinator.enqueue(kind: .perceptualHashing, title: "查找相似照片")
+        await refreshBatchTasks()
+        let taskCoordinator = taskCoordinator
+        let worker = Task { [weak self, similarPhotoScanner] in
+            do {
+                try await taskCoordinator.start(task.id)
+                await self?.refreshBatchTasks()
+                let report = try await similarPhotoScanner.scan { progress in
+                    try? await taskCoordinator.updateProgress(progress, for: task.id)
+                }
+                try await taskCoordinator.complete(task.id)
+                await self?.finishSimilarPhotoScan(report, taskID: task.id)
+            } catch is CancellationError {
+                try? await taskCoordinator.cancel(task.id)
+                await self?.finishCancelledBatchTask(task.id)
+            } catch {
+                try? await taskCoordinator.fail(task.id)
+                await self?.finishFailedSimilarPhotoTask(task.id, error: error)
+            }
+        }
+        taskCoordinator.register(worker: worker, for: task.id)
+        return task.id
+    }
+
     func moveAssetsToTrash(_ assets: [LibraryAssetRecord]) async -> TrashMoveReport? {
         guard let mediaTrashService, !assets.isEmpty else { return nil }
         do {
@@ -1197,6 +1226,12 @@ final class ApplicationModel: ObservableObject {
         await refreshBatchTasks()
     }
 
+    private func finishSimilarPhotoScan(_ report: SimilarPhotoScanReport, taskID: UUID) async {
+        latestSimilarPhotoScanReport = report
+        taskCoordinator.releaseWorker(for: taskID)
+        await refreshBatchTasks()
+    }
+
     private func finishCancelledBatchTask(_ taskID: UUID) async {
         taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
@@ -1224,6 +1259,12 @@ final class ApplicationModel: ObservableObject {
         taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
         report(error, activity: "Finding exact duplicates")
+    }
+
+    private func finishFailedSimilarPhotoTask(_ taskID: UUID, error: Error) async {
+        taskCoordinator.releaseWorker(for: taskID)
+        await refreshBatchTasks()
+        report(error, activity: "Finding similar photos")
     }
 
     private func askForExportCollisionResolution(_ collision: ExportCollision) -> ExportCollisionResolution {

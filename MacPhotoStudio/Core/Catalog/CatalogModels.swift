@@ -234,6 +234,53 @@ struct DuplicateScanReport: Sendable, Equatable {
     let failures: [String]
 }
 
+/// A photo eligible for local perceptual hashing. Unlike exact duplicate
+/// hashing, visual similarity intentionally considers every available photo
+/// so resized or re-encoded copies are not excluded by file size.
+struct PerceptualHashCandidate: Identifiable, Sendable, Equatable, Hashable {
+    let id: UUID
+    let rootID: UUID
+    let relativePath: String
+    let fileSize: Int64
+    let modifiedAt: Date?
+}
+
+struct PerceptualHashRecord: Sendable, Equatable, Hashable {
+    let candidate: PerceptualHashCandidate
+    let digest: String
+}
+
+/// One pair within a visual-similarity group. The score is derived solely from
+/// a 64-bit dHash Hamming distance; it is a review aid, not semantic identity
+/// or a deletion recommendation.
+struct SimilarPhotoMatch: Identifiable, Sendable, Equatable, Hashable {
+    let first: PerceptualHashCandidate
+    let second: PerceptualHashCandidate
+    let hammingDistance: Int
+    let similarityScore: Int
+
+    var id: String {
+        let identifiers = [first.id.uuidString, second.id.uuidString].sorted()
+        return "\(identifiers[0])-\(identifiers[1])"
+    }
+}
+
+struct SimilarPhotoGroup: Identifiable, Sendable, Equatable {
+    let assets: [PerceptualHashCandidate]
+    let matches: [SimilarPhotoMatch]
+
+    var id: String { assets.map(\.id.uuidString).sorted().joined(separator: "-") }
+    var highestSimilarityScore: Int { matches.map(\.similarityScore).max() ?? 0 }
+}
+
+struct SimilarPhotoScanReport: Sendable, Equatable {
+    let candidateCount: Int
+    let hashedCount: Int
+    let reusedHashCount: Int
+    let groups: [SimilarPhotoGroup]
+    let failures: [String]
+}
+
 struct TrashMoveReport: Sendable, Equatable {
     let movedAssetIDs: [UUID]
     let failures: [String]

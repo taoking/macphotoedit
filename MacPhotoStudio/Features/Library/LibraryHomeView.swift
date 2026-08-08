@@ -122,7 +122,8 @@ struct LibraryHomeView: View {
                     Task { _ = await model.createStack(kind: kind, title: title, assets: selectedAssets) }
                 },
                 removeFromCurrentStack: removeSelectionFromCurrentStack,
-                scanDuplicates: { Task { _ = await model.startExactDuplicateScan() } },
+                scanExactDuplicates: { Task { _ = await model.startExactDuplicateScan() } },
+                scanSimilarPhotos: { Task { _ = await model.startSimilarPhotoScan() } },
                 moveToTrash: { assets in Task { _ = await model.moveAssetsToTrash(assets) } },
                 select: select,
                 moveSelection: moveSelection

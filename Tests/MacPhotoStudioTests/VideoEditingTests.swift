@@ -153,7 +153,7 @@ final class VideoEditingTests: XCTestCase {
         try await reopened.bootstrap()
         let schemaVersion = try await reopened.currentSchemaVersion()
         let restoredState = try await reopened.videoEditState(for: asset.id)
-        XCTAssertEqual(schemaVersion, 11)
+        XCTAssertEqual(schemaVersion, 12)
         XCTAssertEqual(restoredState, expected)
         let edited = try await reopened.libraryAssets(query: LibraryQuery(isEdited: true), limit: 10, offset: 0)
         XCTAssertEqual(edited.map(\.id), [asset.id])

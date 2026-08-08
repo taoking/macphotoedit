@@ -330,6 +330,22 @@ enum CatalogMigrations {
                     ON video_proxies(source_file_size, source_modified_at);
                 """
             )
+        },
+        CatalogMigration(version: 12, name: "addPerceptualHashSchema") { connection in
+            try connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS asset_perceptual_hashes (
+                    asset_id TEXT PRIMARY KEY NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    algorithm TEXT NOT NULL,
+                    source_file_size INTEGER NOT NULL,
+                    source_modified_at REAL,
+                    digest TEXT NOT NULL,
+                    computed_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS asset_perceptual_hashes_lookup_index
+                    ON asset_perceptual_hashes(algorithm, source_file_size, source_modified_at);
+                """
+            )
         }
     ]
 }

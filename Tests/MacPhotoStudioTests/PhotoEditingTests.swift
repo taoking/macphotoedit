@@ -74,7 +74,7 @@ final class PhotoEditingTests: XCTestCase {
         try await reopenedStore.bootstrap()
         let version = try await reopenedStore.currentSchemaVersion()
         let restoredState = try await reopenedStore.photoEditState(for: asset.id)
-        XCTAssertEqual(version, 11)
+        XCTAssertEqual(version, 12)
         XCTAssertEqual(restoredState, state)
         let restoredRAWState = try await reopenedStore.rawEditState(for: asset.id)
         XCTAssertEqual(restoredRAWState, rawState)

@@ -789,6 +789,94 @@ actor CatalogStore {
             }
     }
 
+    /// All available photos participate in perceptual comparison. File size is
+    /// deliberately not used as a candidate filter because exports and resized
+    /// copies are one of the primary use cases for this scan.
+    func perceptualHashCandidates() throws -> [PerceptualHashCandidate] {
+        let rows = try requireConnection().query(
+            """
+            SELECT id, root_id, relative_path, file_size, modified_at
+            FROM media_assets
+            WHERE availability = 'available'
+              AND media_type = 'photo'
+              AND file_size > 0
+            ORDER BY root_id ASC, relative_path COLLATE NOCASE ASC;
+            """
+        )
+        return rows.compactMap { perceptualHashCandidate(from: $0) }
+    }
+
+    func perceptualHash(
+        for candidate: PerceptualHashCandidate,
+        algorithm: String = PerceptualHash.algorithm
+    ) throws -> String? {
+        let rows = try requireConnection().query(
+            """
+            SELECT digest FROM asset_perceptual_hashes
+            WHERE asset_id = ? AND algorithm = ? AND source_file_size = ?
+              AND ((source_modified_at IS NULL AND ? IS NULL) OR ABS(source_modified_at - ?) < 0.001)
+            LIMIT 1;
+            """,
+            bindings: [
+                .text(candidate.id.uuidString), .text(algorithm), .integer(candidate.fileSize),
+                sql(candidate.modifiedAt), sql(candidate.modifiedAt)
+            ]
+        )
+        return rows.first?.text(at: 0)
+    }
+
+    func savePerceptualHash(
+        _ digest: String,
+        for candidate: PerceptualHashCandidate,
+        algorithm: String = PerceptualHash.algorithm,
+        now: Date = .now
+    ) throws {
+        try requireConnection().execute(
+            """
+            INSERT INTO asset_perceptual_hashes (
+                asset_id, algorithm, source_file_size, source_modified_at, digest, computed_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                algorithm = excluded.algorithm,
+                source_file_size = excluded.source_file_size,
+                source_modified_at = excluded.source_modified_at,
+                digest = excluded.digest,
+                computed_at = excluded.computed_at;
+            """,
+            bindings: [
+                .text(candidate.id.uuidString), .text(algorithm), .integer(candidate.fileSize),
+                sql(candidate.modifiedAt), .text(digest), .real(now.timeIntervalSince1970)
+            ]
+        )
+    }
+
+    /// Returns only hashes whose recorded source signature still matches the
+    /// current Catalog row, so stale visual comparisons cannot survive an
+    /// external source-file edit or replacement.
+    func currentPerceptualHashes(
+        algorithm: String = PerceptualHash.algorithm
+    ) throws -> [PerceptualHashRecord] {
+        let rows = try requireConnection().query(
+            """
+            SELECT a.id, a.root_id, a.relative_path, a.file_size, a.modified_at, h.digest
+            FROM asset_perceptual_hashes h
+            JOIN media_assets a ON a.id = h.asset_id
+            WHERE h.algorithm = ?
+              AND a.availability = 'available'
+              AND a.media_type = 'photo'
+              AND h.source_file_size = a.file_size
+              AND ((h.source_modified_at IS NULL AND a.modified_at IS NULL)
+                   OR ABS(h.source_modified_at - a.modified_at) < 0.001)
+            ORDER BY a.root_id ASC, a.relative_path COLLATE NOCASE ASC;
+            """,
+            bindings: [.text(algorithm)]
+        )
+        return rows.compactMap { row in
+            guard let candidate = perceptualHashCandidate(from: row), let digest = row.text(at: 5) else { return nil }
+            return PerceptualHashRecord(candidate: candidate, digest: digest)
+        }
+    }
+
     private func upsert(_ asset: ScannedMediaAsset, scanID: UUID, using connection: SQLiteConnection) throws {
         try connection.execute(
             """
@@ -1133,6 +1221,18 @@ actor CatalogStore {
             let relativePath = row.text(at: offset + 2), let fileSize = row.integer(at: offset + 3)
         else { return nil }
         return DuplicateHashCandidate(
+            id: id, rootID: rootID, relativePath: relativePath,
+            fileSize: fileSize, modifiedAt: date(from: row.real(at: offset + 4))
+        )
+    }
+
+    private func perceptualHashCandidate(from row: SQLiteRow, offset: Int = 0) -> PerceptualHashCandidate? {
+        guard
+            let idText = row.text(at: offset), let id = UUID(uuidString: idText),
+            let rootText = row.text(at: offset + 1), let rootID = UUID(uuidString: rootText),
+            let relativePath = row.text(at: offset + 2), let fileSize = row.integer(at: offset + 3)
+        else { return nil }
+        return PerceptualHashCandidate(
             id: id, rootID: rootID, relativePath: relativePath,
             fileSize: fileSize, modifiedAt: date(from: row.real(at: offset + 4))
         )

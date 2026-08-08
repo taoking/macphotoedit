@@ -20,7 +20,8 @@ struct AssetBrowserView: View {
     let removeFromCurrentAlbum: () -> Void
     let createStack: (AssetStackKind, String) -> Void
     let removeFromCurrentStack: () -> Void
-    let scanDuplicates: () -> Void
+    let scanExactDuplicates: () -> Void
+    let scanSimilarPhotos: () -> Void
     let moveToTrash: ([LibraryAssetRecord]) -> Void
     let select: (UUID, NSEvent.ModifierFlags) -> Void
     let moveSelection: (Int) -> Void
@@ -214,17 +215,23 @@ struct AssetBrowserView: View {
                     }
                 }
                 Button {
-                    scanDuplicates()
+                    scanExactDuplicates()
                     showsDuplicateResults = true
                 } label: {
                     Label("查找精确重复项", systemImage: "doc.on.doc")
                 }
                 Button {
+                    scanSimilarPhotos()
                     showsDuplicateResults = true
                 } label: {
-                    Label("重复项结果", systemImage: "list.bullet.rectangle")
+                    Label("查找相似照片", systemImage: "rectangle.3.group")
                 }
-                .disabled(model.latestDuplicateScanReport == nil)
+                Button {
+                    showsDuplicateResults = true
+                } label: {
+                    Label("重复/相似结果", systemImage: "list.bullet.rectangle")
+                }
+                .disabled(model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil)
             }
         }
         .padding(.horizontal, 14)
@@ -384,51 +391,104 @@ private struct DuplicateResultsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("精确重复项")
+                Text("重复与相似照片")
                     .font(.headline)
                 Spacer()
                 Button("完成") { dismiss() }
             }
-            Text("先按文件大小分组，再以 SHA-256 内容哈希确认。相似图片不会出现在这里，也不会自动删除任何文件。")
+            Text("精确重复项先按文件大小分组，再以 SHA-256 确认。相似照片使用仅本地 dHash 的 Hamming 距离作为复核线索；两类分析都不会删除、移动或上传原始文件。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            if let report = model.latestDuplicateScanReport {
-                Text("候选 \(report.candidateCount) 个；新计算 \(report.hashedCount) 个；复用有效哈希 \(report.reusedHashCount) 个；确认组 \(report.groups.count) 组。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                List {
-                    ForEach(report.groups) { group in
-                        Section("\(ByteCountFormatter.string(fromByteCount: group.fileSize, countStyle: .file)) · \(group.assets.count) 个项目") {
-                            ForEach(group.assets) { asset in
-                                Text(asset.relativePath)
-                                    .font(.system(.body, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                    if !report.failures.isEmpty {
-                        Section("无法验证") {
-                            ForEach(report.failures, id: \.self) { failure in
-                                Text(failure)
-                                    .foregroundStyle(.orange)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                }
-                .frame(minHeight: 240)
-                if report.groups.isEmpty {
-                    ContentUnavailableView("未发现已验证的精确重复项", systemImage: "checkmark.circle")
-                }
-            } else if model.batchTasks.contains(where: { $0.kind == .duplicateHashing && !$0.state.isTerminal }) {
-                ProgressView("正在按候选大小组计算 SHA-256…")
-                    .frame(maxWidth: .infinity, minHeight: 220)
-            } else {
-                ContentUnavailableView("尚未运行重复检测", systemImage: "doc.on.doc")
+            List {
+                exactDuplicateSection
+                similarPhotoSection
+            }
+            .frame(minHeight: 320)
+            if isScanning {
+                ProgressView("正在本地分析照片…")
+            } else if model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil {
+                ContentUnavailableView("尚未运行重复或相似照片检测", systemImage: "rectangle.3.group")
             }
         }
         .padding(20)
-        .frame(width: 620, height: 540)
+        .frame(width: 720, height: 620)
+    }
+
+    private var isScanning: Bool {
+        model.batchTasks.contains {
+            ($0.kind == .duplicateHashing || $0.kind == .perceptualHashing) && !$0.state.isTerminal
+        }
+    }
+
+    @ViewBuilder
+    private var exactDuplicateSection: some View {
+        if let report = model.latestDuplicateScanReport {
+            Section("精确重复项") {
+                Text("候选 \(report.candidateCount) 个；新计算 \(report.hashedCount) 个；复用有效哈希 \(report.reusedHashCount) 个；确认组 \(report.groups.count) 组。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(report.groups) { group in
+                    Section("\(ByteCountFormatter.string(fromByteCount: group.fileSize, countStyle: .file)) · \(group.assets.count) 个项目") {
+                        ForEach(group.assets) { asset in
+                            Text(asset.relativePath)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                if !report.failures.isEmpty {
+                    Section("精确重复项无法验证") {
+                        ForEach(report.failures, id: \.self) { failure in
+                            Text(failure)
+                                .foregroundStyle(.orange)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                if report.groups.isEmpty {
+                    Text("未发现已验证的精确重复项")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var similarPhotoSection: some View {
+        if let report = model.latestSimilarPhotoScanReport {
+            Section("相似照片（dHash）") {
+                Text("候选 \(report.candidateCount) 张；新计算 \(report.hashedCount) 张；复用有效哈希 \(report.reusedHashCount) 张；相似组 \(report.groups.count) 组。分数是 dHash 像素结构接近度，不是语义识别或删除建议。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(report.groups) { group in
+                    Section("相似组 · \(group.assets.count) 张 · 最高 \(group.highestSimilarityScore)%") {
+                        ForEach(group.matches) { match in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(match.first.relativePath) ↔ \(match.second.relativePath)")
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                                Text("相似度 \(match.similarityScore)% · dHash Hamming \(match.hammingDistance)/64")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                if !report.failures.isEmpty {
+                    Section("相似照片无法分析") {
+                        ForEach(report.failures, id: \.self) { failure in
+                            Text(failure)
+                                .foregroundStyle(.orange)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                if report.groups.isEmpty {
+                    Text("未发现达到当前 dHash 阈值的相似照片")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }
 

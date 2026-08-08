@@ -1070,3 +1070,38 @@ Known Limitations:
 
 Commit:
 - `feat: add vision foreground subject masks`
+
+## Phase 15 — Similar Photo Detection
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增独立的 `asset_perceptual_hashes` Catalog migration（v12）。它只保存本地 `dhash-64-v1`、算法版本和 source file size / modification time；与既有精确重复 SHA-256 表分离，源文件变化时缓存自动失效。
+- `SimilarPhotoScanner` 通过 security-scoped access 以 ImageIO 解码可用照片的最多 96 px 缩略图，并在本地 9×8 亮度图上计算真实 64-bit dHash。它可识别缩放、重新导出/轻度 JPEG 压缩和均匀小幅曝光/颜色变化的候选；ImageIO 或栅格化失败会列入 failures，绝不写入全零或其他伪哈希。
+- 使用 Hamming distance ≤ 8/64 建立 Similar Group，并以 `(64 - distance) / 64` 展示 0–100 的像素结构相近分数。BK-tree 避免全库 all-pairs 比较；相同哈希仅使用代表连接边，防止大量 burst/重复项造成二次方内存和结果膨胀。
+- 资料库工具栏新增“查找相似照片”，由可取消的后台任务驱动；结果页展示相似组、文件对、相似度与 Hamming distance，并明确它只是复核线索。没有相似结果删除、移动、评分、云上传或语义搜索入口。
+- 新增 `docs/similar-photo-detection.md` 和真实媒体人工验证项，说明算法、缓存、分组、隐私与非语义边界。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/SimilarPhotoDetectionTests -only-testing:MacPhotoStudioTests/AdvancedPhotoManagementTests -only-testing:MacPhotoStudioTests/CatalogStoreTests -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/VideoEditingTests`；34 tests, 0 failures。新增真实 ImageIO 临时 JPEG fixture，覆盖 resize、重新压缩、小幅调色、不同结构排除、Catalog cache reuse、分组/分数和源文件字节不变。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — Phase 15 不是 mock：用户动作触发本地解码和真实 dHash，持久化为可失效的紧凑 Catalog metadata，以 Hamming distance 形成 Similar Group 并显示 Similarity Score。默认仅分析/显示，未提供自动或隐式删除；现有移到废纸篓操作仍需独立明确确认。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 83 tests, 0 failures。覆盖 Phase 0–15 的 Catalog、资料库、照片/RAW/LUT、局部蒙版、导出、视频、HDR guard、协调器、性能缓存与相似检测，未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 在用户授权的 JPEG、HEIC、PNG、TIFF、RAW-derived JPEG 和外置存储上，以真实缩放副本、重新导出的 JPEG、小幅调色、不同图像及 10k+/50k+/100k Catalog 运行首轮/缓存扫描，人工检查 false positive/false negative、取消、响应性、内存、断开重连、失效重算和源文件字节不变；详见 `docs/manual-validation.md`。
+
+Known Limitations:
+- dHash 是低分辨率亮度结构比较，不是 Vision feature print、语义搜索、脸部识别或身份结论。大裁剪、旋转、重度修图、非均匀局部编辑可能漏检；重复几何/图形可能误报，用户必须在操作文件前自行检查。
+- 当前阈值固定为 Hamming ≤ 8；相似组按连接关系形成，结果页列出构成连接的代表性比较边，而非所有成员两两比较。
+- 首次扫描必须读取每张可用照片；真实大型资料库的耗时和内存未在仓库小型 fixture 上测量，保留人工验证。没有引入云端处理或自动删除。
+
+Commit:
+- `feat: add local similar photo detection`
