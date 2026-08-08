@@ -898,3 +898,37 @@ Known Limitations:
 
 Commit:
 - `fix: audit hdr capability boundaries`
+
+## Phase 12.11 — ApplicationModel Refactor
+
+Status:
+COMPLETED
+
+Implemented:
+- 新增 `VideoEditingCoordinator`，集中构造并调用真实 `VideoEditingService`、`VideoProxyService` 与 `LUTRepository`。播放源解析、安全域内路径校验、编辑状态读写、预览 payload、LUT 查询、导出及 Proxy 生成/删除均经该协调器；`ApplicationModel` 不再直接持有这些视频服务。
+- 新增 `TaskCoordinator`，集中管理 `BackgroundTaskCenter` 状态迁移和实际 worker 的注册、释放、取消。视频导出/Proxy、重复项扫描和照片批处理均通过其任务生命周期接口执行。
+- `ApplicationModel` 保留 SwiftUI 可观察状态、错误呈现、结果报告和跨域编排，避免一次性重写 UI 调用面。
+- 新增架构文档，明确本阶段仅完成 Video/Task 的安全纵向迁移；图库扫描、照片编辑/预设、照片导出/批处理尚未拆成独立 coordinator，未被误报为已完成。
+- 新增 `CoordinatorTests`，使用真实 Catalog 和背景任务状态机验证任务生命周期与视频编辑状态持久化，而非 mock 协调器。
+
+Tests:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/CoordinatorTests`；2 tests, 0 failures。
+
+Build:
+PASS — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+
+Acceptance:
+PASS — 视频操作均经 `VideoEditingCoordinator` 进入实际服务，后台任务状态和取消 handle 均经 `TaskCoordinator` 管理；`ApplicationModel` 只保留 UI 可观察状态、错误呈现和跨域编排。旧的直接视频服务/任务中心/安全媒体路径引用已检索为零。未发现 P0/P1 阻塞问题。
+
+Regression:
+PASS — 全量 69 项测试，0 failures，覆盖 Phase 0–12.11 的 Catalog、资料库、照片/RAW/LUT、SDR 导出、视频编辑/Proxy、音视频导出、播放会话、HDR Unsupported guard 和新增协调器边界；未发现回归。
+
+Manual Verification:
+MANUAL VERIFICATION REQUIRED — 在用户授权的本地与外置卷视频上验证：反复生成/移除 Proxy、编辑预览、导出、取消后台任务后，UI 任务状态、错误提示和原文件保护与重构前一致。真实权限、外置卷与长片无法纳入仓库自动化 fixture。
+
+Known Limitations:
+- `LibraryCoordinator`、`PhotoEditingCoordinator`、`ExportCoordinator` 仍未实现；本阶段是符合计划“逐步拆分”的 Video/Task 首个垂直切片，而非把整个 `ApplicationModel` 伪装成已完全拆分。
+- 协调器不改变既有 HDR video Unsupported 边界、正增益 Unsupported 边界或外置媒体人工验证要求。
+
+Commit:
+- `refactor: split video and task coordinators`

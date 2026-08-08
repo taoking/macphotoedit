@@ -38,14 +38,12 @@ final class ApplicationModel: ObservableObject {
     private var scanCoordinator: ScanCoordinator?
     private var thumbnailLoader: ThumbnailLoader?
     private var videoFilmstripLoader: VideoFilmstripLoader?
-    private var videoEditingService: VideoEditingService?
-    private var videoProxyService: VideoProxyService?
+    private var videoCoordinator: VideoEditingCoordinator?
     private var photoEditingService: PhotoEditingService?
     private var presetRepository: PresetRepository?
     private var duplicateScanner: ExactDuplicateScanner?
     private var mediaTrashService: MediaTrashService?
-    private let batchTaskCenter = BackgroundTaskCenter()
-    private var batchWorkerTasks: [UUID: Task<Void, Never>] = [:]
+    private let taskCoordinator = TaskCoordinator()
     private var copiedPhotoContent: PhotoPresetContent?
     private var activeLibraryQuery = LibraryQuery.all
     private var nextAssetOffset = 0
@@ -74,14 +72,11 @@ final class ApplicationModel: ObservableObject {
                 diskStore: VideoFilmstripStore(directoryURL: paths.videoFilmstripsDirectory),
                 mediaRootStore: mediaRootStore
             )
-            self.videoEditingService = VideoEditingService(
+            self.videoCoordinator = VideoEditingCoordinator(
                 catalogStore: catalogStore,
                 mediaRootStore: mediaRootStore,
-                lutRepository: LUTRepository(directoryURL: paths.lutDirectory)
-            )
-            self.videoProxyService = VideoProxyService(
-                catalogStore: catalogStore,
-                directoryURL: paths.videoProxiesDirectory
+                lutDirectory: paths.lutDirectory,
+                videoProxiesDirectory: paths.videoProxiesDirectory
             )
             self.photoEditingService = PhotoEditingService(
                 catalogStore: catalogStore,
@@ -299,37 +294,15 @@ final class ApplicationModel: ObservableObject {
             libraryError = "视频当前不可访问。"
             return nil
         }
-        guard let mediaRootStore,
+        guard let videoCoordinator,
               let root = mediaRoots.first(where: { $0.id == asset.rootID })
         else { return nil }
 
         do {
-            let resolvedRoot = try await mediaRootStore.resolve(root)
-            guard let sourceURL = safeMediaURL(for: asset, in: resolvedRoot.directoryURL) else {
-                libraryError = "视频路径无效，已拒绝在资料库根目录外打开。"
-                return nil
-            }
-            let exists = try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolvedRoot.directoryURL) {
-                FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false))
-            }
-            guard exists else {
-                libraryError = "找不到视频原文件。"
-                return nil
-            }
-            var proxyURL: URL?
-            if preferProxy, let videoProxyService {
-                do {
-                    proxyURL = try await videoProxyService.proxyURL(for: asset)
-                } catch {
-                    AppLogger.app.debug("Proxy unavailable for \(asset.relativePath, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                }
-            }
-            return VideoPlaybackSession(
-                sourceURL: sourceURL,
-                playbackURL: proxyURL,
-                securityScopedRootURL: resolvedRoot.directoryURL,
-                duration: asset.duration,
-                frameRate: asset.frameRate
+            return try await videoCoordinator.makePlaybackSession(
+                for: asset,
+                root: root,
+                preferProxy: preferProxy
             )
         } catch {
             report(error, activity: "Preparing video playback")
@@ -338,9 +311,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func videoEditState(for assetID: UUID) async -> VideoEditState? {
-        guard let videoEditingService else { return nil }
+        guard let videoCoordinator else { return nil }
         do {
-            return try await videoEditingService.editState(for: assetID)
+            return try await videoCoordinator.editState(for: assetID)
         } catch {
             report(error, activity: "Loading video edit state")
             return nil
@@ -348,9 +321,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func saveVideoEditState(_ state: VideoEditState, for assetID: UUID) async -> Bool {
-        guard let videoEditingService else { return false }
+        guard let videoCoordinator else { return false }
         do {
-            try await videoEditingService.save(state, for: assetID)
+            try await videoCoordinator.save(state, for: assetID)
             await reloadLibraryAssets(query: activeLibraryQuery)
             return true
         } catch {
@@ -363,9 +336,9 @@ final class ApplicationModel: ObservableObject {
         for session: VideoPlaybackSession,
         state: VideoEditState
     ) async -> VideoPreviewPayload? {
-        guard let videoEditingService else { return nil }
+        guard let videoCoordinator else { return nil }
         do {
-            return try await videoEditingService.previewPayload(sourceURL: session.sourceURL, state: state)
+            return try await videoCoordinator.previewPayload(sourceURL: session.sourceURL, state: state)
         } catch is CancellationError {
             return nil
         } catch {
@@ -375,9 +348,9 @@ final class ApplicationModel: ObservableObject {
     }
 
     func videoLUTLibrary() async -> LUTLibrary? {
-        guard let videoEditingService else { return nil }
+        guard let videoCoordinator else { return nil }
         do {
-            return try await videoEditingService.lutLibrary()
+            return try await videoCoordinator.lutLibrary()
         } catch {
             report(error, activity: "Loading video LUT library")
             return nil
@@ -390,7 +363,7 @@ final class ApplicationModel: ObservableObject {
         outputDirectoryURL: URL,
         options: VideoExportOptions
     ) async -> UUID? {
-        guard let videoEditingService else { return nil }
+        guard let videoCoordinator else { return nil }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(
             atPath: outputDirectoryURL.path(percentEncoded: false),
@@ -430,10 +403,10 @@ final class ApplicationModel: ObservableObject {
         }
         guard let destinationURL = destination.url else { return nil }
 
-        let task = await batchTaskCenter.enqueue(kind: .videoExport, title: "导出视频：\(asset.filename)")
+        let task = await taskCoordinator.enqueue(kind: .videoExport, title: "导出视频：\(asset.filename)")
         await refreshBatchTasks()
-        let taskCenter = batchTaskCenter
-        let worker = Task { [weak self, videoEditingService] in
+        let taskCoordinator = taskCoordinator
+        let worker = Task { [weak self, videoCoordinator] in
             let didStartAccess = outputDirectoryURL.startAccessingSecurityScopedResource()
             defer {
                 if didStartAccess {
@@ -441,29 +414,29 @@ final class ApplicationModel: ObservableObject {
                 }
             }
             do {
-                try await taskCenter.start(task.id)
+                try await taskCoordinator.start(task.id)
                 await self?.refreshBatchTasks()
-                let report = try await videoEditingService.export(
+                let report = try await videoCoordinator.export(
                     asset: asset,
                     state: state,
                     destinationURL: destinationURL,
                     options: options,
                     allowsOverwrite: destination.allowsOverwrite,
                     reportProgress: { progress in
-                        try? await taskCenter.updateProgress(progress, for: task.id)
+                        try? await taskCoordinator.updateProgress(progress, for: task.id)
                     }
                 )
-                try await taskCenter.complete(task.id)
+                try await taskCoordinator.complete(task.id)
                 await self?.finishVideoExport(report, taskID: task.id)
             } catch is CancellationError {
-                try? await taskCenter.cancel(task.id)
+                try? await taskCoordinator.cancel(task.id)
                 await self?.finishCancelledBatchTask(task.id)
             } catch {
-                try? await taskCenter.fail(task.id)
+                try? await taskCoordinator.fail(task.id)
                 await self?.finishFailedVideoExport(task.id, error: error)
             }
         }
-        batchWorkerTasks[task.id] = worker
+        taskCoordinator.register(worker: worker, for: task.id)
         return task.id
     }
 
@@ -471,7 +444,7 @@ final class ApplicationModel: ObservableObject {
         for asset: LibraryAssetRecord,
         options: VideoProxyOptions = .init()
     ) async -> UUID? {
-        guard let videoProxyService, let mediaRootStore else { return nil }
+        guard let videoCoordinator else { return nil }
         guard asset.mediaType == .video, asset.availability == .available else {
             libraryError = "请选择一个当前可访问的视频生成 Proxy。"
             return nil
@@ -482,66 +455,53 @@ final class ApplicationModel: ObservableObject {
         }
         guard let root = mediaRoots.first(where: { $0.id == asset.rootID }) else { return nil }
 
-        let resolvedRoot: ResolvedMediaRoot
-        let sourceURL: URL
+        let source: VideoSourceAccess
         do {
-            resolvedRoot = try await mediaRootStore.resolve(root)
-            guard let safeURL = safeMediaURL(for: asset, in: resolvedRoot.directoryURL) else {
-                libraryError = "视频路径无效，已拒绝在资料库根目录外生成 Proxy。"
-                return nil
-            }
-            sourceURL = safeURL
-            let exists = try await mediaRootStore.bookmarkStore.withSecurityScopedAccess(to: resolvedRoot.directoryURL) {
-                FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false))
-            }
-            guard exists else {
-                libraryError = "找不到需要生成 Proxy 的原视频。"
-                return nil
-            }
+            source = try await videoCoordinator.resolveAvailableSource(for: asset, root: root)
         } catch {
             report(error, activity: "Preparing video Proxy")
             return nil
         }
 
-        let task = await batchTaskCenter.enqueue(kind: .videoProxyGeneration, title: "生成视频 Proxy：\(asset.filename)")
+        let task = await taskCoordinator.enqueue(kind: .videoProxyGeneration, title: "生成视频 Proxy：\(asset.filename)")
         await refreshBatchTasks()
-        let taskCenter = batchTaskCenter
-        let worker = Task { [weak self, videoProxyService] in
-            let didStartAccess = resolvedRoot.directoryURL.startAccessingSecurityScopedResource()
+        let taskCoordinator = taskCoordinator
+        let worker = Task { [weak self, videoCoordinator] in
+            let didStartAccess = source.rootURL.startAccessingSecurityScopedResource()
             defer {
                 if didStartAccess {
-                    resolvedRoot.directoryURL.stopAccessingSecurityScopedResource()
+                    source.rootURL.stopAccessingSecurityScopedResource()
                 }
             }
             do {
-                try await taskCenter.start(task.id)
+                try await taskCoordinator.start(task.id)
                 await self?.refreshBatchTasks()
-                let report = try await videoProxyService.generate(
+                let report = try await videoCoordinator.generateProxy(
                     for: asset,
-                    sourceURL: sourceURL,
+                    sourceURL: source.sourceURL,
                     options: options,
                     reportProgress: { progress in
-                        try? await taskCenter.updateProgress(progress, for: task.id)
+                        try? await taskCoordinator.updateProgress(progress, for: task.id)
                     }
                 )
-                try await taskCenter.complete(task.id)
+                try await taskCoordinator.complete(task.id)
                 await self?.finishVideoProxyGeneration(report, taskID: task.id)
             } catch is CancellationError {
-                try? await taskCenter.cancel(task.id)
+                try? await taskCoordinator.cancel(task.id)
                 await self?.finishCancelledBatchTask(task.id)
             } catch {
-                try? await taskCenter.fail(task.id)
+                try? await taskCoordinator.fail(task.id)
                 await self?.finishFailedVideoProxyGeneration(task.id, error: error)
             }
         }
-        batchWorkerTasks[task.id] = worker
+        taskCoordinator.register(worker: worker, for: task.id)
         return task.id
     }
 
     func removeVideoProxy(for asset: LibraryAssetRecord) async -> Bool {
-        guard let videoProxyService else { return false }
+        guard let videoCoordinator else { return false }
         do {
-            try await videoProxyService.removeProxy(for: asset.id)
+            try await videoCoordinator.removeProxy(for: asset)
             if latestVideoProxyReport?.assetID == asset.id {
                 latestVideoProxyReport = nil
             }
@@ -550,16 +510,6 @@ final class ApplicationModel: ObservableObject {
             report(error, activity: "Removing video Proxy")
             return false
         }
-    }
-
-    private func safeMediaURL(for asset: LibraryAssetRecord, in rootURL: URL) -> URL? {
-        let normalizedRoot = rootURL.standardizedFileURL
-        let sourceURL = normalizedRoot.appending(path: asset.relativePath).standardizedFileURL
-        let rootPath = normalizedRoot.path(percentEncoded: false).hasSuffix("/")
-            ? normalizedRoot.path(percentEncoded: false)
-            : normalizedRoot.path(percentEncoded: false) + "/"
-        guard sourceURL.path(percentEncoded: false).hasPrefix(rootPath) else { return nil }
-        return sourceURL
     }
 
     func setRating(_ rating: Int, for assetIDs: [UUID]) async {
@@ -789,27 +739,27 @@ final class ApplicationModel: ObservableObject {
 
     func startExactDuplicateScan() async -> UUID? {
         guard let duplicateScanner else { return nil }
-        let task = await batchTaskCenter.enqueue(kind: .duplicateHashing, title: "查找精确重复项目")
+        let task = await taskCoordinator.enqueue(kind: .duplicateHashing, title: "查找精确重复项目")
         await refreshBatchTasks()
-        let taskCenter = batchTaskCenter
+        let taskCoordinator = taskCoordinator
         let worker = Task { [weak self, duplicateScanner] in
             do {
-                try await taskCenter.start(task.id)
+                try await taskCoordinator.start(task.id)
                 await self?.refreshBatchTasks()
                 let report = try await duplicateScanner.scan { progress in
-                    try? await taskCenter.updateProgress(progress, for: task.id)
+                    try? await taskCoordinator.updateProgress(progress, for: task.id)
                 }
-                try await taskCenter.complete(task.id)
+                try await taskCoordinator.complete(task.id)
                 await self?.finishDuplicateScan(report, taskID: task.id)
             } catch is CancellationError {
-                try? await taskCenter.cancel(task.id)
+                try? await taskCoordinator.cancel(task.id)
                 await self?.finishCancelledBatchTask(task.id)
             } catch {
-                try? await taskCenter.fail(task.id)
+                try? await taskCoordinator.fail(task.id)
                 await self?.finishFailedDuplicateTask(task.id, error: error)
             }
         }
-        batchWorkerTasks[task.id] = worker
+        taskCoordinator.register(worker: worker, for: task.id)
         return task.id
     }
 
@@ -985,12 +935,12 @@ final class ApplicationModel: ObservableObject {
             libraryError = "请选择至少一张可导出的照片。"
             return nil
         }
-        let task = await batchTaskCenter.enqueue(
+        let task = await taskCoordinator.enqueue(
             kind: .photoExport,
             title: "导出 \(photos.count) 张照片"
         )
         await refreshBatchTasks()
-        let taskCenter = batchTaskCenter
+        let taskCoordinator = taskCoordinator
         let worker = Task { [weak self, photoEditingService] in
             let didStartAccess = outputDirectoryURL.startAccessingSecurityScopedResource()
             defer {
@@ -999,7 +949,7 @@ final class ApplicationModel: ObservableObject {
                 }
             }
             do {
-                try await taskCenter.start(task.id)
+                try await taskCoordinator.start(task.id)
                 await self?.refreshBatchTasks()
                 let report = try await photoEditingService.batchExport(
                     assets: photos,
@@ -1010,31 +960,31 @@ final class ApplicationModel: ObservableObject {
                         return await self.askForExportCollisionResolution(collision)
                     },
                     reportProgress: { progress in
-                        try? await taskCenter.updateProgress(progress, for: task.id)
+                        try? await taskCoordinator.updateProgress(progress, for: task.id)
                     }
                 )
-                try await taskCenter.complete(task.id)
+                try await taskCoordinator.complete(task.id)
                 await self?.finishBatchExport(report, taskID: task.id)
             } catch is CancellationError {
-                try? await taskCenter.cancel(task.id)
+                try? await taskCoordinator.cancel(task.id)
                 await self?.finishCancelledBatchTask(task.id)
             } catch {
-                try? await taskCenter.fail(task.id)
+                try? await taskCoordinator.fail(task.id)
                 await self?.finishFailedBatchTask(task.id, error: error)
             }
         }
-        batchWorkerTasks[task.id] = worker
+        taskCoordinator.register(worker: worker, for: task.id)
         return task.id
     }
 
     func cancelBatchTask(_ taskID: UUID) async {
-        batchWorkerTasks[taskID]?.cancel()
-        try? await batchTaskCenter.cancel(taskID)
+        taskCoordinator.cancelWorker(for: taskID)
+        try? await taskCoordinator.cancel(taskID)
         await refreshBatchTasks()
     }
 
     func refreshBatchTasks() async {
-        batchTasks = await batchTaskCenter.allTasks()
+        batchTasks = await taskCoordinator.allTasks()
     }
 
     func rawEditState(for assetID: UUID) async -> RAWEditState? {
@@ -1195,28 +1145,28 @@ final class ApplicationModel: ObservableObject {
         activity: String
     ) async -> BatchEditReport? {
         guard let photoEditingService else { return nil }
-        let task = await batchTaskCenter.enqueue(kind: .photoBatchEdit, title: "\(activity)（\(assetIDs.count) 张）")
+        let task = await taskCoordinator.enqueue(kind: .photoBatchEdit, title: "\(activity)（\(assetIDs.count) 张）")
         do {
-            try await batchTaskCenter.start(task.id)
+            try await taskCoordinator.start(task.id)
             await refreshBatchTasks()
             let result = try await photoEditingService.applyPresetContent(
                 content,
                 to: assetIDs,
                 components: components,
-                reportProgress: { [batchTaskCenter] progress in
-                    try? await batchTaskCenter.updateProgress(progress, for: task.id)
+                reportProgress: { [taskCoordinator] progress in
+                    try? await taskCoordinator.updateProgress(progress, for: task.id)
                 }
             )
-            try await batchTaskCenter.complete(task.id)
+            try await taskCoordinator.complete(task.id)
             latestBatchEditReport = result
             await refreshBatchTasks()
             return result
         } catch is CancellationError {
-            try? await batchTaskCenter.cancel(task.id)
+            try? await taskCoordinator.cancel(task.id)
             await refreshBatchTasks()
             return nil
         } catch {
-            try? await batchTaskCenter.fail(task.id)
+            try? await taskCoordinator.fail(task.id)
             await refreshBatchTasks()
             report(error, activity: activity)
             return nil
@@ -1225,53 +1175,53 @@ final class ApplicationModel: ObservableObject {
 
     private func finishBatchExport(_ report: BatchExportReport, taskID: UUID) async {
         latestBatchExportReport = report
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
     }
 
     private func finishVideoExport(_ report: VideoExportReport, taskID: UUID) async {
         latestVideoExportReport = report
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
     }
 
     private func finishVideoProxyGeneration(_ report: VideoProxyReport, taskID: UUID) async {
         latestVideoProxyReport = report
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
     }
 
     private func finishDuplicateScan(_ report: DuplicateScanReport, taskID: UUID) async {
         latestDuplicateScanReport = report
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
     }
 
     private func finishCancelledBatchTask(_ taskID: UUID) async {
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
     }
 
     private func finishFailedBatchTask(_ taskID: UUID, error: Error) async {
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
         report(error, activity: "Batch photo export")
     }
 
     private func finishFailedVideoExport(_ taskID: UUID, error: Error) async {
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
         report(error, activity: "Video export")
     }
 
     private func finishFailedVideoProxyGeneration(_ taskID: UUID, error: Error) async {
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
         report(error, activity: "Video Proxy generation")
     }
 
     private func finishFailedDuplicateTask(_ taskID: UUID, error: Error) async {
-        batchWorkerTasks[taskID] = nil
+        taskCoordinator.releaseWorker(for: taskID)
         await refreshBatchTasks()
         report(error, activity: "Finding exact duplicates")
     }
