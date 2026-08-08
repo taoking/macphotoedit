@@ -1441,35 +1441,37 @@ Commit:
 ## Phase 16.11 — CI / Regression Gate
 
 Status:
-IMPLEMENTED — REMOTE CI RETRY PENDING
+COMPLETED
 
 Implemented:
 - 新增公开仓库的 `.github/workflows/macos-regression.yml`。它在 `main` push、针对 `main` 的 PR 和手动触发时，使用 `macos-26`，明确选择 `/Applications/Xcode_26.6.app`，通过 Homebrew 安装 XcodeGen，运行完整 unsigned macOS test 和 Debug build。
 - 工作流最小权限为 `contents: read`，没有 secrets、媒体上传或生成文件归档。`docs/**` 和 `plan.md` 的纯文档 push 不重复消耗 macOS runner；任何代码、工程或 workflow 变化仍会触发门禁。
 - 新增 `docs/ci.md`，并在 README 中链接，记录本地与 GitHub-hosted runner/Xcode 矩阵以及工具链漂移时的可见失败策略。
-- 首次远端运行 `31267655377` 真实暴露了 AAC 轨时长元数据的跨 runner 量化差异：`VideoExportAudioTests` 的固定 −40 ms 下限会把三个 AAC access unit 以内的 encoder priming/padding 误判为 A/V 失步。测试现改为读取实际输出 AAC access-unit size 和 sample rate，以三个 packet 为严格、可解释的双向边界；仍检查音轨存在、起点与视频对齐及输出/视频时长。远端复验待本次修复推送后完成。
+- 首次远端运行 `31267655377` 真实暴露了 AAC 轨时长元数据的跨 runner 量化差异：`VideoExportAudioTests` 的固定 −40 ms 下限会把三个 AAC access unit 以内的 encoder priming/padding 误判为 A/V 失步。测试现改为读取实际输出 AAC access-unit size 和 sample rate，以三个 packet 为严格、可解释的双向边界；仍检查音轨存在、起点与视频对齐及输出/视频时长。该修复已由最终远端 run 验证。
 - 第二次远端运行 `31267896166` 继续执行到 `VideoPlaybackSessionTests`，并显示该测试在 `AVPlayerItem.status` 变为 ready 后、KVO 回调异步回填时长前就读取 `session.duration`。测试现等待 ready 和非零时长两个真实完成条件，仍严格断言时长为 1 秒以及新 item 的结束观察者行为；不会掩盖加载失败或错误时长。
+- 修复提交 `a50ee9179b93cf36e8a454ca563b31e70408120e` 的 GitHub-hosted `macos-26` run `31268156293` 已真实通过，选择的工具链为 Xcode 26.6（17F113）、XcodeGen 2.46.0。工作流完整运行 test 与 Debug build，不依赖 secrets 或用户媒体。
 
 Tests:
-PASS (local) — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。`VideoPlaybackSessionTests` 连续运行 5 次，均为 1 test, 0 failures。完整 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（22.72 秒）。
+PASS — `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/macos-regression.yml')"`；workflow YAML 解析成功。`xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/VideoExportAudioTests`；1 test, 0 failures。`VideoPlaybackSessionTests` 连续运行 5 次，均为 1 test, 0 failures。完整本地 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`；全量 105 tests, 0 failures（22.72 秒）。GitHub Actions run `31268156293`：105 tests, 0 failures（62.10 秒）。
 
 Build:
-PASS (local) — `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。
+PASS — 本地 `xcodegen generate && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`；`BUILD SUCCEEDED`。GitHub Actions run `31268156293` 的同一 unsigned Debug build 也为 `BUILD SUCCEEDED`。
 
 Acceptance:
-PENDING — 初次 GitHub-hosted `macos-26` run 的确执行并失败（105 tests 中 1 个 AAC packet-quantization 断言）；第二次 retry 发现并未丢失、而是暴露出 `AVPlayerItem` KVO 回填时序的测试竞态。两项原因均须在本地复测后等待新的完整远端 test + Debug build 成功；不能将本地结果伪装为远端 CI 结果。
+PASS — 公开仓库拥有可复现的 macOS 门禁；最新 GitHub-hosted `macos-26` job 在 Xcode 26.6 上完成完整 105 项测试和 unsigned Debug build（均成功）。前两次真实失败已被定位、修复并由最终 run 验证，未被隐藏。
 
 Regression:
-PASS (local) — 当前全部 105 项自动化回归通过；远程 CI retry status 待记录。
+PASS — 本地全部 105 项自动化回归通过；GitHub-hosted 105 项测试与 Debug build 也通过。局部回归还包括 `VideoPlaybackSessionTests` 的 5 次连续通过。
 
 Manual Verification:
 NOT REQUIRED — 本阶段 CI workflow 不读取真实媒体，也不依赖外置盘、HDR 屏幕或权限弹窗。已有真实媒体/硬件人工验证项继续适用。
 
 Known Limitations:
 - GitHub-hosted runner image 会更新；workflow 故意固定 `macos-26` 和 Xcode 26.6 path，镜像移除该 path 会失败并要求显式更新矩阵。
-- 初次远程运行 `31267655377`（AAC access-unit 元数据量化）与第二次 `31267896166`（AVPlayerItem KVO 回填时序）均已记录为失败，不会被忽略；最新修复的运行仍未完成，因此本阶段不能标记为完成。
+- CI 只覆盖软件自动化门禁；真实 RAW、外置存储、HDR 显示和权限验证仍按 `docs/manual-validation.md` 的 `MANUAL VERIFICATION REQUIRED` 执行。
 
 Commit:
 - `ci: add macos regression gate`
 - `test: account for AAC export packet quantization`
-- Pending — `test: wait for playback item metadata`
+- `test: wait for playback item metadata`
+- Pending — `docs: record CI verification`
