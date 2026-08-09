@@ -54,13 +54,15 @@ Subject segmentation taps the decoded, orientation-applied image before global
 and local adjustments. Therefore changing exposure, contrast, saturation,
 temperature, HSL, curves, or the order of prior local masks neither changes the
 Vision input nor starts another request. A `SubjectMaskProvider` keeps a
-disposable LRU cache keyed by source URL plus file size/modification time,
-preview/export rendition, input extent and Vision request revision. The preview
-renderer holds at most eight derived masks; the full-resolution export renderer
-holds only one. A no-subject/failed result is cached as a fail-closed result.
-These masks are memory-only: no subject bitmap is written to Catalog SQLite,
-beside the source, or to a persistent cache. A source revision or input
-geometry change creates a new key.
+ disposable LRU cache keyed by standardized source URL, available file-resource
+ identifier, file size/modification time, preview/export rendition, input extent
+ and Vision request revision. The preview renderer holds at most eight derived
+ masks; the full-resolution export renderer holds only one. A no-subject/failed
+ result is cached as a fail-closed result. Concurrent calls with the same key
+ share one in-flight Vision request, while unrelated keys do not hold a global
+ cache lock during their Vision work. These masks are memory-only: no subject
+ bitmap is written to Catalog SQLite, beside the source, or to a persistent
+ cache. A source revision or input geometry change creates a new key.
 
 ## Canvas interaction
 
@@ -76,8 +78,15 @@ preview as source space.
   together without changing the gradient vector.
 - Radial masks show a center handle, an orange radius ring and a white feather
   ring. Their handles move center, radius and feather independently.
-- Geometry is clamped to the normalized image extent. A linear-mask move stops
-  at an edge while preserving the distance and direction between its endpoints.
+- Stored editable points remain clamped to the normalized source image extent.
+  Radius and brush vectors are different: their reference endpoint is allowed
+  to exist outside the source or a visible crop, then the photo viewport clips
+  the overlay. This avoids shortening an edge radius merely because a point
+  mapping would be clamped.
+- Radial inner radius/feather and brush width use the exact source-space pixel
+  metrics of `CIRadialGradient` and `BrushMaskRenderer` (including their small
+  radius floors) after crop, rotation, straighten and flips; the overlay is not
+  a crop-width or screen-width approximation.
 - “显示蒙版覆盖” adds a translucent red display-only field for the selected
   mask. It is neither stored in the edit state nor passed to Core Image or any
   export path.

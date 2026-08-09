@@ -44,3 +44,12 @@ required, concise execution tracker for the long-running implementation.
   - [x] 16.9 Similar Group Review UX
   - [x] 16.10 ApplicationModel Incremental Refactor
   - [x] 16.11 CI / Regression Gate
+- [x] Phase 16.12 — Correctness Audit Fix
+  - [x] 16.12.1 Preserve local-mask radius at image and crop edges
+  - [x] 16.12.2 Remove global Vision generation lock contention
+  - [x] 16.12.3 Strengthen non-persistent subject-mask source fingerprint
+  - [x] 16.12.4 Pin CI generation dependencies and project drift check
+  - [ ] Similar-photo persistent cache resource identifier — DEFERRED: this would
+    require a new Catalog migration and migration/invalidity coverage; the
+    existing file size + modification-time signature remains intact rather than
+    risking persistent-cache compatibility in this correctness round.
