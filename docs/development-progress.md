@@ -1789,3 +1789,54 @@ Known Limitations:
 
 Commit:
 - `fix: streamline add media folder flow`
+
+## UI/UX Redesign Phase 1 — UI-1.7 Drag-and-drop feasibility decision
+
+Status:
+DEFERRED — safety decision completed; no drag-and-drop capability was added.
+
+Implemented:
+- Audited the current library, folder-registration and bookmark paths. There is
+  no existing drag-and-drop handler, and the only verified persistent-access
+  route is the user-selected `NSOpenPanel` folder URL → `MediaRootStore` secure
+  bookmark → Catalog root path.
+- Intentionally kept the UI free of drop zones and drag-and-drop wording. This
+  prevents a user from believing that an arbitrary drop is a durable,
+  source-safe library registration when that contract has not been established.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 114 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- DEFERRED — Apple documents drag-and-drop bookmark creation as unscoped when
+  there is no containing document. The current app persists only security-
+  scoped bookmarks and has no App Sandbox bookmark entitlement configuration;
+  accepting dropped URLs therefore cannot be shown to preserve access after
+  relaunch or permission changes without a separately designed access model.
+- DEFERRED — Individual photo/video drops have no existing ownership or
+  referenced-root model. Supporting them would create the forbidden second
+  import architecture or require a broader Catalog/permission redesign.
+
+Regression:
+- PASS — No application source or project configuration changed for this
+  decision; full automated suite remains at 114 tests with 0 failures.
+
+Manual Verification:
+- NOT APPLICABLE — No drag-and-drop target is intentionally exposed. Existing
+  folder-picker behavior remains the only supported and manually verifiable
+  media-root registration path.
+
+Known Limitations:
+- Future drag-and-drop work must first define and test a persistent permission
+  contract for dropped folders, including App Sandbox entitlement policy,
+  security-scoped bookmark lifecycle, rejected payload feedback and external
+  volume recovery. It must not merely call the folder-add method with an
+  `NSItemProvider` URL.
+
+Commit:
+- `docs: record drag and drop deferral`
