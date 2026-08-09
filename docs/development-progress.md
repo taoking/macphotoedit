@@ -1636,3 +1636,43 @@ Known Limitations:
 
 Commit:
 - `feat: reorganize library sidebar`
+
+## UI/UX Redesign Phase 1 — UI-1.4 Inspector states
+
+Status:
+COMPLETED
+
+Implemented:
+- `LibraryInspectorView` now receives the existing media-root state and
+  distinguishes an empty library from an unselected item.
+- An empty library shows the concise “尚未添加媒体” guidance; a library with
+  sources but no selection shows “未选择媒体项目” and names the metadata,
+  rating, flag and tag information available after selection.
+- The existing full selected-item inspector, its close action, management
+  controls and metadata rendering remain unchanged. The existing toolbar still
+  provides the minimal native hide/show behavior.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 113 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Empty-library and no-selection states have separate, intentional copy while selected-item behavior is preserved.
+- PASS — The inspector remains collapsible via the existing native toolbar control; no navigation rewrite was introduced.
+
+Regression:
+- PASS — Full automated suite remains at 113 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Restarted the current Debug app with an empty Catalog and inspected the new empty-library inspector copy through the rendered UI and accessibility tree.
+- MANUAL VERIFICATION REQUIRED — With a user-authorised media root, inspect the no-selection and selected-item variants using real catalogued photo/video metadata. No media root was added during this UI validation.
+
+Known Limitations:
+- The no-selection copy is selected from the existing media-root state, not from a new Catalog count query; it correctly avoids a new data-loading path but cannot distinguish an in-progress empty scan from a completed root with no supported files.
+
+Commit:
+- `feat: improve inspector empty states`

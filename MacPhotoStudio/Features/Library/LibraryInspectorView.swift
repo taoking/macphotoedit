@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryInspectorView: View {
     let asset: LibraryAssetRecord?
+    let hasMediaRoots: Bool
     let tags: [TagRecord]
     let allTags: [TagRecord]
     let close: () -> Void
@@ -14,15 +15,22 @@ struct LibraryInspectorView: View {
         Group {
             if let asset {
                 inspector(asset)
+            } else if hasMediaRoots {
+                ContentUnavailableView(
+                    "未选择媒体项目",
+                    systemImage: "sidebar.right",
+                    description: Text("选择照片或视频后，可在这里查看元数据、评分、标记和标签等。")
+                )
             } else {
                 ContentUnavailableView(
-                    "检查器",
+                    "尚未添加媒体",
                     systemImage: "sidebar.right",
-                    description: Text("选择一个媒体项目以查看元数据、评分、标记和标签。")
+                    description: Text("添加媒体文件夹后，可在这里查看媒体信息和管理选项。")
                 )
             }
         }
         .background(.bar)
+        .accessibilityElement(children: .contain)
     }
 
     private func inspector(_ asset: LibraryAssetRecord) -> some View {

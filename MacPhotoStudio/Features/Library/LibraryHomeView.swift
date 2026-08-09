@@ -135,6 +135,7 @@ struct LibraryHomeView: View {
             if showsInspector {
                 LibraryInspectorView(
                     asset: selectedAsset,
+                    hasMediaRoots: !model.mediaRoots.isEmpty,
                     tags: model.selectedAssetTags,
                     allTags: model.tags,
                     close: { showsInspector = false },
