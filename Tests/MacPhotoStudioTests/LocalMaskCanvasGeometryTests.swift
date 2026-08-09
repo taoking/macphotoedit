@@ -57,4 +57,15 @@ final class LocalMaskCanvasGeometryTests: XCTestCase {
             accuracy: 0.000_001
         )
     }
+
+    func testUnboundedRadiusEndpointAndVectorAreNotClampedToTheImageRect() {
+        let imageRect = CGRect(x: 10, y: 20, width: 300, height: 180)
+        let endpoint = LocalMaskCanvasGeometry.unboundedViewPoint(x: 1.25, y: -0.10, in: imageRect)
+        let vector = LocalMaskCanvasGeometry.viewVector(CGVector(dx: 0.25, dy: -0.10), in: imageRect)
+
+        XCTAssertEqual(endpoint.x, 385, accuracy: 0.000_001)
+        XCTAssertEqual(endpoint.y, 218, accuracy: 0.000_001)
+        XCTAssertEqual(vector.dx, 75, accuracy: 0.000_001)
+        XCTAssertEqual(vector.dy, 18, accuracy: 0.000_001)
+    }
 }

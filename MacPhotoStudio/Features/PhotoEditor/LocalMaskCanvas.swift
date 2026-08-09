@@ -27,6 +27,23 @@ enum LocalMaskCanvasGeometry {
         )
     }
 
+    /// Maps display-normalized geometry without applying image-boundary
+    /// clamping. A radius endpoint may exist outside the source/crop; the
+    /// canvas clips its drawing later rather than shortening its metric.
+    static func unboundedViewPoint(x: CGFloat, y: CGFloat, in imageRect: CGRect) -> CGPoint {
+        CGPoint(
+            x: imageRect.minX + imageRect.width * x,
+            y: imageRect.minY + imageRect.height * (1 - y)
+        )
+    }
+
+    /// Converts a display-normalized vector to the top-left-origin canvas.
+    /// The y sign flips with the view coordinate system, while its magnitude
+    /// remains exactly the transformed source-space metric.
+    static func viewVector(_ vector: CGVector, in imageRect: CGRect) -> CGVector {
+        CGVector(dx: imageRect.width * vector.dx, dy: -imageRect.height * vector.dy)
+    }
+
     static func normalizedPoint(_ point: CGPoint, in imageRect: CGRect) -> CGPoint {
         guard imageRect.width > 0, imageRect.height > 0 else { return CGPoint(x: 0.5, y: 0.5) }
         return CGPoint(
@@ -111,12 +128,19 @@ struct LocalMaskCanvas: View {
                 ExtendedRangeImageView(image: image, enablesExtendedRange: enablesExtendedRange)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                 if !imageRect.isEmpty {
-                    if showsMaskOverlay {
-                        overlay(in: imageRect)
+                    Group {
+                        if showsMaskOverlay {
+                            overlay(in: imageRect)
+                                .allowsHitTesting(false)
+                        }
+                        controls(in: imageRect)
                             .allowsHitTesting(false)
                     }
-                    controls(in: imageRect)
-                        .allowsHitTesting(false)
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                    // Geometry may extend beyond a crop while retaining its
+                    // true source-space radius. The displayed photo rect, not
+                    // a clamped control endpoint, is the visual boundary.
+                    .clipShape(LocalMaskImageRectClip(rect: imageRect))
                 }
             }
             .contentShape(Rectangle())
@@ -158,9 +182,9 @@ struct LocalMaskCanvas: View {
                 .frame(width: imageRect.width, height: imageRect.height)
                 .position(x: imageRect.midX, y: imageRect.midY)
         case .radialGradient:
-            let center = displayPoint(for: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY))
-            let radius = displayedRadius(mask.clampedRadius, from: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY), in: imageRect)
-            let outerRadius = displayedRadius(mask.clampedRadius + mask.clampedFeather, from: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY), in: imageRect)
+            let center = unboundedDisplayPoint(for: CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY))
+            let radius = displayedRadialRadius(mask.clampedRadius, in: imageRect)
+            let outerRadius = radius + displayedRadialRadius(mask.clampedFeather, in: imageRect)
             Rectangle()
                 .fill(
                     RadialGradient(
@@ -204,9 +228,9 @@ struct LocalMaskCanvas: View {
                 .position(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 15)
         case .radialGradient:
             let sourceCenter = CGPoint(x: mask.clampedCenterX, y: mask.clampedCenterY)
-            let center = viewPoint(for: sourceCenter, in: imageRect)
-            let radius = displayedRadius(mask.clampedRadius, from: sourceCenter, in: imageRect)
-            let feather = max(0, displayedRadius(mask.clampedRadius + mask.clampedFeather, from: sourceCenter, in: imageRect) - radius)
+            let center = unboundedViewPoint(for: sourceCenter, in: imageRect)
+            let radius = displayedRadialRadius(mask.clampedRadius, in: imageRect)
+            let feather = displayedRadialRadius(mask.clampedFeather, in: imageRect)
             Circle()
                 .stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                 .frame(width: radius * 2, height: radius * 2)
@@ -257,13 +281,11 @@ struct LocalMaskCanvas: View {
     private func brushStrokeOverlay(_ stroke: BrushStroke, in imageRect: CGRect) -> some View {
         let points = stroke.points.map {
             let storedPoint = $0.clamped
-            let point = viewPoint(for: CGPoint(x: storedPoint.x, y: storedPoint.y), in: imageRect)
+            let point = unboundedViewPoint(for: CGPoint(x: storedPoint.x, y: storedPoint.y), in: imageRect)
             return CGPoint(x: point.x - imageRect.minX, y: point.y - imageRect.minY)
         }
         let color = stroke.erase ? Color.cyan : Color.red
-        let reference = stroke.points.first?.clamped ?? BrushPoint(x: 0.5, y: 0.5)
-        let referencePoint = CGPoint(x: reference.x, y: reference.y)
-        let width = max(1, displayedRadius(stroke.clampedRadius, from: referencePoint, in: imageRect) * 2)
+        let width = max(1, displayedBrushRadius(stroke.clampedRadius, in: imageRect) * 2)
         if let point = points.first, points.count == 1 {
             Circle()
                 .stroke(color.opacity(0.75), lineWidth: 1.5)
@@ -424,22 +446,47 @@ struct LocalMaskCanvas: View {
         return LocalMaskCanvasGeometry.viewPoint(x: displayPoint.x, y: displayPoint.y, in: imageRect)
     }
 
+    private func unboundedViewPoint(for sourcePoint: CGPoint, in imageRect: CGRect) -> CGPoint {
+        let displayPoint = unboundedDisplayPoint(for: sourcePoint)
+        return LocalMaskCanvasGeometry.unboundedViewPoint(x: displayPoint.x, y: displayPoint.y, in: imageRect)
+    }
+
     private func sourcePoint(for viewPoint: CGPoint, in imageRect: CGRect) -> CGPoint {
         transformGeometry.sourceNormalizedPoint(
             forDisplayedNormalized: LocalMaskCanvasGeometry.normalizedPoint(viewPoint, in: imageRect)
         )
     }
 
-    private func sourcePoint(atRadius radius: Double, from center: CGPoint) -> CGPoint {
-        let smallestDimension = max(1, min(sourceImageSize.width, sourceImageSize.height))
-        let xOffset = CGFloat(radius) * smallestDimension / max(sourceImageSize.width, 1)
-        return CGPoint(x: min(max(center.x + xOffset, 0), 1), y: min(max(center.y, 0), 1))
+    private func unboundedDisplayPoint(for sourcePoint: CGPoint) -> CGPoint {
+        transformGeometry.displayedNormalizedPointUnclamped(forSourceNormalized: sourcePoint)
     }
 
-    private func displayedRadius(_ radius: Double, from center: CGPoint, in imageRect: CGRect) -> CGFloat {
-        let centerPoint = viewPoint(for: center, in: imageRect)
-        let radiusPoint = viewPoint(for: sourcePoint(atRadius: radius, from: center), in: imageRect)
-        return Self.distance(centerPoint, radiusPoint)
+    /// `CIRadialGradient` defines both its inner radius and its feather width
+    /// as separately floored source-pixel distances. Match that exact metric
+    /// here instead of deriving a radius from a clamped source endpoint.
+    private func displayedRadialRadius(_ normalizedRadius: Double, in imageRect: CGRect) -> CGFloat {
+        let sourceDistance = max(
+            1,
+            min(transformGeometry.sourceExtent.width, transformGeometry.sourceExtent.height) * CGFloat(normalizedRadius)
+        )
+        return displayedSourceDistance(sourceDistance, in: imageRect)
+    }
+
+    /// `BrushMaskRenderer` rasterizes with rounded-up texture dimensions and a
+    /// half-pixel minimum stamp radius. Keeping this separate from radial
+    /// semantics prevents the editor overlay from claiming a different brush
+    /// footprint than the actual non-destructive render stage.
+    private func displayedBrushRadius(_ normalizedRadius: Double, in imageRect: CGRect) -> CGFloat {
+        let width = CGFloat(Int(transformGeometry.sourceExtent.width.rounded(.up)))
+        let height = CGFloat(Int(transformGeometry.sourceExtent.height.rounded(.up)))
+        let sourceDistance = max(0.5, min(width, height) * CGFloat(normalizedRadius))
+        return displayedSourceDistance(sourceDistance, in: imageRect)
+    }
+
+    private func displayedSourceDistance(_ sourceDistance: CGFloat, in imageRect: CGRect) -> CGFloat {
+        let normalizedVector = transformGeometry.displayedNormalizedVector(forSourceDistance: sourceDistance)
+        let viewVector = LocalMaskCanvasGeometry.viewVector(normalizedVector, in: imageRect)
+        return hypot(viewVector.dx, viewVector.dy)
     }
 
     private func normalizedSourceDistance(from center: CGPoint, to point: CGPoint) -> Double {
@@ -457,5 +504,13 @@ struct LocalMaskCanvas: View {
         case radialCenter
         case radialRadius
         case radialFeather
+    }
+}
+
+private struct LocalMaskImageRectClip: Shape {
+    let rect: CGRect
+
+    func path(in _: CGRect) -> Path {
+        Path(rect)
     }
 }

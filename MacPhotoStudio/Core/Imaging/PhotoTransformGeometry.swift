@@ -45,19 +45,67 @@ struct PhotoTransformGeometry {
     }
 
     func displayedNormalizedPoint(forSourceNormalized point: CGPoint) -> CGPoint {
+        let displayed = displayedNormalizedPointUnclamped(forSourceNormalized: CGPoint(
+            x: clamp(point.x),
+            y: clamp(point.y)
+        ))
+        return CGPoint(x: clamp(displayed.x), y: clamp(displayed.y))
+    }
+
+    /// Converts a source point to the transformed display coordinate system
+    /// without treating it as an editable, in-bounds position. This is used
+    /// for the mathematical endpoint of a radius/vector: it may legitimately
+    /// lie outside the source image or the visible crop.
+    func displayedNormalizedPointUnclamped(forSourceNormalized point: CGPoint) -> CGPoint {
         guard sourceExtent.width > 0, sourceExtent.height > 0,
               transformedExtent.width > 0, transformedExtent.height > 0
         else { return CGPoint(x: 0.5, y: 0.5) }
         let sourcePoint = CGPoint(
-            x: sourceExtent.minX + sourceExtent.width * clamp(point.x),
-            y: sourceExtent.minY + sourceExtent.height * clamp(point.y)
+            x: sourceExtent.minX + sourceExtent.width * point.x,
+            y: sourceExtent.minY + sourceExtent.height * point.y
         )
         let transformed = sourcePoint.applying(affineTransform)
         let extent = transformedExtent
         return CGPoint(
-            x: clamp((transformed.x - extent.minX) / extent.width),
-            y: clamp((transformed.y - extent.minY) / extent.height)
+            x: (transformed.x - extent.minX) / extent.width,
+            y: (transformed.y - extent.minY) / extent.height
         )
+    }
+
+    /// Converts a source-pixel vector into display-normalized coordinates.
+    /// Unlike a point mapping, a vector has no image-boundary semantics and is
+    /// intentionally never clamped. This keeps radial and brush radii correct
+    /// when their conceptual reference endpoint lies beyond an image edge or
+    /// crop boundary.
+    func displayedNormalizedVector(forSourceVector vector: CGVector) -> CGVector {
+        guard transformedExtent.width > 0, transformedExtent.height > 0
+        else { return .zero }
+
+        // `affineTransform` currently has no translation, but subtracting the
+        // transformed origin keeps vector semantics correct if that changes.
+        let origin = CGPoint.zero.applying(affineTransform)
+        let endpoint = CGPoint(x: vector.dx, y: vector.dy).applying(affineTransform)
+        let transformed = CGVector(dx: endpoint.x - origin.x, dy: endpoint.y - origin.y)
+        let extent = transformedExtent
+        return CGVector(
+            dx: transformed.dx / extent.width,
+            dy: transformed.dy / extent.height
+        )
+    }
+
+    /// Turns a physical source-pixel distance into a display vector. Radius
+    /// callers provide a source-space direction, so the resulting magnitude
+    /// remains independent of the radius centre and any viewport clipping.
+    func displayedNormalizedVector(
+        forSourceDistance distance: CGFloat,
+        direction: CGVector = CGVector(dx: 1, dy: 0)
+    ) -> CGVector {
+        let length = hypot(direction.dx, direction.dy)
+        guard length > 0 else { return .zero }
+        return displayedNormalizedVector(forSourceVector: CGVector(
+            dx: direction.dx / length * distance,
+            dy: direction.dy / length * distance
+        ))
     }
 
     func sourceNormalizedPoint(forDisplayedNormalized point: CGPoint) -> CGPoint {
