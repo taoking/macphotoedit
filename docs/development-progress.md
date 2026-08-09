@@ -1907,7 +1907,8 @@ Commit:
 ## UI/UX Redesign Phase 2 — Workspace & Interaction Redesign
 
 Status:
-IN PROGRESS
+COMPLETED — UI2.1–UI2.8 delivered; UI2.9 safety decision is intentionally
+DEFERRED pending a durable security-scoped dropped-folder access contract.
 
 Baseline:
 - `c5fc067` (`fix: improve library accessibility`), clean tracked worktree;
@@ -2391,3 +2392,56 @@ Known Limitations:
 
 Commit:
 - `style: make photo grid the primary workspace` (this checkpoint commit)
+
+### UI-2.9 — Drag-and-drop safety re-evaluation
+
+Status:
+DEFERRED — safety decision completed; no drag-and-drop capability was added.
+
+Implemented:
+- Re-audited folder registration after the workspace redesign. The only
+  verified durable path remains explicit `NSOpenPanel` directory selection →
+  `MediaRootStore.register` → security-scoped bookmark persisted in the
+  Catalog → balanced security-scoped access during scan/read operations.
+- Kept the workspace free of drop targets, drop hints and individual-file
+  import semantics. A dropped URL must not be treated as a durable media root
+  without a tested access grant, bookmark lifecycle, rejection feedback and
+  external-volume recovery contract.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- DEFERRED — The current application persists only security-scoped bookmarks.
+  It has no verified App Sandbox entitlement/access model proving that URLs
+  delivered by arbitrary drag-and-drop payloads can be reopened after relaunch
+  or permission changes.
+- DEFERRED — Individual media drops have no existing referenced-root ownership
+  model; accepting them would create the forbidden second import architecture.
+- PASS — No unsupported drag/drop affordance is shown, and the verified folder
+  picker path remains the sole registration route.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. No application source, project configuration, media-root, bookmark or
+  source-media behavior changed for this safety decision.
+
+Manual Verification:
+- NOT APPLICABLE — No drag-and-drop target is intentionally exposed.
+- MANUAL VERIFICATION REQUIRED — Any future folder-drop implementation must
+  validate persistent access across app relaunch, bookmark refresh, denied
+  authorization and external-volume disconnect/reconnect before being enabled.
+
+Known Limitations:
+- Folder drag-and-drop remains unavailable until a dedicated, tested persistent
+  permission contract is designed. It must never copy sources, silently widen
+  to a parent directory or bypass security-scoped access.
+
+Commit:
+- `docs: record workspace drag and drop deferral` (this checkpoint commit)

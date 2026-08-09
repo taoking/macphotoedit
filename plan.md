@@ -84,5 +84,5 @@ add a second media-processing, storage or import architecture.
 - [x] UI-2.6 — Selection and activation interaction contract
 - [x] UI-2.7 — Contextual selection actions
 - [x] UI-2.8 — Grid density and pagination polish
-- [ ] UI-2.9 — Drag-and-drop safety re-evaluation (DEFERRED unless a durable
-  security-scoped dropped-folder access contract is implemented and verified)
+- [x] UI-2.9 — Drag-and-drop safety re-evaluation (DEFERRED: the verified
+  persistent security-scoped dropped-folder access contract is still absent)
