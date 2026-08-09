@@ -4,7 +4,7 @@ import SwiftUI
 struct LibraryHomeView: View {
     @ObservedObject var model: ApplicationModel
 
-    @AppStorage("library.showsInspector") private var showsInspector = true
+    @AppStorage("library.showsInspector") private var showsInspector = false
     @AppStorage("library.rawJPEGPairPreference") private var rawJPEGPairPreferenceRaw = RAWJPEGPairPreference.showBoth.rawValue
     @State private var query = LibraryQuery.all
     @State private var selectedAssetIDs: Set<UUID> = []
@@ -20,7 +20,7 @@ struct LibraryHomeView: View {
             switch model.startupState {
             case .starting:
                 ProgressView("正在准备本地资料库…")
-                    .frame(minWidth: 860, minHeight: 560)
+                    .frame(minWidth: 960, minHeight: 620)
             case .ready:
                 libraryContent
             case .failed(let message):
@@ -29,7 +29,7 @@ struct LibraryHomeView: View {
                     systemImage: "exclamationmark.triangle",
                     description: Text(message)
                 )
-                .frame(minWidth: 860, minHeight: 560)
+                .frame(minWidth: 960, minHeight: 620)
             }
         }
         .task(id: model.startupState) {
@@ -73,7 +73,7 @@ struct LibraryHomeView: View {
     }
 
     private var libraryContent: some View {
-        HSplitView {
+        NavigationSplitView {
             LibrarySidebar(
                 model: model,
                 query: query,
@@ -98,7 +98,7 @@ struct LibraryHomeView: View {
                 rawJPEGPairPreference: $rawJPEGPairPreferenceRaw
             )
             .frame(minWidth: 200, idealWidth: 220, maxWidth: 280)
-
+        } detail: {
             AssetBrowserView(
                 model: model,
                 assets: visibleLibraryAssets,
@@ -131,24 +131,24 @@ struct LibraryHomeView: View {
                 moveSelection: moveSelection
             )
             .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
-
-            if showsInspector {
-                LibraryInspectorView(
-                    asset: selectedAsset,
-                    hasMediaRoots: !model.mediaRoots.isEmpty,
-                    tags: model.selectedAssetTags,
-                    allTags: model.tags,
-                    close: { showsInspector = false },
-                    setRating: setRating,
-                    setFlag: setFlag,
-                    addTag: addTagToSelection,
-                    removeTag: { tag in
-                        guard let assetID = selectedAsset?.id else { return }
-                        Task { await model.removeTag(tag, from: [assetID]) }
-                    }
-                )
-                .frame(minWidth: 240, idealWidth: 280, maxWidth: 340)
-            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .inspector(isPresented: $showsInspector) {
+            LibraryInspectorView(
+                asset: selectedAsset,
+                hasMediaRoots: !model.mediaRoots.isEmpty,
+                tags: model.selectedAssetTags,
+                allTags: model.tags,
+                close: { showsInspector = false },
+                setRating: setRating,
+                setFlag: setFlag,
+                addTag: addTagToSelection,
+                removeTag: { tag in
+                    guard let assetID = selectedAsset?.id else { return }
+                    Task { await model.removeTag(tag, from: [assetID]) }
+                }
+            )
+            .frame(minWidth: 240, idealWidth: 280, maxWidth: 340)
         }
         .frame(minWidth: 960, minHeight: 620)
         .overlay(alignment: .top) {

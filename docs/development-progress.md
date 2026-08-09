@@ -1903,3 +1903,99 @@ Known Limitations:
 
 Commit:
 - `fix: improve library accessibility`
+
+## UI/UX Redesign Phase 2 — Workspace & Interaction Redesign
+
+Status:
+IN PROGRESS
+
+Baseline:
+- `c5fc067` (`fix: improve library accessibility`), clean tracked worktree;
+  the five untracked prompt documents are user-authored inputs and are excluded
+  from all commits.
+
+Audit:
+- The ready library was rooted in an `HSplitView` with only minimum dimensions.
+  Its containing hierarchy did not explicitly claim the available window height,
+  so the working area could collapse to its content height and leave large
+  vertical whitespace.
+- Sidebar rows are plain buttons with hand-applied accent text. They do not use
+  native list selection, so the active location has a weak and nonstandard
+  selection treatment.
+- The inspector is a permanent third split pane by default, even with no
+  selection. It competes with the grid for width and makes an infrequently used
+  metadata surface feel primary.
+- The current always-visible status strip mixes hierarchy levels: count and
+  selection actions are primary/contextual, while duplicate analysis is a
+  low-frequency capability that should be moved to a More menu.
+- Existing interaction behavior is retained as the starting contract: single
+  click selects; Command-click toggles; Shift-click selects a contiguous range;
+  Space opens the existing quick preview for one selected item; double-click
+  opens the same existing preview (whose photo path exposes Edit and whose
+  video path opens the existing video preview); Return has no activation
+  behavior; the thumbnails have no context menu. Arrow up/down currently use a
+  fixed four-item offset, which is not tied to the adaptive grid geometry.
+
+Planned validation:
+- Each UI2 item is implemented and accepted before the next item; each logical
+  stage runs XcodeGen/project-drift validation, the full macOS test suite, and
+  a Debug macOS build before its independent commit.
+- Visual and hardware-dependent checks are recorded as manual verification,
+  never inferred from automated results or sample media.
+
+### UI-2.1 — Full-height native workspace shell
+
+Status:
+COMPLETED
+
+Implemented:
+- Replaced the content-sized three-way `HSplitView` root with a native
+  `NavigationSplitView` and its standard `.inspector` attachment. The sidebar
+  and primary browser now receive the window's normal split-view layout rather
+  than being bounded by the browser's content height.
+- Retained the established 960×620 minimum working size and the existing
+  browser, Catalog, preview/editor, scan and selection call paths. The
+  inspector is now a native secondary surface and defaults to on-demand rather
+  than claiming width for a no-selection state at first launch.
+- Removed an attempted infinite-size frame after test-host validation showed it
+  could cause an AppKit constraint-update loop. Native `NavigationSplitView`
+  already fills its window; the minimum-only constraint is stable.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 114 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — The ready library uses a native sidebar/detail workspace and no longer
+  relies on the content-sized root `HSplitView` that produced vertical unused
+  space.
+- PASS — The inspector is a native secondary presentation and can be hidden so
+  the primary grid regains the available width. It will receive its focused
+  final audit in UI2.5.
+
+Regression:
+- PASS — The full 114-test suite, project-drift check and Debug build pass
+  after correcting the two discovered layout blockers: SwiftUI `frame`
+  argument ordering and the redundant infinite-size constraint loop.
+
+Manual Verification:
+- PASS — Launched the Debug application against the existing local Catalog and
+  inspected the rendered populated workspace. Sidebar and grid filled the
+  window continuously; closing the native inspector enlarged the grid without
+  overlap or blank vertical bands. No source, Catalog, scan or management
+  action was invoked.
+- MANUAL VERIFICATION REQUIRED — Verify the same behavior at the 960×620
+  minimum and at laptop/large-display widths on the user's displays.
+
+Known Limitations:
+- macOS persists a user's existing inspector visibility preference. The new
+  false default applies when no prior `library.showsInspector` preference has
+  been stored; an already-open inspector remains visible until the user closes
+  it, then stays on-demand.
+
+Commit:
+- `fix: make library workspace fill the window` (this checkpoint commit)

@@ -68,3 +68,21 @@ already-tested referenced-folder and Catalog workflows.
 - [x] UI-1.6 — Add-media / scan flow clarity
 - [x] UI-1.7 — Drag-and-drop feasibility decision (DEFERRED: persistent security-scoped access contract)
 - [x] UI-1.8 — Accessibility and final regression audit
+
+## UI/UX Redesign Phase 2 — Workspace & Interaction Redesign
+
+Scope: make the existing library workspace behave as a focused native macOS
+working environment. Reuse the Catalog, referenced-folder, selection,
+preview/editor, scan and batch-operation paths already in the product; do not
+add a second media-processing, storage or import architecture.
+
+- [x] UI-2.1 — Full-height native workspace shell
+- [ ] UI-2.2 — Native sidebar location selection
+- [ ] UI-2.3 — Content header and loading hierarchy
+- [ ] UI-2.4 — Toolbar hierarchy and view options
+- [ ] UI-2.5 — Secondary native inspector
+- [ ] UI-2.6 — Selection and activation interaction contract
+- [ ] UI-2.7 — Contextual selection actions
+- [ ] UI-2.8 — Grid density and pagination polish
+- [ ] UI-2.9 — Drag-and-drop safety re-evaluation (DEFERRED unless a durable
+  security-scoped dropped-folder access contract is implemented and verified)
