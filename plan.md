@@ -53,3 +53,18 @@ required, concise execution tracker for the long-running implementation.
     require a new Catalog migration and migration/invalidity coverage; the
     existing file size + modification-time signature remains intact rather than
     risking persistent-cache compatibility in this correctness round.
+
+## UI/UX Redesign Phase 1
+
+Scope: improve the existing macOS library experience without adding new media
+processing, storage, cloud, or AI capabilities. Every item must reuse the
+already-tested referenced-folder and Catalog workflows.
+
+- [x] UI-1.1 — Empty-library onboarding
+- [ ] UI-1.2 — Library toolbar hierarchy
+- [ ] UI-1.3 — Sidebar information architecture
+- [ ] UI-1.4 — Inspector states
+- [ ] UI-1.5 — Native desktop density and responsive layout polish
+- [ ] UI-1.6 — Add-media / scan flow clarity
+- [ ] UI-1.7 — Drag-and-drop feasibility decision
+- [ ] UI-1.8 — Accessibility and final regression audit

@@ -279,15 +279,45 @@ struct AssetBrowserView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(model.mediaRoots.isEmpty ? "尚未添加媒体文件夹" : "没有符合条件的媒体", systemImage: model.mediaRoots.isEmpty ? "folder.badge.plus" : "line.3.horizontal.decrease.circle")
-        } description: {
-            Text(model.mediaRoots.isEmpty ? "从“文件 → 添加文件夹到资料库…”选择目录。原始媒体不会被复制或修改。" : "调整搜索或筛选条件，或重新扫描资料库。")
-        } actions: {
+        Group {
             if model.mediaRoots.isEmpty {
-                Button("添加文件夹…", action: addFolder)
-            } else if hasActiveFilters {
-                Button("清除筛选") { query = .all }
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 42, weight: .light))
+                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 7) {
+                        Text("开始建立你的照片资料库")
+                            .font(.title2.weight(.semibold))
+                        Text("添加照片或视频所在的文件夹，Mac Photo Studio 会建立引用式资料库。原始媒体不会被复制或修改。")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 440)
+                    }
+
+                    Button(action: addFolder) {
+                        Label("选择照片或视频文件夹…", systemImage: "folder.badge.plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityHint("打开 macOS 文件夹选择器，将所选文件夹作为引用添加到资料库。")
+
+                    Text("引用式资料库 · 不复制原图 · 不修改源文件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(32)
+            } else {
+                ContentUnavailableView {
+                    Label("没有符合条件的媒体", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("调整搜索或筛选条件，或重新扫描资料库。")
+                } actions: {
+                    if hasActiveFilters {
+                        Button("清除筛选") { query = .all }
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

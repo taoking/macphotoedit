@@ -1512,3 +1512,43 @@ Commit:
 - `ci: pin macos regression dependencies`
 - `docs: record phase 16.12 audit fixes`
 - `docs: finalize phase 16.12 CI verification`
+
+## UI/UX Redesign Phase 1 — UI-1.1 Empty-library onboarding
+
+Status:
+COMPLETED
+
+Implemented:
+- Replaced the generic empty-library message with a focused onboarding state:
+  “开始建立你的照片资料库”, an explanation of the referenced-folder model,
+  and the exact safety boundary that originals are neither copied nor changed.
+- Added a prominent “选择照片或视频文件夹…” CTA wired directly to the existing
+  `presentAddFolderPanel` workflow. It opens the real macOS folder picker and
+  never claims an unsupported import or copy operation.
+- Added visible safety text and an accessibility hint for the CTA. The
+  existing no-results / clear-filter state remains separate for libraries that
+  already have roots.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 113 tests, 0 failures. Existing LMDB map-size warnings were emitted by the test host but did not fail any test.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Empty library presents the required clear title, referenced-library explanation, centered real CTA, and safety copy.
+- PASS — The CTA reuses the existing secure folder-reference flow; no raw-media copy, move, or modification behavior was introduced.
+
+Regression:
+- PASS — Full automated suite remains at 113 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Launched the current Debug app with an empty Catalog and inspected the rendered window and accessibility tree. The title, description, safety copy, button label, and accessibility hint are present. No folder was selected, so no user media or permissions were touched.
+
+Known Limitations:
+- A true media-root scan requires a user-authorised folder and is intentionally deferred to the later add-media flow verification; this onboarding change does not alter scanner behavior.
+
+Commit:
+- `feat: redesign empty library onboarding`
