@@ -5,8 +5,8 @@ import Foundation
 /// A stable cache identity for a foreground-subject request. It deliberately
 /// excludes photo-editing controls: subject selection is derived from the
 /// pre-local-adjustment source, not from exposure, colour or mask order.
-struct SubjectMaskCacheKey: Hashable {
-    enum Rendition: String, Hashable {
+struct SubjectMaskCacheKey: Hashable, Sendable {
+    enum Rendition: String, Hashable, Sendable {
         case preview
         case export
         case transient
@@ -41,14 +41,19 @@ struct SubjectMaskCacheKey: Hashable {
     }
 
     init(sourceURL: URL, rendition: Rendition, extent: CGRect) {
-        let values = try? sourceURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let values = try? sourceURL.resourceValues(forKeys: [
+            .fileResourceIdentifierKey,
+            .fileSizeKey,
+            .contentModificationDateKey
+        ])
+        let fileResourceIdentifier = values?.fileResourceIdentifier.map { String(describing: $0) } ?? "unavailable"
         let fileSize = values?.fileSize ?? -1
         let modificationNanoseconds = values?.contentModificationDate.map {
             Int64(($0.timeIntervalSince1970 * 1_000_000_000).rounded())
         } ?? -1
         self.init(
             sourceIdentifier: sourceURL.standardizedFileURL.path(percentEncoded: false),
-            sourceRevision: "\(fileSize):\(modificationNanoseconds)",
+            sourceRevision: "\(fileResourceIdentifier):\(fileSize):\(modificationNanoseconds)",
             rendition: rendition,
             extent: extent
         )
@@ -86,10 +91,35 @@ final class SubjectMaskProvider: @unchecked Sendable {
         case noMask
     }
 
+    /// A single synchronous Vision request shared by every concurrent caller
+    /// for one cache key. Waiting occurs on this per-key condition, never on
+    /// the provider's global cache lock.
+    private final class InFlightMask {
+        private let condition = NSCondition()
+        private var result: CachedMask?
+
+        func waitForResult() -> CachedMask {
+            condition.lock()
+            defer { condition.unlock() }
+            while result == nil {
+                condition.wait()
+            }
+            return result!
+        }
+
+        func complete(with result: CachedMask) {
+            condition.lock()
+            self.result = result
+            condition.broadcast()
+            condition.unlock()
+        }
+    }
+
     private let capacity: Int
     private let generator: Generator
     private let lock = NSLock()
     private var cache: [SubjectMaskCacheKey: CachedMask] = [:]
+    private var inFlight: [SubjectMaskCacheKey: InFlightMask] = [:]
     private var lru: [SubjectMaskCacheKey] = []
     private var generatedRequests = 0
     private var cacheHits = 0
@@ -101,24 +131,42 @@ final class SubjectMaskProvider: @unchecked Sendable {
 
     func mask(for source: CIImage, key: SubjectMaskCacheKey) -> CIImage? {
         lock.lock()
-        defer { lock.unlock() }
         if let cached = cache[key] {
             cacheHits += 1
             touch(key)
+            lock.unlock()
             return image(from: cached)
         }
 
-        // Serializing generation also prevents two overlapping preview tasks
-        // from running duplicate Vision requests for the same cache key.
+        if let existingRequest = inFlight[key] {
+            // The result will be cached before the request wakes us. Count the
+            // shared in-flight result as a cache hit for diagnostics.
+            cacheHits += 1
+            lock.unlock()
+            return image(from: existingRequest.waitForResult())
+        }
+
+        let request = InFlightMask()
+        inFlight[key] = request
+        lock.unlock()
+
+        // Vision may take materially longer than a cache lookup. It must run
+        // outside the global lock so unrelated images can generate in parallel.
         let generated = generator(source)
-        generatedRequests += 1
         let cached: CachedMask = generated.map(CachedMask.image) ?? .noMask
+
+        lock.lock()
+        generatedRequests += 1
         cache[key] = cached
         touch(key)
         while lru.count > capacity {
             let evicted = lru.removeFirst()
             cache.removeValue(forKey: evicted)
         }
+        inFlight.removeValue(forKey: key)
+        lock.unlock()
+
+        request.complete(with: cached)
         return generated
     }
 
