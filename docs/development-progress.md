@@ -2282,3 +2282,54 @@ Known Limitations:
 
 Commit:
 - `feat: streamline asset browsing interactions` (this checkpoint commit)
+
+### UI-2.7 — Contextual selection actions
+
+Status:
+COMPLETED
+
+Implemented:
+- Refined the existing selection-only header row into a compact contextual
+  action area: selected count, Preview, Rating & Flag, Organize, Edit, active
+  batch status and the existing confirmed Trash action.
+- Moved rating and flag out of the Organize menu into their own first-class
+  contextual menu. Tags, albums, stacks, photo presets/edit operations and
+  batch export remain in their pre-existing Organize/Edit paths.
+- The row is still conditional on a non-empty selection, so idle library
+  browsing has no permanent command strip.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — With no selection, contextual selection commands disappear.
+- PASS — With a selection, preview, rating/flag, organize, edit and Trash are
+  available in a compact header row, while established secondary operations
+  stay reachable in their existing menus.
+- PASS — Trash continues to require its existing confirmation dialog.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. Existing Catalog mutation and batch-operation call paths are unchanged.
+
+Manual Verification:
+- PASS — Restarted the latest Debug app and confirmed no selection action row
+  while idle. Selecting one existing Catalog item showed the compact Preview,
+  Rating & Flag, Organize, Edit and Trash controls. No action menu item or
+  destructive control was invoked.
+- MANUAL VERIFICATION REQUIRED — Verify the compact row at narrow widths and
+  with multi-selection, active batch work and localized long action labels.
+
+Known Limitations:
+- The contextual row intentionally appears below the location header, so its
+  height changes only when a selection is made; this keeps global toolbar and
+  grid controls stable during normal browsing.
+
+Commit:
+- `feat: add contextual library selection actions` (this checkpoint commit)

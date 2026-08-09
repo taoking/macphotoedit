@@ -176,6 +176,13 @@ struct AssetBrowserView: View {
             Text("已选择 \(selectedAssetIDs.count)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Button {
+                _ = activateSelectedAsset()
+            } label: {
+                Label("预览", systemImage: "eye")
+            }
+            .disabled(selectedAssetIDs.count != 1)
+            selectionRatingAndFlagMenu
             selectionActions
             BatchTaskStatusSummary(model: model)
             Button(role: .destructive) {
@@ -186,6 +193,23 @@ struct AssetBrowserView: View {
             Spacer(minLength: 0)
         }
         .controlSize(.small)
+    }
+
+    private var selectionRatingAndFlagMenu: some View {
+        Menu {
+            Menu("评分") {
+                ForEach(0...5, id: \.self) { rating in
+                    Button("\(rating) 星") { setRating(rating) }
+                }
+            }
+            Menu("标记") {
+                Button("选取") { setFlag(.pick) }
+                Button("拒绝") { setFlag(.reject) }
+                Button("取消标记") { setFlag(.unflagged) }
+            }
+        } label: {
+            Label("评分与标记", systemImage: "star.leadinghalf.filled")
+        }
     }
 
     @ViewBuilder
@@ -371,16 +395,6 @@ struct AssetBrowserView: View {
     private var selectionActions: some View {
         Group {
             Menu {
-                Menu("评分") {
-                    ForEach(0...5, id: \.self) { rating in
-                        Button("\(rating) 星") { setRating(rating) }
-                    }
-                }
-                Menu("标记") {
-                    Button("选取") { setFlag(.pick) }
-                    Button("拒绝") { setFlag(.reject) }
-                    Button("取消标记") { setFlag(.unflagged) }
-                }
                 Menu("添加标签") {
                     ForEach(model.tags) { tag in
                         Button(tag.name) { addTag(tag) }
