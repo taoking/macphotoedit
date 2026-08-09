@@ -97,7 +97,7 @@ struct LibraryHomeView: View {
                 relinkRoot: model.presentRelinkPanel,
                 rawJPEGPairPreference: $rawJPEGPairPreferenceRaw
             )
-            .frame(minWidth: 185, idealWidth: 230, maxWidth: 300)
+            .frame(minWidth: 200, idealWidth: 220, maxWidth: 280)
 
             AssetBrowserView(
                 model: model,
@@ -130,7 +130,7 @@ struct LibraryHomeView: View {
                 select: select,
                 moveSelection: moveSelection
             )
-            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
 
             if showsInspector {
                 LibraryInspectorView(
@@ -147,10 +147,10 @@ struct LibraryHomeView: View {
                         Task { await model.removeTag(tag, from: [assetID]) }
                     }
                 )
-                .frame(minWidth: 230, idealWidth: 285, maxWidth: 360)
+                .frame(minWidth: 240, idealWidth: 280, maxWidth: 340)
             }
         }
-        .frame(minWidth: 860, minHeight: 560)
+        .frame(minWidth: 960, minHeight: 620)
         .overlay(alignment: .top) {
             if let error = model.libraryError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")

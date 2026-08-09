@@ -150,7 +150,8 @@ struct AssetBrowserView: View {
             analysisMenu
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
+        .background(.bar)
     }
 
     private var rescanMenu: some View {
@@ -312,7 +313,7 @@ struct AssetBrowserView: View {
                         .padding()
                 }
             }
-            .padding(16)
+            .padding(14)
         }
     }
 
@@ -345,6 +346,7 @@ struct AssetBrowserView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: 480)
                 .padding(32)
             } else {
                 ContentUnavailableView {

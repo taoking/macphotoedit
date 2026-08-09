@@ -11,6 +11,7 @@ struct MacPhotoStudioApp: App {
                     await applicationModel.bootstrapIfNeeded()
                 }
         }
+        .defaultSize(width: 1_180, height: 720)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("添加文件夹到资料库…") {

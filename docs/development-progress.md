@@ -1676,3 +1676,53 @@ Known Limitations:
 
 Commit:
 - `feat: improve inspector empty states`
+
+## UI/UX Redesign Phase 1 — UI-1.5 Native desktop density and responsive layout polish
+
+Status:
+COMPLETED
+
+Implemented:
+- Set the native macOS window's first-launch default to 1180×720 and raised the
+  working layout floor to 960×620, preserving a usable three-column library
+  workspace rather than introducing a custom responsive shell.
+- Rebalanced the existing split-view constraints: source navigation is compact
+  but readable, the browser receives the primary working width, and the
+  inspector remains a bounded secondary pane.
+- Tightened grid and status-bar spacing with system materials and semantic
+  colors only. Empty onboarding now has a deliberate maximum reading width
+  instead of stretching across wide windows.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 113 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — The first-launch size, sidebar/browser/inspector proportions and
+  minimum workspace dimensions support the intended native desktop hierarchy.
+- PASS — Density changes use standard SwiftUI/AppKit sizing and materials; no
+  custom visual system or simulated responsive behavior was introduced.
+
+Regression:
+- PASS — Full automated suite remains at 113 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Restarted the current Debug app and inspected the rendered empty
+  library at its native window size. The three panes, compact status bar,
+  toolbar, onboarding reading width, and inspector align without overlap.
+- MANUAL VERIFICATION REQUIRED — Resize a populated library through the
+  960×620 minimum on both laptop and desktop displays, then confirm actual
+  thumbnail density and long localized metadata remain readable. No user media
+  was added during this validation.
+
+Known Limitations:
+- Window restoration is controlled by macOS; users with a previously restored
+  window may not observe the new default until creating a new window or
+  clearing the app's restored state. The minimum dimensions still apply.
+
+Commit:
+- `style: refine library workspace layout`
