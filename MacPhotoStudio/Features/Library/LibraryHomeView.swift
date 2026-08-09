@@ -100,6 +100,13 @@ struct LibraryHomeView: View {
                 model: model,
                 assets: visibleLibraryAssets,
                 groupedRAWAssetIDs: rawJPEGPairPreference == .groupPairs ? RAWJPEGPairing.pairedRAWAssetIDs(in: model.libraryAssets) : [],
+                locationTitle: selectedLibraryLocation.title(
+                    mediaRoots: model.mediaRoots,
+                    albums: model.albums,
+                    stacks: model.assetStacks,
+                    tags: model.tags
+                ),
+                baseQuery: selectedLibraryLocation.libraryQuery(albums: model.albums),
                 query: $query,
                 selectedAssetIDs: $selectedAssetIDs,
                 selectionAnchor: $selectionAnchor,
@@ -125,7 +132,8 @@ struct LibraryHomeView: View {
                 scanSimilarPhotos: { Task { _ = await model.startSimilarPhotoScan() } },
                 moveToTrash: { assets in Task { _ = await model.moveAssetsToTrash(assets) } },
                 select: select,
-                moveSelection: moveSelection
+                moveSelection: moveSelection,
+                clearFilters: clearFilters
             )
             .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -163,6 +171,10 @@ struct LibraryHomeView: View {
     private var selectedAsset: LibraryAssetRecord? {
         guard selectedAssetIDs.count == 1, let assetID = selectedAssetIDs.first else { return nil }
         return model.libraryAssets.first(where: { $0.id == assetID })
+    }
+
+    private var selectedLibraryLocation: LibraryLocation {
+        libraryLocation ?? .all
     }
 
     private var selectedAssets: [LibraryAssetRecord] {
@@ -211,6 +223,10 @@ struct LibraryHomeView: View {
         selectedAssetIDs = [nextID]
         selectionAnchor = nextID
         Task { await model.loadTags(for: nextID) }
+    }
+
+    private func clearFilters() {
+        query = selectedLibraryLocation.libraryQuery(albums: model.albums)
     }
 
     private func setRating(_ rating: Int) {

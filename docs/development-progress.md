@@ -2055,3 +2055,64 @@ Known Limitations:
 
 Commit:
 - `refactor: use native library navigation selection` (this checkpoint commit)
+
+### UI-2.3 — Content header and loading hierarchy
+
+Status:
+COMPLETED
+
+Implemented:
+- Replaced the mixed status strip with a browser header whose primary text is
+  the current location title and whose secondary text is the displayed-item
+  count. Titles resolve from the current root, album, stack or tag record with
+  safe generic fallbacks when a record disappears.
+- Corrected active-filter semantics: a location's base query (for example
+  Photos) is no longer misrepresented as a filter. Extra filter state presents
+  an explicit active-filter label and a clear action that returns to the current
+  location's existing query.
+- Removed the permanent `hasMoreLibraryAssets` spinner. Initial empty results
+  show loading only while a real request is active; an already-populated grid
+  presents its existing lazy-pagination indicator only at the grid bottom while
+  the next page is actually loading.
+- Kept live scan controls, but limited their compact presentation to relevant
+  active/recent terminal status. Existing selected-item actions remain in their
+  own contextual row until their focused UI2.7 refinement.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -only-testing:MacPhotoStudioTests/LibraryLocationTests test`; 3 tests, 0 failures.
+- PASS — full `xcodebuild … test`; 117 tests, 0 failures. Existing LMDB
+  map-size host warnings did not fail the suite.
+
+Build:
+- PASS — Debug `xcodebuild … build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — The current location and count have distinct visual hierarchy, and
+  location navigation no longer masquerades as filtering.
+- PASS — Additional available pages no longer show a spinner beside the count;
+  loading indicators are limited to real requests.
+- PASS — Scan state and selected-item controls remain functional without
+  competing with the primary browser identity.
+
+Regression:
+- PASS — Three focused location/mapping/title tests and the complete 117-test
+  suite pass; no Catalog, pagination data flow or source-media behavior changed.
+
+Manual Verification:
+- PASS — Restarted the Debug app with an existing populated Catalog. The
+  full-height workspace showed “所有媒体” and “250 项” at the browser top with
+  no busy indicator while idle; existing grid and sidebar behavior remained
+  intact. No media-management action was taken.
+- MANUAL VERIFICATION REQUIRED — Observe first-page loading, bottom pagination
+  loading, live scan/pause/cancel/completion and an empty 0-item result with
+  user-authorised media-root conditions.
+
+Known Limitations:
+- The header count is the count currently materialized in the lazy browser,
+  not a separate total-count query. This preserves bounded Catalog paging and
+  avoids misleading a user with an unmaintained total.
+
+Commit:
+- `feat: clarify library content hierarchy` (this checkpoint commit)

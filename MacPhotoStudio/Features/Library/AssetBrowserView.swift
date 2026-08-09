@@ -5,6 +5,8 @@ struct AssetBrowserView: View {
     @ObservedObject var model: ApplicationModel
     let assets: [LibraryAssetRecord]
     let groupedRAWAssetIDs: Set<UUID>
+    let locationTitle: String
+    let baseQuery: LibraryQuery
     @Binding var query: LibraryQuery
     @Binding var selectedAssetIDs: Set<UUID>
     @Binding var selectionAnchor: UUID?
@@ -27,6 +29,7 @@ struct AssetBrowserView: View {
     let moveToTrash: ([LibraryAssetRecord]) -> Void
     let select: (UUID, NSEvent.ModifierFlags) -> Void
     let moveSelection: (Int) -> Void
+    let clearFilters: () -> Void
     @State private var showingFilters = false
     @State private var showsPresetNameSheet = false
     @State private var showsPresetManager = false
@@ -38,7 +41,7 @@ struct AssetBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            libraryStatusBar
+            libraryHeader
             Divider()
             if assets.isEmpty, !model.isLoadingLibraryAssets {
                 emptyState
@@ -124,35 +127,64 @@ struct AssetBrowserView: View {
         }
     }
 
-    private var libraryStatusBar: some View {
-        HStack(spacing: 8) {
-            Text("\(assets.count) 个显示项目")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if model.isLoadingLibraryAssets || model.hasMoreLibraryAssets {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel(model.isLoadingLibraryAssets ? "正在读取资料库" : "可以继续加载更多项目")
-            }
-            scanStatusSummary
-            if !selectedAssetIDs.isEmpty {
-                selectionActions
-                BatchTaskStatusSummary(model: model)
-                Text("已选择 \(selectedAssetIDs.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button(role: .destructive) {
-                    showsTrashConfirmation = true
-                } label: {
-                    Label("移到废纸篓", systemImage: "trash")
+    private var libraryHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(locationTitle)
+                        .font(.title3.weight(.semibold))
+                    Text("\(assets.count) 项")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if model.isLoadingLibraryAssets, assets.isEmpty {
+                    ProgressView("正在读取资料库")
+                        .controlSize(.small)
+                        .accessibilityLabel("正在读取资料库")
                 }
             }
-            Spacer()
-            analysisMenu
+            if hasActiveFilters {
+                HStack(spacing: 6) {
+                    Label("已应用筛选", systemImage: "line.3.horizontal.decrease.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("清除筛选", action: clearFilters)
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                }
+                .accessibilityElement(children: .contain)
+            }
+            if primaryScanStatus != nil {
+                scanStatusSummary
+                    .padding(.vertical, 5)
+                    .padding(.horizontal, 8)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            }
+            if !selectedAssetIDs.isEmpty {
+                selectionActionRow
+            }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var selectionActionRow: some View {
+        HStack(spacing: 8) {
+            Text("已选择 \(selectedAssetIDs.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            selectionActions
+            BatchTaskStatusSummary(model: model)
+            Button(role: .destructive) {
+                showsTrashConfirmation = true
+            } label: {
+                Label("移到废纸篓", systemImage: "trash")
+            }
+            Spacer(minLength: 0)
+        }
+        .controlSize(.small)
     }
 
     @ViewBuilder
@@ -416,8 +448,9 @@ struct AssetBrowserView: View {
                         }
                     }
                 }
-                if model.isLoadingLibraryAssets {
-                    ProgressView()
+                if model.isLoadingLibraryAssets, !assets.isEmpty {
+                    ProgressView("正在加载更多项目")
+                        .controlSize(.small)
                         .padding()
                 }
             }
@@ -479,7 +512,7 @@ struct AssetBrowserView: View {
     }
 
     private var hasActiveFilters: Bool {
-        query != .all
+        query != baseQuery
     }
 
     private var selectedPhotoAssets: [LibraryAssetRecord] {

@@ -33,4 +33,28 @@ enum LibraryLocation: Hashable {
             return LibraryQuery(tagID: tagID)
         }
     }
+
+    func title(
+        mediaRoots: [MediaRootRecord],
+        albums: [AlbumRecord],
+        stacks: [AssetStackRecord],
+        tags: [TagRecord]
+    ) -> String {
+        switch self {
+        case .all:
+            "所有媒体"
+        case .photos:
+            "照片"
+        case .videos:
+            "视频"
+        case .root(let rootID):
+            mediaRoots.first(where: { $0.id == rootID })?.displayName ?? "资料来源"
+        case .album(let albumID), .smartAlbum(let albumID):
+            albums.first(where: { $0.id == albumID })?.name ?? "相册"
+        case .stack(let stackID):
+            stacks.first(where: { $0.id == stackID })?.title ?? "堆栈"
+        case .tag(let tagID):
+            tags.first(where: { $0.id == tagID })?.name ?? "标签"
+        }
+    }
 }
