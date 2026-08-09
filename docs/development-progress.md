@@ -1595,3 +1595,44 @@ Known Limitations:
 
 Commit:
 - `feat: improve library toolbar hierarchy`
+
+## UI/UX Redesign Phase 1 — UI-1.3 Sidebar information architecture
+
+Status:
+COMPLETED
+
+Implemented:
+- Reorganized the sidebar into clear `资料库`, `来源`, `整理`, and `筛选`
+  sections. Existing all-media/photo/video navigation remains at the top;
+  referenced roots now live under the explicit source model.
+- The no-root source state points to the visible toolbar action rather than
+  implying a file-copy import. Root rescan and relink remain real context-menu
+  actions, avoiding a redundant row-level rescan icon.
+- Grouped existing albums, smart albums, stacks, and tags under `整理` with
+  existing create/rename/delete behavior unchanged. Ratings and flags are now
+  compact filter menus (including a real no-limit reset); RAW/JPEG display
+  selection remains the existing picker.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 113 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — The actual sidebar expresses library type, source folders, and organization without fake destinations; selection presentation and all existing actions remain available.
+- PASS — The source empty state is useful, while root-specific maintenance remains discoverable from each root's context menu and does not duplicate the toolbar.
+
+Regression:
+- PASS — Full automated suite remains at 113 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Restarted the current Debug app and inspected the rendered sidebar and accessibility tree. All four groups, the empty-source guidance, create controls, and compact filter entries are present. No media root, folder picker, or scan was invoked.
+
+Known Limitations:
+- Showing populated albums, tags, stacks, unavailable roots, and actual context menus with user media remains `MANUAL VERIFICATION REQUIRED`; the data paths are unchanged and covered by existing Catalog tests.
+
+Commit:
+- `feat: reorganize library sidebar`

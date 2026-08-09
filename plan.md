@@ -62,7 +62,7 @@ already-tested referenced-folder and Catalog workflows.
 
 - [x] UI-1.1 — Empty-library onboarding
 - [x] UI-1.2 — Library toolbar hierarchy
-- [ ] UI-1.3 — Sidebar information architecture
+- [x] UI-1.3 — Sidebar information architecture
 - [ ] UI-1.4 — Inspector states
 - [ ] UI-1.5 — Native desktop density and responsive layout polish
 - [ ] UI-1.6 — Add-media / scan flow clarity

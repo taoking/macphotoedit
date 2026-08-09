@@ -37,43 +37,41 @@ struct LibrarySidebar: View {
                 }
             }
 
-            Section("文件夹") {
+            Section("来源") {
                 ForEach(model.mediaRoots) { root in
-                    HStack(spacing: 6) {
-                        Button {
-                            selectRoot(root.id)
-                        } label: {
+                    Button {
+                        selectRoot(root.id)
+                    } label: {
+                        HStack(spacing: 6) {
                             Label(root.displayName, systemImage: root.availability == .online ? "folder" : "externaldrive.badge.exclamationmark")
                                 .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if root.availability != .online {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(.orange)
+                                    .help("根目录当前不可访问；已缓存的缩略图仍可浏览。")
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(query.rootID == root.id ? Color.accentColor : Color.primary)
-                        Spacer(minLength: 0)
-                        if root.availability != .online {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.orange)
-                                .help("根目录当前不可访问；已缓存的缩略图仍可浏览。")
-                        }
-                        Button {
-                            rescanRoot(root.id)
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("重新扫描")
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(query.rootID == root.id ? Color.accentColor : Color.primary)
                     .contextMenu {
+                        Button("重新扫描") { rescanRoot(root.id) }
                         Button("重新定位文件夹…") { relinkRoot(root) }
                     }
                 }
                 if model.mediaRoots.isEmpty {
-                    Text("尚未添加文件夹")
+                    Label("尚未添加来源", systemImage: "folder.badge.plus")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("使用工具栏中的“添加媒体文件夹”建立引用式资料库。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Section {
+            Section("整理") {
+                organizationHeader("相册", systemImage: "rectangle.stack", addAction: addAlbum, help: "新建相册")
                 ForEach(model.albums.filter { $0.kind == .album }) { album in
                     Button {
                         selectAlbum(album)
@@ -87,19 +85,8 @@ struct LibrarySidebar: View {
                         Button("删除", role: .destructive) { deleteAlbum(album) }
                     }
                 }
-            } header: {
-                HStack {
-                    Text("相册")
-                    Spacer()
-                    Button(action: addAlbum) {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("新建相册")
-                }
-            }
 
-            Section {
+                organizationHeader("智能相册", systemImage: "gearshape.2", addAction: addSmartAlbum, help: "新建智能相册")
                 ForEach(model.albums.filter { $0.kind == .smartAlbum }) { album in
                     Button {
                         selectAlbum(album)
@@ -113,19 +100,8 @@ struct LibrarySidebar: View {
                         Button("删除", role: .destructive) { deleteAlbum(album) }
                     }
                 }
-            } header: {
-                HStack {
-                    Text("智能相册")
-                    Spacer()
-                    Button(action: addSmartAlbum) {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("新建智能相册")
-                }
-            }
 
-            Section("堆栈") {
+                organizationHeader("堆栈", systemImage: "square.stack.3d.up")
                 ForEach(model.assetStacks) { stack in
                     Button {
                         selectStack(stack)
@@ -143,35 +119,8 @@ struct LibrarySidebar: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
 
-            Section("评分") {
-                ForEach(Array((1...5).reversed()), id: \.self) { rating in
-                    sidebarButton("\(rating) 星及以上", systemImage: "star.fill", selected: query.minimumRating == rating) {
-                        selectMinimumRating(rating)
-                    }
-                }
-            }
-
-            Section("标记") {
-                sidebarButton("已选取", systemImage: "flag.fill", selected: query.flag == .pick) {
-                    selectFlag(.pick)
-                }
-                sidebarButton("已拒绝", systemImage: "flag.slash.fill", selected: query.flag == .reject) {
-                    selectFlag(.reject)
-                }
-            }
-
-            Section("RAW + JPEG") {
-                Picker("显示方式", selection: $rawJPEGPairPreference) {
-                    ForEach(RAWJPEGPairPreference.allCases, id: \.rawValue) { preference in
-                        Text(preference.title).tag(preference.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            Section {
+                organizationHeader("标签", systemImage: "tag", addAction: addTag, help: "新建标签")
                 ForEach(model.tags) { tag in
                     Button {
                         selectTag(tag.id)
@@ -185,16 +134,32 @@ struct LibrarySidebar: View {
                         Button("删除", role: .destructive) { deleteTag(tag) }
                     }
                 }
-            } header: {
-                HStack {
-                    Text("标签")
-                    Spacer()
-                    Button(action: addTag) {
-                        Image(systemName: "plus")
+            }
+
+            Section("筛选") {
+                Menu {
+                    Button("不限") { selectMinimumRating(nil) }
+                    ForEach(Array((1...5).reversed()), id: \.self) { rating in
+                        Button("\(rating) 星及以上") { selectMinimumRating(rating) }
                     }
-                    .buttonStyle(.borderless)
-                    .help("新建标签")
+                } label: {
+                    Label(minimumRatingTitle, systemImage: "star")
                 }
+
+                Menu {
+                    Button("不限") { selectFlag(nil) }
+                    Button("已选取") { selectFlag(.pick) }
+                    Button("已拒绝") { selectFlag(.reject) }
+                } label: {
+                    Label(flagTitle, systemImage: query.flag == .reject ? "flag.slash" : "flag")
+                }
+
+                Picker("RAW + JPEG", selection: $rawJPEGPairPreference) {
+                    ForEach(RAWJPEGPairPreference.allCases, id: \.rawValue) { preference in
+                        Text(preference.title).tag(preference.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
             }
         }
         .listStyle(.sidebar)
@@ -215,5 +180,41 @@ struct LibrarySidebar: View {
                 .foregroundStyle(selected ? Color.accentColor : Color.primary)
         }
         .buttonStyle(.plain)
+    }
+
+    private var minimumRatingTitle: String {
+        guard let rating = query.minimumRating else { return "评分不限" }
+        return "\(rating) 星及以上"
+    }
+
+    private var flagTitle: String {
+        switch query.flag {
+        case .pick: "已选取"
+        case .reject: "已拒绝"
+        default: "标记不限"
+        }
+    }
+
+    private func organizationHeader(
+        _ title: String,
+        systemImage: String,
+        addAction: (() -> Void)? = nil,
+        help: String? = nil
+    ) -> some View {
+        HStack(spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            if let addAction {
+                Button(action: addAction) {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                .help(help ?? "新建\(title)")
+                .accessibilityLabel(help ?? "新建\(title)")
+            }
+        }
+        .padding(.top, 3)
     }
 }
