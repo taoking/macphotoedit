@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+env:
+  XCODEGEN_VERSION: 2.46.0
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+
 jobs:
   test-and-build:
     name: Test and build
@@ -21,7 +25,8 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Select supported Xcode
         run: |
@@ -29,14 +34,20 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
           xcodebuild -version
 
-      - name: Install XcodeGen
+      - name: Install pinned XcodeGen
         run: |
-          brew install xcodegen
-          xcodegen --version
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
 
       - name: Run unit tests
         run: |
           xcodegen generate
+          git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj
           xcodebuild \
             -project MacPhotoStudio.xcodeproj \
             -scheme MacPhotoStudio \
@@ -47,6 +58,7 @@ jobs:
       - name: Build Debug app
         run: |
           xcodegen generate
+          git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj
           xcodebuild \
             -project MacPhotoStudio.xcodeproj \
             -scheme MacPhotoStudio \
