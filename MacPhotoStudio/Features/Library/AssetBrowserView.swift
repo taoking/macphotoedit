@@ -13,6 +13,8 @@ struct AssetBrowserView: View {
     @Binding var showsInspector: Bool
     var gridIsFocused: FocusState<Bool>.Binding
     let addFolder: () -> Void
+    let rescanAllMedia: () -> Void
+    let rescanRoot: (UUID) -> Void
     let setRating: (Int) -> Void
     let setFlag: (AssetFlag) -> Void
     let addTag: (TagRecord) -> Void
@@ -36,7 +38,7 @@ struct AssetBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
+            libraryStatusBar
             Divider()
             if assets.isEmpty, !model.isLoadingLibraryAssets {
                 emptyState
@@ -48,6 +50,38 @@ struct AssetBrowserView: View {
         .focusable()
         .onKeyPress { keyPress in
             handleKeyPress(keyPress)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                Button(action: addFolder) {
+                    Label("添加媒体文件夹", systemImage: "folder.badge.plus")
+                }
+                .help("将一个照片或视频文件夹作为引用添加到资料库")
+
+                rescanMenu
+            }
+
+            ToolbarItem(placement: .principal) {
+                TextField("搜索资料库", text: searchTextBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 180, idealWidth: 260, maxWidth: 340)
+                    .accessibilityLabel("搜索资料库")
+            }
+
+            ToolbarItemGroup(placement: .primaryAction) {
+                filterButton
+                Slider(value: $thumbnailSize, in: 116...260, step: 4)
+                    .frame(width: 108)
+                    .accessibilityLabel("缩略图大小")
+                    .help("缩略图大小")
+                Button {
+                    showsInspector.toggle()
+                } label: {
+                    Image(systemName: "sidebar.right")
+                }
+                .help(showsInspector ? "隐藏检查器" : "显示检查器")
+                .accessibilityLabel(showsInspector ? "隐藏检查器" : "显示检查器")
+            }
         }
         .sheet(isPresented: $showsPresetNameSheet) {
             if let asset = selectedPhotoAssets.first {
@@ -90,160 +124,164 @@ struct AssetBrowserView: View {
         }
     }
 
-    private var toolbar: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                TextField("按文件名、文件夹、相机或镜头搜索", text: searchTextBinding)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 180, idealWidth: 260, maxWidth: 360)
-                Button {
-                    showingFilters.toggle()
-                } label: {
-                    Label("筛选", systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                }
-                .popover(isPresented: $showingFilters, arrowEdge: .bottom) {
-                    LibraryFilterPopover(query: $query)
-                        .padding()
-                }
-                Spacer()
-                Slider(value: $thumbnailSize, in: 116...260, step: 4)
-                    .frame(width: 120)
-                    .accessibilityLabel("缩略图大小")
-                Image(systemName: "rectangle.grid.2x2")
-                    .foregroundStyle(.secondary)
-                Button {
-                    showsInspector.toggle()
-                } label: {
-                    Label(showsInspector ? "隐藏检查器" : "显示检查器", systemImage: "sidebar.right")
-                }
-                .help(showsInspector ? "隐藏检查器" : "显示检查器")
+    private var libraryStatusBar: some View {
+        HStack(spacing: 8) {
+            Text("\(assets.count) 个显示项目")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if model.isLoadingLibraryAssets || model.hasMoreLibraryAssets {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(model.isLoadingLibraryAssets ? "正在读取资料库" : "可以继续加载更多项目")
             }
-
-            HStack(spacing: 8) {
-                Text("\(assets.count) 个显示项目")
+            if !selectedAssetIDs.isEmpty {
+                selectionActions
+                BatchTaskStatusSummary(model: model)
+                Text("已选择 \(selectedAssetIDs.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if model.hasMoreLibraryAssets {
-                    Text("惰性加载中")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if !selectedAssetIDs.isEmpty {
-                    Menu {
-                        ForEach(0...5, id: \.self) { rating in
-                            Button("\(rating) 星") { setRating(rating) }
-                        }
-                    } label: {
-                        Label("评分", systemImage: "star")
-                    }
-                    Menu {
-                        Button("选取") { setFlag(.pick) }
-                        Button("拒绝") { setFlag(.reject) }
-                        Button("取消标记") { setFlag(.unflagged) }
-                    } label: {
-                        Label("标记", systemImage: "flag")
-                    }
-                    Menu {
-                        ForEach(model.tags) { tag in
-                            Button(tag.name) { addTag(tag) }
-                        }
-                    } label: {
-                        Label("添加标签", systemImage: "tag")
-                    }
-                    Menu {
-                        let manualAlbums = model.albums.filter { $0.kind == .album }
-                        if manualAlbums.isEmpty {
-                            Text("请先在侧边栏创建相册")
-                        } else {
-                            ForEach(manualAlbums) { album in
-                                Button(album.name) { addToAlbum(album) }
-                            }
-                        }
-                    } label: {
-                        Label("添加到相册", systemImage: "rectangle.stack.badge.plus")
-                    }
-                    if query.albumID != nil {
-                        Button("从当前相册移除", role: .destructive, action: removeFromCurrentAlbum)
-                    }
-                    Button {
-                        showsStackCreator = true
-                    } label: {
-                        Label("创建堆栈", systemImage: "square.stack.3d.up")
-                    }
-                    .disabled(selectedAssets.count < 2)
-                    if query.stackID != nil {
-                        Button("从当前堆栈移除", role: .destructive, action: removeFromCurrentStack)
-                    }
-                    Menu {
-                        Button("复制所有调整") {
-                            guard let asset = selectedPhotoAssets.first else { return }
-                            Task { _ = await model.copyPhotoEdits(from: asset.id) }
-                        }
-                        .disabled(selectedPhotoAssets.count != 1)
-                        Button("从所选照片创建预设…") {
-                            showsPresetNameSheet = true
-                        }
-                        .disabled(selectedPhotoAssets.count != 1)
-                        Divider()
-                        Menu("粘贴调整") {
-                            Button("粘贴全部调整") {
-                                Task { _ = await model.pastePhotoEdits(to: selectedPhotoAssets.map(\.id)) }
-                            }
-                            Button("选择性粘贴…") { showsSelectivePaste = true }
-                        }
-                        .disabled(!model.hasCopiedPhotoEdits || selectedPhotoAssets.isEmpty)
-                        Menu("应用预设") {
-                            if model.photoPresets.isEmpty {
-                                Text("尚无预设")
-                            } else {
-                                ForEach(model.photoPresets) { preset in
-                                    Button(preset.name) {
-                                        Task { _ = await model.applyPhotoPreset(preset, to: selectedPhotoAssets.map(\.id)) }
-                                    }
-                                }
-                            }
-                        }
-                        .disabled(selectedPhotoAssets.isEmpty)
-                        Divider()
-                        Button("管理预设…") { showsPresetManager = true }
-                        Button("批量导出照片…") { showsBatchExport = true }
-                        .disabled(selectedPhotoAssets.isEmpty)
-                    } label: {
-                        Label("编辑", systemImage: "slider.horizontal.3")
-                    }
-                    BatchTaskStatusSummary(model: model)
-                    Text("已选择 \(selectedAssetIDs.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button(role: .destructive) {
-                        showsTrashConfirmation = true
-                    } label: {
-                        Label("移到废纸篓", systemImage: "trash")
-                    }
-                }
-                Button {
-                    scanExactDuplicates()
-                    showsDuplicateResults = true
+                Button(role: .destructive) {
+                    showsTrashConfirmation = true
                 } label: {
-                    Label("查找精确重复项", systemImage: "doc.on.doc")
+                    Label("移到废纸篓", systemImage: "trash")
                 }
-                Button {
-                    scanSimilarPhotos()
-                    showsDuplicateResults = true
-                } label: {
-                    Label("查找相似照片", systemImage: "rectangle.3.group")
-                }
-                Button {
-                    showsDuplicateResults = true
-                } label: {
-                    Label("重复/相似结果", systemImage: "list.bullet.rectangle")
-                }
-                .disabled(model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil)
             }
+            Spacer()
+            analysisMenu
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 7)
+    }
+
+    private var rescanMenu: some View {
+        Menu {
+            Button("重新扫描所有文件夹", action: rescanAllMedia)
+            if !model.mediaRoots.isEmpty {
+                Divider()
+                ForEach(model.mediaRoots) { root in
+                    Button("重新扫描“\(root.displayName)”") {
+                        rescanRoot(root.id)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .disabled(model.mediaRoots.isEmpty)
+        .help("重新扫描资料库")
+        .accessibilityLabel("重新扫描资料库")
+    }
+
+    private var filterButton: some View {
+        Button {
+            showingFilters.toggle()
+        } label: {
+            Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .help("筛选资料库")
+        .accessibilityLabel("筛选资料库")
+        .popover(isPresented: $showingFilters, arrowEdge: .bottom) {
+            LibraryFilterPopover(query: $query)
+                .padding()
+        }
+    }
+
+    private var selectionActions: some View {
+        Group {
+            Menu {
+                Menu("评分") {
+                    ForEach(0...5, id: \.self) { rating in
+                        Button("\(rating) 星") { setRating(rating) }
+                    }
+                }
+                Menu("标记") {
+                    Button("选取") { setFlag(.pick) }
+                    Button("拒绝") { setFlag(.reject) }
+                    Button("取消标记") { setFlag(.unflagged) }
+                }
+                Menu("添加标签") {
+                    ForEach(model.tags) { tag in
+                        Button(tag.name) { addTag(tag) }
+                    }
+                }
+                Menu("添加到相册") {
+                    let manualAlbums = model.albums.filter { $0.kind == .album }
+                    if manualAlbums.isEmpty {
+                        Text("请先在侧边栏创建相册")
+                    } else {
+                        ForEach(manualAlbums) { album in
+                            Button(album.name) { addToAlbum(album) }
+                        }
+                    }
+                }
+                Divider()
+                Button("创建堆栈…") { showsStackCreator = true }
+                    .disabled(selectedAssets.count < 2)
+                if query.albumID != nil {
+                    Button("从当前相册移除", role: .destructive, action: removeFromCurrentAlbum)
+                }
+                if query.stackID != nil {
+                    Button("从当前堆栈移除", role: .destructive, action: removeFromCurrentStack)
+                }
+            } label: {
+                Label("整理", systemImage: "folder.badge.gearshape")
+            }
+
+            Menu {
+                Button("复制所有调整") {
+                    guard let asset = selectedPhotoAssets.first else { return }
+                    Task { _ = await model.copyPhotoEdits(from: asset.id) }
+                }
+                .disabled(selectedPhotoAssets.count != 1)
+                Button("从所选照片创建预设…") { showsPresetNameSheet = true }
+                    .disabled(selectedPhotoAssets.count != 1)
+                Divider()
+                Menu("粘贴调整") {
+                    Button("粘贴全部调整") {
+                        Task { _ = await model.pastePhotoEdits(to: selectedPhotoAssets.map(\.id)) }
+                    }
+                    Button("选择性粘贴…") { showsSelectivePaste = true }
+                }
+                .disabled(!model.hasCopiedPhotoEdits || selectedPhotoAssets.isEmpty)
+                Menu("应用预设") {
+                    if model.photoPresets.isEmpty {
+                        Text("尚无预设")
+                    } else {
+                        ForEach(model.photoPresets) { preset in
+                            Button(preset.name) {
+                                Task { _ = await model.applyPhotoPreset(preset, to: selectedPhotoAssets.map(\.id)) }
+                            }
+                        }
+                    }
+                }
+                .disabled(selectedPhotoAssets.isEmpty)
+                Divider()
+                Button("管理预设…") { showsPresetManager = true }
+                Button("批量导出照片…") { showsBatchExport = true }
+                    .disabled(selectedPhotoAssets.isEmpty)
+            } label: {
+                Label("编辑", systemImage: "slider.horizontal.3")
+            }
+        }
+    }
+
+    private var analysisMenu: some View {
+        Menu {
+            Button("查找精确重复项") {
+                scanExactDuplicates()
+                showsDuplicateResults = true
+            }
+            Button("查找相似照片") {
+                scanSimilarPhotos()
+                showsDuplicateResults = true
+            }
+            Divider()
+            Button("查看重复/相似结果") { showsDuplicateResults = true }
+                .disabled(model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil)
+        } label: {
+            Label("分析", systemImage: "chart.bar.doc.horizontal")
+        }
+        .help("重复和相似照片分析")
     }
 
     private var grid: some View {

@@ -274,6 +274,18 @@ final class ApplicationModel: ObservableObject {
         await refreshLibrary()
     }
 
+    /// Reuses the existing per-root scan coordinator for the toolbar's
+    /// library-wide rescan action. It only reads each referenced root; source
+    /// media remains in place and is never copied or modified.
+    func rescanAllMediaRoots() async {
+        guard let scanCoordinator else { return }
+        libraryError = nil
+        for root in mediaRoots {
+            _ = await scanCoordinator.startScan(rootID: root.id)
+        }
+        await refreshLibrary()
+    }
+
     func pause(scanID: UUID) async {
         await scanCoordinator?.pause(scanID: scanID)
         await refreshLibrary()

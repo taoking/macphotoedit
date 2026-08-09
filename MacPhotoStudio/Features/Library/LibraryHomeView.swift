@@ -111,6 +111,8 @@ struct LibraryHomeView: View {
                 showsInspector: $showsInspector,
                 gridIsFocused: $gridIsFocused,
                 addFolder: model.presentAddFolderPanel,
+                rescanAllMedia: { Task { await model.rescanAllMediaRoots() } },
+                rescanRoot: { rootID in Task { await model.startScan(for: rootID) } },
                 setRating: setRating,
                 setFlag: setFlag,
                 addTag: addTagToSelection,

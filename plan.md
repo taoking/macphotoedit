@@ -61,7 +61,7 @@ processing, storage, cloud, or AI capabilities. Every item must reuse the
 already-tested referenced-folder and Catalog workflows.
 
 - [x] UI-1.1 — Empty-library onboarding
-- [ ] UI-1.2 — Library toolbar hierarchy
+- [x] UI-1.2 — Library toolbar hierarchy
 - [ ] UI-1.3 — Sidebar information architecture
 - [ ] UI-1.4 — Inspector states
 - [ ] UI-1.5 — Native desktop density and responsive layout polish

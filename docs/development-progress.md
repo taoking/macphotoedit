@@ -1552,3 +1552,46 @@ Known Limitations:
 
 Commit:
 - `feat: redesign empty library onboarding`
+
+## UI/UX Redesign Phase 1 — UI-1.2 Library toolbar hierarchy
+
+Status:
+COMPLETED
+
+Implemented:
+- Moved library-level controls into the native macOS window toolbar: visible
+  “添加媒体文件夹”, a disabled-without-roots rescan menu, search, filter,
+  thumbnail size, and inspector visibility.
+- The rescan menu is backed by the existing `ScanCoordinator`: it can scan all
+  recorded roots or one named root. The new all-roots action only starts the
+  established referenced-root scans and never writes source media.
+- Reduced the content header to a compact status bar. Existing selection
+  operations are grouped under real “整理” and “编辑” menus, while duplicate
+  and similar-photo operations are grouped under “分析”; no operational route
+  was removed.
+- The product has no implemented list-view or user-selectable sort behavior,
+  so neither was represented as a misleading toolbar control.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 113 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Add media, rescan, search, filter, thumbnail-size and inspector controls are visible from a native toolbar without menu-bar discovery.
+- PASS — Every exposed action maps to existing behavior; rescan is correctly unavailable before a referenced root exists, and there are no fake sort or list controls.
+
+Regression:
+- PASS — Full automated suite remains at 113 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Restarted the current Debug app and inspected the rendered toolbar and accessibility tree. The toolbar exposes add media, disabled no-root rescan, search, filter, thumbnail-size and inspector controls with labels/help. No folder picker or scan was invoked.
+
+Known Limitations:
+- A real multi-root rescan remains `MANUAL VERIFICATION REQUIRED` with user-authorised local and external media roots; this UI work reuses the established scanner and does not change its permission or source-safety contract.
+
+Commit:
+- `feat: improve library toolbar hierarchy`
