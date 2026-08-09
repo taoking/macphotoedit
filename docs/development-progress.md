@@ -2224,3 +2224,61 @@ Known Limitations:
 
 Commit:
 - `refactor: adopt a secondary library inspector` (this checkpoint commit)
+
+### UI-2.6 — Selection and activation interaction contract
+
+Status:
+COMPLETED
+
+Implemented:
+- Preserved the established single-click select, Command-click toggle and
+  Shift-click contiguous-range selection behavior. Space and the newly handled
+  Return key both activate exactly one selected item through the existing
+  preview path; multiple/no selection is ignored.
+- Retained double-click primary activation through the same existing preview.
+  Photo preview continues to expose its existing Edit entry, while video
+  activation continues to use the existing video preview/playback path.
+- Added a contextual menu to every asset cell. It exposes existing Preview,
+  Rating, Flag, Tags, Add to Album and photo edit/preset actions. Trash always
+  opens the established confirmation dialog, whose target is explicitly the
+  context-clicked item or the current selected set.
+- Did not add Reveal in Finder because the library has no existing safe,
+  bookmark-scoped URL-resolution path for that action.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Single-click, Space, Return and double-click follow the documented
+  safe activation contract without creating a new editor.
+- PASS — Contextual actions reuse existing Catalog operations and retain the
+  explicit Trash confirmation safety boundary.
+- PASS — Selection commands are not added to the permanent toolbar.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. No source-media access, Catalog schema or preview/editor implementation
+  was replaced.
+
+Manual Verification:
+- PASS — In the freshly built app, selected an existing item, verified Return
+  and Space each opened the existing preview, and verified double-click did the
+  same. Photo preview visibly retained its existing Edit entry. Inspected the
+  right-click menu entries without invoking rating, flag, tag, album, preset or
+  Trash actions; each preview was closed without entering edit mode.
+- MANUAL VERIFICATION REQUIRED — Verify Command-click toggle and Shift-click
+  range selection with physical keyboard/mouse modifiers, plus video primary
+  activation and context menus in a user-managed library.
+
+Known Limitations:
+- The context menu intentionally omits Reveal in Finder until the application
+  has an existing bookmark-safe URL resolution operation to reuse.
+
+Commit:
+- `feat: streamline asset browsing interactions` (this checkpoint commit)

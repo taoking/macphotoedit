@@ -40,6 +40,7 @@ struct AssetBrowserView: View {
     @State private var showsStackCreator = false
     @State private var showsDuplicateResults = false
     @State private var showsTrashConfirmation = false
+    @State private var trashCandidates: [LibraryAssetRecord] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -115,12 +116,12 @@ struct AssetBrowserView: View {
             )
         }
         .confirmationDialog(
-            "将所选原始文件移到废纸篓？",
+            "将原始文件移到废纸篓？",
             isPresented: $showsTrashConfirmation,
             titleVisibility: .visible
         ) {
-            Button("移到废纸篓（\(selectedAssets.count) 项）", role: .destructive) {
-                moveToTrash(selectedAssets)
+            Button("移到废纸篓（\(trashCandidates.count) 项）", role: .destructive) {
+                moveToTrash(trashCandidates)
             }
         } message: {
             Text("此操作会请求 macOS 将实际源文件移到废纸篓，不会永久删除。Catalog 中的评分、标签和编辑记录会保留，以便恢复文件后继续使用。")
@@ -178,7 +179,7 @@ struct AssetBrowserView: View {
             selectionActions
             BatchTaskStatusSummary(model: model)
             Button(role: .destructive) {
-                showsTrashConfirmation = true
+                requestTrash(for: selectedAssets)
             } label: {
                 Label("移到废纸篓", systemImage: "trash")
             }
@@ -446,6 +447,94 @@ struct AssetBrowserView: View {
         }
     }
 
+    @ViewBuilder
+    private func assetContextMenu(for asset: LibraryAssetRecord) -> some View {
+        Button("打开预览") {
+            previewAsset = asset
+        }
+
+        Menu("评分") {
+            ForEach(0...5, id: \.self) { rating in
+                Button("\(rating) 星") {
+                    Task { await model.setRating(rating, for: [asset.id]) }
+                }
+            }
+        }
+        Menu("标记") {
+            Button("选取") {
+                Task { await model.setFlag(.pick, for: [asset.id]) }
+            }
+            Button("拒绝") {
+                Task { await model.setFlag(.reject, for: [asset.id]) }
+            }
+            Button("取消标记") {
+                Task { await model.setFlag(.unflagged, for: [asset.id]) }
+            }
+        }
+        Menu("添加标签") {
+            if model.tags.isEmpty {
+                Text("请先在侧边栏创建标签")
+            } else {
+                ForEach(model.tags) { tag in
+                    Button(tag.name) {
+                        Task { await model.addTag(tag, to: [asset.id]) }
+                    }
+                }
+            }
+        }
+        Menu("添加到相册") {
+            let manualAlbums = model.albums.filter { $0.kind == .album }
+            if manualAlbums.isEmpty {
+                Text("请先在侧边栏创建相册")
+            } else {
+                ForEach(manualAlbums) { album in
+                    Button(album.name) {
+                        Task { await model.addAssets([asset.id], toAlbum: album) }
+                    }
+                }
+            }
+        }
+
+        if asset.mediaType == .photo {
+            Menu("编辑") {
+                Button("在预览中编辑") {
+                    previewAsset = asset
+                }
+                Divider()
+                Button("复制所有调整") {
+                    Task { _ = await model.copyPhotoEdits(from: asset.id) }
+                }
+                Button("粘贴全部调整") {
+                    Task { _ = await model.pastePhotoEdits(to: [asset.id]) }
+                }
+                .disabled(!model.hasCopiedPhotoEdits)
+                Menu("应用预设") {
+                    if model.photoPresets.isEmpty {
+                        Text("尚无预设")
+                    } else {
+                        ForEach(model.photoPresets) { preset in
+                            Button(preset.name) {
+                                Task { _ = await model.applyPhotoPreset(preset, to: [asset.id]) }
+                            }
+                        }
+                    }
+                }
+                .disabled(model.photoPresets.isEmpty)
+            }
+        }
+
+        Divider()
+        Button("移到废纸篓", role: .destructive) {
+            requestTrash(for: [asset])
+        }
+    }
+
+    private func requestTrash(for assets: [LibraryAssetRecord]) {
+        guard !assets.isEmpty else { return }
+        trashCandidates = assets
+        showsTrashConfirmation = true
+    }
+
     private var moreMenu: some View {
         Menu {
             Section("分析") {
@@ -485,6 +574,9 @@ struct AssetBrowserView: View {
                         select: { select(asset.id, NSEvent.modifierFlags) },
                         preview: { previewAsset = asset }
                     )
+                    .contextMenu {
+                        assetContextMenu(for: asset)
+                    }
                     .onAppear {
                         if asset.id == assets.last?.id {
                             Task { await model.loadMoreLibraryAssets() }
@@ -580,6 +672,8 @@ struct AssetBrowserView: View {
         case .downArrow:
             moveSelection(4)
             return .handled
+        case .return:
+            return activateSelectedAsset()
         default:
             break
         }
@@ -598,14 +692,19 @@ struct AssetBrowserView: View {
             setFlag(.unflagged)
             return .handled
         case " ":
-            if selectedAssetIDs.count == 1, let selectedID = selectedAssetIDs.first {
-                previewAsset = assets.first(where: { $0.id == selectedID })
-                return .handled
-            }
-            return .ignored
+            return activateSelectedAsset()
         default:
             return .ignored
         }
+    }
+
+    private func activateSelectedAsset() -> KeyPress.Result {
+        guard selectedAssetIDs.count == 1,
+              let selectedID = selectedAssetIDs.first,
+              let asset = assets.first(where: { $0.id == selectedID })
+        else { return .ignored }
+        previewAsset = asset
+        return .handled
     }
 }
 
