@@ -91,8 +91,7 @@ struct LibraryHomeView: View {
                 deleteAlbum: { album in Task { await model.deleteAlbum(album) } },
                 deleteStack: { stack in Task { await model.deleteStack(stack) } },
                 rescanRoot: { rootID in Task { await model.startScan(for: rootID) } },
-                relinkRoot: model.presentRelinkPanel,
-                rawJPEGPairPreference: $rawJPEGPairPreferenceRaw
+                relinkRoot: model.presentRelinkPanel
             )
             .frame(minWidth: 200, idealWidth: 220, maxWidth: 280)
         } detail: {
@@ -112,6 +111,7 @@ struct LibraryHomeView: View {
                 selectionAnchor: $selectionAnchor,
                 previewAsset: $previewAsset,
                 thumbnailSize: $thumbnailSize,
+                rawJPEGPairPreference: $rawJPEGPairPreferenceRaw,
                 showsInspector: $showsInspector,
                 gridIsFocused: $gridIsFocused,
                 addFolder: model.presentAddFolderPanel,

@@ -2116,3 +2116,59 @@ Known Limitations:
 
 Commit:
 - `feat: clarify library content hierarchy` (this checkpoint commit)
+
+### UI-2.4 — Toolbar hierarchy and view options
+
+Status:
+COMPLETED
+
+Implemented:
+- Kept the global/high-frequency toolbar structure to Add Media Folder, Rescan,
+  library search, Filter, View Options, Inspector and More. The unexplained
+  inline thumbnail-size slider is gone from the toolbar.
+- Added a native View Options popover that groups the existing thumbnail-size
+  control between small/large grid indicators with the established RAW + JPEG
+  presentation preference. The preference keeps its existing app-storage and
+  visible-asset filtering behavior; it was only moved out of navigation.
+- Moved the existing exact-duplicate and similar-photo analysis actions into a
+  More menu. Their scan/report paths are unchanged, and no analysis runs until
+  the user explicitly selects an action.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Toolbar contains only the requested global/high-frequency controls;
+  low-frequency duplicate/similar analysis is behind More.
+- PASS — Thumbnail size and RAW + JPEG are presented together under a labelled
+  View Options affordance, with no naked slider or sidebar display section.
+- PASS — Existing filter, inspector, scan, search, pairing and analysis paths
+  remain connected to their prior implementation.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. No Catalog schema, source-file, scan, media-processing or persistence
+  behavior changed.
+
+Manual Verification:
+- PASS — Restarted the freshly built Debug app against the existing local
+  Catalog and inspected the rendered toolbar. View Options exposed the labelled
+  slider and RAW + JPEG picker; More exposed the duplicate/similar analysis
+  choices. The sidebar had no display section. No scan, analysis, source-file
+  or Catalog mutation action was invoked.
+- MANUAL VERIFICATION REQUIRED — Check toolbar overflow and View Options
+  accessibility at compact window widths, long localized labels and the
+  user's preferred display scale.
+
+Known Limitations:
+- Thumbnail size and RAW + JPEG presentation remain user preferences rather
+  than per-album settings, preserving the established single-library behavior.
+
+Commit:
+- `refactor: simplify library toolbar` (this checkpoint commit)

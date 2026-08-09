@@ -12,6 +12,7 @@ struct AssetBrowserView: View {
     @Binding var selectionAnchor: UUID?
     @Binding var previewAsset: LibraryAssetRecord?
     @Binding var thumbnailSize: CGFloat
+    @Binding var rawJPEGPairPreference: String
     @Binding var showsInspector: Bool
     var gridIsFocused: FocusState<Bool>.Binding
     let addFolder: () -> Void
@@ -31,6 +32,7 @@ struct AssetBrowserView: View {
     let moveSelection: (Int) -> Void
     let clearFilters: () -> Void
     @State private var showingFilters = false
+    @State private var showingViewOptions = false
     @State private var showsPresetNameSheet = false
     @State private var showsPresetManager = false
     @State private var showsSelectivePaste = false
@@ -73,10 +75,7 @@ struct AssetBrowserView: View {
 
             ToolbarItemGroup(placement: .primaryAction) {
                 filterButton
-                Slider(value: $thumbnailSize, in: 116...260, step: 4)
-                    .frame(width: 108)
-                    .accessibilityLabel("缩略图大小")
-                    .help("缩略图大小")
+                viewOptionsButton
                 Button {
                     showsInspector.toggle()
                 } label: {
@@ -84,6 +83,7 @@ struct AssetBrowserView: View {
                 }
                 .help(showsInspector ? "隐藏检查器" : "显示检查器")
                 .accessibilityLabel(showsInspector ? "隐藏检查器" : "显示检查器")
+                moreMenu
             }
         }
         .sheet(isPresented: $showsPresetNameSheet) {
@@ -327,6 +327,46 @@ struct AssetBrowserView: View {
         }
     }
 
+    private var viewOptionsButton: some View {
+        Button {
+            showingViewOptions.toggle()
+        } label: {
+            Image(systemName: "rectangle.3.group")
+        }
+        .help("显示选项")
+        .accessibilityLabel("显示选项")
+        .popover(isPresented: $showingViewOptions, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("显示选项")
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("缩略图大小")
+                        .font(.subheadline)
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Slider(value: $thumbnailSize, in: 116...260, step: 4)
+                            .accessibilityLabel("缩略图大小")
+                        Image(systemName: "square.grid.3x3.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                Picker("RAW + JPEG", selection: $rawJPEGPairPreference) {
+                    ForEach(RAWJPEGPairPreference.allCases, id: \.rawValue) { preference in
+                        Text(preference.title).tag(preference.rawValue)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(width: 300)
+        }
+    }
+
     private var selectionActions: some View {
         Group {
             Menu {
@@ -406,23 +446,26 @@ struct AssetBrowserView: View {
         }
     }
 
-    private var analysisMenu: some View {
+    private var moreMenu: some View {
         Menu {
-            Button("查找精确重复项") {
-                scanExactDuplicates()
-                showsDuplicateResults = true
+            Section("分析") {
+                Button("查找精确重复项") {
+                    scanExactDuplicates()
+                    showsDuplicateResults = true
+                }
+                Button("查找相似照片") {
+                    scanSimilarPhotos()
+                    showsDuplicateResults = true
+                }
+                Divider()
+                Button("查看重复/相似结果") { showsDuplicateResults = true }
+                    .disabled(model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil)
             }
-            Button("查找相似照片") {
-                scanSimilarPhotos()
-                showsDuplicateResults = true
-            }
-            Divider()
-            Button("查看重复/相似结果") { showsDuplicateResults = true }
-                .disabled(model.latestDuplicateScanReport == nil && model.latestSimilarPhotoScanReport == nil)
         } label: {
-            Label("分析", systemImage: "chart.bar.doc.horizontal")
+            Image(systemName: "ellipsis.circle")
         }
-        .help("重复和相似照片分析")
+        .help("更多资料库操作")
+        .accessibilityLabel("更多资料库操作")
     }
 
     private var grid: some View {

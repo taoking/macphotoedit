@@ -13,7 +13,6 @@ struct LibrarySidebar: View {
     let deleteStack: (AssetStackRecord) -> Void
     let rescanRoot: (UUID) -> Void
     let relinkRoot: (MediaRootRecord) -> Void
-    @Binding var rawJPEGPairPreference: String
 
     var body: some View {
         List(selection: $selection) {
@@ -97,15 +96,6 @@ struct LibrarySidebar: View {
                         Button("删除", role: .destructive) { deleteTag(tag) }
                     }
                 }
-            }
-
-            Section("显示") {
-                Picker("RAW + JPEG", selection: $rawJPEGPairPreference) {
-                    ForEach(RAWJPEGPairPreference.allCases, id: \.rawValue) { preference in
-                        Text(preference.title).tag(preference.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
             }
         }
         .listStyle(.sidebar)

@@ -79,7 +79,7 @@ add a second media-processing, storage or import architecture.
 - [x] UI-2.1 — Full-height native workspace shell
 - [x] UI-2.2 — Native sidebar location selection
 - [x] UI-2.3 — Content header and loading hierarchy
-- [ ] UI-2.4 — Toolbar hierarchy and view options
+- [x] UI-2.4 — Toolbar hierarchy and view options
 - [ ] UI-2.5 — Secondary native inspector
 - [ ] UI-2.6 — Selection and activation interaction contract
 - [ ] UI-2.7 — Contextual selection actions
