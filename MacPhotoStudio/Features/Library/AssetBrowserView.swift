@@ -41,6 +41,7 @@ struct AssetBrowserView: View {
     @State private var showsDuplicateResults = false
     @State private var showsTrashConfirmation = false
     @State private var trashCandidates: [LibraryAssetRecord] = []
+    @State private var gridColumnCount = 4
 
     var body: some View {
         VStack(spacing: 0) {
@@ -572,38 +573,49 @@ struct AssetBrowserView: View {
     }
 
     private var grid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: thumbnailSize, maximum: thumbnailSize + 26), spacing: 12)],
-                spacing: 14
-            ) {
-                ForEach(assets) { asset in
-                    AssetThumbnailCell(
-                        asset: asset,
-                        selected: selectedAssetIDs.contains(asset.id),
-                        groupedRAWPair: groupedRAWAssetIDs.contains(asset.id),
-                        displaySize: thumbnailSize,
-                        thumbnailPixelSize: thumbnailSize <= 180 ? 256 : 512,
-                        model: model,
-                        select: { select(asset.id, NSEvent.modifierFlags) },
-                        preview: { previewAsset = asset }
-                    )
-                    .contextMenu {
-                        assetContextMenu(for: asset)
-                    }
-                    .onAppear {
-                        if asset.id == assets.last?.id {
-                            Task { await model.loadMoreLibraryAssets() }
+        GeometryReader { geometry in
+            ScrollView {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: thumbnailSize), spacing: 12)],
+                    spacing: 14
+                ) {
+                    ForEach(assets) { asset in
+                        AssetThumbnailCell(
+                            asset: asset,
+                            selected: selectedAssetIDs.contains(asset.id),
+                            groupedRAWPair: groupedRAWAssetIDs.contains(asset.id),
+                            displaySize: thumbnailSize,
+                            thumbnailPixelSize: thumbnailSize <= 180 ? 256 : 512,
+                            model: model,
+                            select: { select(asset.id, NSEvent.modifierFlags) },
+                            preview: { previewAsset = asset }
+                        )
+                        .contextMenu {
+                            assetContextMenu(for: asset)
+                        }
+                        .onAppear {
+                            if asset.id == assets.last?.id {
+                                Task { await model.loadMoreLibraryAssets() }
+                            }
                         }
                     }
+                    if model.isLoadingLibraryAssets, !assets.isEmpty {
+                        ProgressView("正在加载更多项目")
+                            .controlSize(.small)
+                            .padding()
+                    }
                 }
-                if model.isLoadingLibraryAssets, !assets.isEmpty {
-                    ProgressView("正在加载更多项目")
-                        .controlSize(.small)
-                        .padding()
-                }
+                .padding(14)
             }
-            .padding(14)
+            .onAppear {
+                updateGridColumnCount(for: geometry.size.width)
+            }
+            .onChange(of: geometry.size.width) { _, width in
+                updateGridColumnCount(for: width)
+            }
+            .onChange(of: thumbnailSize) { _, _ in
+                updateGridColumnCount(for: geometry.size.width)
+            }
         }
     }
 
@@ -681,10 +693,10 @@ struct AssetBrowserView: View {
             moveSelection(1)
             return .handled
         case .upArrow:
-            moveSelection(-4)
+            moveSelection(-gridColumnCount)
             return .handled
         case .downArrow:
-            moveSelection(4)
+            moveSelection(gridColumnCount)
             return .handled
         case .return:
             return activateSelectedAsset()
@@ -719,6 +731,13 @@ struct AssetBrowserView: View {
         else { return .ignored }
         previewAsset = asset
         return .handled
+    }
+
+    private func updateGridColumnCount(for availableWidth: CGFloat) {
+        let horizontalPadding: CGFloat = 28
+        let interItemSpacing: CGFloat = 12
+        let usableWidth = max(1, availableWidth - horizontalPadding)
+        gridColumnCount = max(1, Int(((usableWidth + interItemSpacing) / (thumbnailSize + interItemSpacing)).rounded(.down)))
     }
 }
 
@@ -1252,52 +1271,50 @@ private struct AssetThumbnailCell: View {
     @State private var image: NSImage?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Rectangle()
-                            .fill(Color(nsColor: .windowBackgroundColor))
-                            .overlay {
-                                Image(systemName: asset.mediaType == .photo ? "photo" : "film")
-                                    .font(.title2)
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Rectangle()
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .overlay {
+                            Image(systemName: asset.mediaType == .photo ? "photo" : "film")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                        }
                 }
-                .frame(height: max(92, min(displaySize * 0.72, 190)))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-
-                HStack(spacing: 4) {
-                    if groupedRAWPair { Label("RAW+JPEG", systemImage: "rectangle.stack") }
-                    if asset.mediaType == .video, let duration = asset.duration {
-                        Text(videoDurationText(duration))
-                    }
-                    if asset.videoIsHDR == true { Text("HDR") }
-                    if asset.flag == .pick { Image(systemName: "flag.fill") }
-                    if asset.flag == .reject { Image(systemName: "flag.slash.fill") }
-                    if asset.availability != .available { Image(systemName: "externaldrive.badge.xmark") }
-                }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white)
-                .padding(5)
-                .background(.black.opacity(0.5), in: Capsule())
-                .padding(5)
             }
-            HStack(spacing: 3) {
-                Text(asset.filename)
-                    .font(.caption)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if asset.rating > 0 {
-                    Text(String(repeating: "★", count: asset.rating))
-                        .font(.caption2)
-                        .foregroundStyle(.yellow)
+            .frame(height: max(112, min(displaySize * 0.94, 244)))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            HStack(spacing: 4) {
+                if groupedRAWPair { Label("RAW+JPEG", systemImage: "rectangle.stack") }
+                if asset.mediaType == .video, let duration = asset.duration {
+                    Text(videoDurationText(duration))
                 }
+                if asset.videoIsHDR == true { Text("HDR") }
+                if asset.flag == .pick { Image(systemName: "flag.fill") }
+                if asset.flag == .reject { Image(systemName: "flag.slash.fill") }
+                if asset.availability != .available { Image(systemName: "externaldrive.badge.xmark") }
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(5)
+            .background(.black.opacity(0.5), in: Capsule())
+            .padding(5)
+        }
+        .overlay(alignment: .bottomLeading) {
+            if asset.rating > 0 {
+                Text(String(repeating: "★", count: asset.rating))
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.5), in: Capsule())
+                    .padding(5)
             }
         }
         .padding(5)

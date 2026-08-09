@@ -2333,3 +2333,61 @@ Known Limitations:
 
 Commit:
 - `feat: add contextual library selection actions` (this checkpoint commit)
+
+### UI-2.8 — Grid density and pagination polish
+
+Status:
+COMPLETED
+
+Implemented:
+- Made the grid consume the remaining browser area through its containing
+  geometry rather than a content-sized layout. Adaptive grid items have no
+  artificial maximum width, so the existing lazy grid can use the available
+  workspace width naturally.
+- Removed the permanent filename row below every thumbnail. Photos now remain
+  visually dominant; rating is a compact image overlay, while existing RAW /
+  JPEG, video-duration, HDR, flag and availability badges remain visible.
+- Replaced the fixed four-item Up/Down key offset with a column count computed
+  from actual grid width, padding, spacing and the current thumbnail size.
+  Existing lazy load-more behavior and its bottom-only active loading indicator
+  are preserved.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Grid uses the browser's remaining height and width, keeps lazy
+  loading, and has no always-visible pagination spinner.
+- PASS — Thumbnails are dominant with clear selected-item treatment and
+  preserved meaningful media badges, without filename noise under every item.
+- PASS — Vertical keyboard navigation now follows the adaptive column count.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. Thumbnail data loading, pairing logic, Catalog data and source-media
+  behavior are unchanged.
+
+Manual Verification:
+- PASS — Inspected the freshly built rendered grid against the existing local
+  Catalog: photo cells filled the browser without filename rows, existing
+  selection remained visible, and Down moved from a selected item to the item
+  in the next visual row of the current three-column layout. No management,
+  scan, source-file or Catalog mutation action was invoked.
+- MANUAL VERIFICATION REQUIRED — At approximately 1536 px width with sidebar
+  and inspector closed, verify that thumbnail size near 180 yields substantially
+  more than four assets per row; also observe actual bottom-pagination loading
+  in a library with more than one materialized page.
+
+Known Limitations:
+- Filename remains available to accessibility, preview and inspector, but is
+  intentionally not always painted below each thumbnail. This improves visual
+  density while preserving identification paths on selection and activation.
+
+Commit:
+- `style: make photo grid the primary workspace` (this checkpoint commit)

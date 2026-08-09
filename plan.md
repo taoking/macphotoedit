@@ -83,6 +83,6 @@ add a second media-processing, storage or import architecture.
 - [x] UI-2.5 — Secondary native inspector
 - [x] UI-2.6 — Selection and activation interaction contract
 - [x] UI-2.7 — Contextual selection actions
-- [ ] UI-2.8 — Grid density and pagination polish
+- [x] UI-2.8 — Grid density and pagination polish
 - [ ] UI-2.9 — Drag-and-drop safety re-evaluation (DEFERRED unless a durable
   security-scoped dropped-folder access contract is implemented and verified)
