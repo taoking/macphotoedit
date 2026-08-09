@@ -6,6 +6,11 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class ApplicationModel: ObservableObject {
+    private struct MediaRootRegistrationFeedback: Equatable {
+        let rootID: UUID
+        let wasAlreadyRegistered: Bool
+    }
+
     enum StartupState: Equatable {
         case starting
         case ready(CatalogPaths)
@@ -55,6 +60,7 @@ final class ApplicationModel: ObservableObject {
     private var nextAssetOffset = 0
     private var libraryRequestID = UUID()
     private var lastLibraryAssetRefreshAt = Date.distantPast
+    private var latestMediaRootRegistration: MediaRootRegistrationFeedback?
 
     func bootstrapIfNeeded() async {
         guard !hasBootstrapped else { return }
@@ -109,9 +115,9 @@ final class ApplicationModel: ObservableObject {
         guard case .ready = startupState else { return }
 
         let panel = NSOpenPanel()
-        panel.title = "添加文件夹到资料库"
-        panel.message = "Mac Photo Studio 只索引此文件夹，不会复制、移动或修改其中的原始媒体文件。"
-        panel.prompt = "添加文件夹"
+        panel.title = "添加媒体文件夹"
+        panel.message = "选择含照片或视频的文件夹。Mac Photo Studio 只建立安全引用，不会复制、移动或修改任何原始媒体。"
+        panel.prompt = "添加到资料库"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -233,8 +239,12 @@ final class ApplicationModel: ObservableObject {
 
         do {
             libraryError = nil
-            let root = try await mediaRootStore.add(directoryURL: directoryURL)
-            _ = await scanCoordinator.startScan(rootID: root.id)
+            let registration = try await mediaRootStore.register(directoryURL: directoryURL)
+            latestMediaRootRegistration = MediaRootRegistrationFeedback(
+                rootID: registration.root.id,
+                wasAlreadyRegistered: registration.wasAlreadyRegistered
+            )
+            _ = await scanCoordinator.startScan(rootID: registration.root.id)
             await refreshLibrary()
             await reloadLibraryAssets(query: activeLibraryQuery)
         } catch {
@@ -313,6 +323,11 @@ final class ApplicationModel: ObservableObject {
         do {
             mediaRoots = try await catalogStore.mediaRoots()
             scanStatuses = await scanCoordinator.statuses()
+            if let latestMediaRootRegistration,
+               let matchingScan = scanStatuses.first(where: { $0.rootID == latestMediaRootRegistration.rootID }),
+               matchingScan.state.isTerminal {
+                self.latestMediaRootRegistration = nil
+            }
             tags = try await catalogStore.tags()
             albums = try await catalogStore.albums()
             assetStacks = try await catalogStore.assetStacks()
@@ -326,6 +341,16 @@ final class ApplicationModel: ObservableObject {
             report(error, activity: "Refreshing library")
         }
         await refreshBatchTasks()
+    }
+
+    func mediaRootRegistrationMessage(for rootID: UUID, rootName: String) -> String? {
+        guard let latestMediaRootRegistration,
+              latestMediaRootRegistration.rootID == rootID
+        else { return nil }
+
+        return latestMediaRootRegistration.wasAlreadyRegistered
+            ? "“\(rootName)”已在资料库中，正在重新扫描。"
+            : "已添加“\(rootName)”，正在扫描。"
     }
 
     func runMediaRootAvailabilityDiagnostics() async {

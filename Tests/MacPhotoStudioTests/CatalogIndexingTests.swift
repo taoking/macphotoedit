@@ -118,6 +118,22 @@ final class CatalogIndexingTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: paths.catalogDirectory.appending(path: temporaryDirectory.lastPathComponent).path(percentEncoded: false)))
     }
 
+    func testMediaRootRegistrationReusesExistingFolderWithoutCreatingDuplicateRoot() async throws {
+        let paths = try CatalogPaths.create(in: temporaryDirectory)
+        let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)
+        try await store.bootstrap()
+        let mediaRootStore = MediaRootStore(catalogStore: store)
+
+        let firstRegistration = try await mediaRootStore.register(directoryURL: temporaryDirectory)
+        let secondRegistration = try await mediaRootStore.register(directoryURL: temporaryDirectory)
+        let roots = try await store.mediaRoots()
+
+        XCTAssertFalse(firstRegistration.wasAlreadyRegistered)
+        XCTAssertTrue(secondRegistration.wasAlreadyRegistered)
+        XCTAssertEqual(secondRegistration.root.id, firstRegistration.root.id)
+        XCTAssertEqual(roots.map(\.id), [firstRegistration.root.id])
+    }
+
     private func configuredCatalog() async throws -> (CatalogStore, MediaRootRecord) {
         let paths = try CatalogPaths.create(in: temporaryDirectory)
         let store = CatalogStore(databaseURL: paths.catalogDatabaseURL)

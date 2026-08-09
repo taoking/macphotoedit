@@ -134,6 +134,7 @@ struct AssetBrowserView: View {
                     .controlSize(.small)
                     .accessibilityLabel(model.isLoadingLibraryAssets ? "正在读取资料库" : "可以继续加载更多项目")
             }
+            scanStatusSummary
             if !selectedAssetIDs.isEmpty {
                 selectionActions
                 BatchTaskStatusSummary(model: model)
@@ -152,6 +153,113 @@ struct AssetBrowserView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var scanStatusSummary: some View {
+        if let scanStatus = primaryScanStatus {
+            HStack(spacing: 5) {
+                if !scanStatus.state.isTerminal {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("正在扫描媒体文件夹")
+                } else {
+                    Image(systemName: scanStatusSymbol)
+                        .foregroundStyle(scanStatus.state == .failed ? .red : .secondary)
+                }
+
+                Text(scanStatusText)
+                    .font(.caption)
+                    .foregroundStyle(scanStatus.state == .failed ? .red : .secondary)
+                    .lineLimit(1)
+                    .accessibilityLabel(scanStatusText)
+
+                if scanStatus.state == .running {
+                    Button {
+                        Task { await model.pause(scanID: scanStatus.id) }
+                    } label: {
+                        Image(systemName: "pause.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("暂停扫描")
+                    .accessibilityLabel("暂停扫描")
+                } else if scanStatus.state == .paused {
+                    Button {
+                        Task { await model.resume(scanID: scanStatus.id) }
+                    } label: {
+                        Image(systemName: "play.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("继续扫描")
+                    .accessibilityLabel("继续扫描")
+                }
+
+                if !scanStatus.state.isTerminal {
+                    Button {
+                        Task { await model.cancel(scanID: scanStatus.id) }
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("取消扫描")
+                    .accessibilityLabel("取消扫描")
+                }
+            }
+            .help(scanStatusText)
+        }
+    }
+
+    private var primaryScanStatus: ScanStatus? {
+        if let activeScan = model.scanStatuses.first(where: { !$0.state.isTerminal }) {
+            return activeScan
+        }
+
+        guard let latestTerminalScan = model.scanStatuses.first else { return nil }
+        if latestTerminalScan.state == .failed {
+            return latestTerminalScan
+        }
+        guard let finishedAt = latestTerminalScan.finishedAt,
+              Date.now.timeIntervalSince(finishedAt) < 12
+        else { return nil }
+        return latestTerminalScan
+    }
+
+    private var scanStatusSymbol: String {
+        switch primaryScanStatus?.state {
+        case .completed:
+            "checkmark.circle"
+        case .failed:
+            "exclamationmark.triangle"
+        case .cancelled:
+            "xmark.circle"
+        default:
+            "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var scanStatusText: String {
+        guard let scanStatus = primaryScanStatus else { return "" }
+        let rootName = model.mediaRoots.first(where: { $0.id == scanStatus.rootID })?.displayName ?? "媒体文件夹"
+        let progress = scanStatus.progress
+        let details = "已检查 \(progress.inspectedFiles) 个文件，已索引 \(progress.indexedMedia) 项"
+
+        switch scanStatus.state {
+        case .queued:
+            return "正在准备扫描“\(rootName)”"
+        case .running:
+            if let registrationMessage = model.mediaRootRegistrationMessage(for: scanStatus.rootID, rootName: rootName) {
+                return "\(registrationMessage) \(details)"
+            }
+            return "正在扫描“\(rootName)”：\(details)"
+        case .paused:
+            return "已暂停扫描“\(rootName)”：\(details)"
+        case .completed:
+            return "已完成扫描“\(rootName)”：\(details)"
+        case .failed:
+            return "无法扫描“\(rootName)”：\(scanStatus.errorMessage ?? "请检查文件夹权限或连接状态。")"
+        case .cancelled:
+            return "已取消扫描“\(rootName)”"
+        }
     }
 
     private var rescanMenu: some View {

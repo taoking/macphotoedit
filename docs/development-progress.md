@@ -1726,3 +1726,66 @@ Known Limitations:
 
 Commit:
 - `style: refine library workspace layout`
+
+## UI/UX Redesign Phase 1 — UI-1.6 Add-media / scan flow clarity
+
+Status:
+COMPLETED
+
+Implemented:
+- Clarified the existing native folder picker as “添加媒体文件夹”, with an
+  explicit “添加到资料库” confirmation and concise security-scoped,
+  reference-only safety text. Cancellation still returns without any Catalog,
+  bookmark, or source-media change.
+- Traced and retained the established path: picker → `MediaRootStore` secure
+  bookmark → Catalog root persistence → `ScanCoordinator` → periodic library
+  refresh. No file-copy or alternate import path was added.
+- Added safe duplicate-root registration: the same normalized, symlink-resolved
+  folder reuses its existing referenced root and starts the established rescan
+  rather than creating a duplicate Catalog root.
+- Surface real `ScanCoordinator` state in the library status bar: preparation,
+  scanning counts, paused/resume, cancellation, brief completion feedback and
+  actionable persistent failure details. These controls call the existing
+  pause/resume/cancel APIs; they do not simulate progress.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -only-testing:MacPhotoStudioTests/CatalogIndexingTests test`; 5 tests, 0 failures, including the new duplicate-root registration test.
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 114 tests, 0 failures. The single-count increase is the focused duplicate-root test. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — The visible add-media command opens the real directory-only picker
+  with clear referenced-library semantics and a meaningful confirmation label.
+- PASS — Duplicate selection cannot create another root record; the focused
+  automated test verifies the same root ID is reused and the Catalog has one
+  root only.
+- PASS — UI scan presentation is driven by real scan statuses and real control
+  methods; errors and offline/permission failures continue to use the existing
+  Catalog availability and error handling paths.
+
+Regression:
+- PASS — Full automated suite now has 114 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Launched the current Debug app, opened the toolbar add-media command,
+  inspected the native picker title, safety message and “添加到资料库” button,
+  then pressed Cancel. The library remained empty and no folder was selected.
+- MANUAL VERIFICATION REQUIRED — With a user-authorised photo/video folder,
+  verify selected-folder feedback, live scan counts, pause/resume/cancel,
+  post-scan thumbnails, duplicate folder selection, an unavailable external
+  root and a permission-relink recovery. No real root was registered during
+  this validation.
+
+Known Limitations:
+- Scan progress is intentionally count-based because the scanner enumerates a
+  filesystem stream and has no reliable total before traversal; no misleading
+  percentage is shown.
+- Real external-volume availability and macOS security-scoped permission
+  recovery require the user’s hardware and permission context.
+
+Commit:
+- `fix: streamline add media folder flow`

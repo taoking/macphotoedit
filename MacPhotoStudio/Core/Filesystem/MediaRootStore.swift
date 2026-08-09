@@ -6,6 +6,11 @@ struct ResolvedMediaRoot: Sendable {
     let bookmarkWasStale: Bool
 }
 
+struct MediaRootRegistration: Sendable, Equatable {
+    let root: MediaRootRecord
+    let wasAlreadyRegistered: Bool
+}
+
 struct MediaRootStore: Sendable {
     let catalogStore: CatalogStore
     let bookmarkStore: BookmarkStore
@@ -13,6 +18,24 @@ struct MediaRootStore: Sendable {
     init(catalogStore: CatalogStore, bookmarkStore: BookmarkStore = BookmarkStore()) {
         self.catalogStore = catalogStore
         self.bookmarkStore = bookmarkStore
+    }
+
+    /// Registers a user-selected root once. Re-selecting the same directory is
+    /// intentionally treated as a request to use its existing secure reference,
+    /// rather than creating a duplicate catalog root or copying source media.
+    func register(directoryURL: URL, now: Date = .now) async throws -> MediaRootRegistration {
+        let selectedPath = normalizedPath(for: directoryURL)
+        let existingRoots = try await catalogStore.mediaRoots()
+        if let existingRoot = existingRoots.first(where: {
+            normalizedPath(for: URL(filePath: $0.lastKnownPath, directoryHint: .isDirectory)) == selectedPath
+        }) {
+            return MediaRootRegistration(root: existingRoot, wasAlreadyRegistered: true)
+        }
+
+        return MediaRootRegistration(
+            root: try await add(directoryURL: directoryURL, now: now),
+            wasAlreadyRegistered: false
+        )
     }
 
     func add(directoryURL: URL, now: Date = .now) async throws -> MediaRootRecord {
@@ -185,5 +208,11 @@ struct MediaRootStore: Sendable {
     private func matchesStoredVolume(stored: String?, observed: String?) -> Bool? {
         guard let stored, let observed else { return nil }
         return stored == observed
+    }
+
+    private func normalizedPath(for directoryURL: URL) -> String {
+        directoryURL.standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path(percentEncoded: false)
     }
 }
