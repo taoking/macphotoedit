@@ -1479,7 +1479,7 @@ Commit:
 ## Phase 16.12 — Correctness Audit Fix
 
 Status:
-COMPLETED — local automated acceptance passed; GitHub-hosted verification is recorded separately below as pending until the pushed workflow completes.
+COMPLETED — local and GitHub-hosted automated acceptance passed.
 
 Implemented:
 - 16.12.1 — `PhotoTransformGeometry` now distinguishes bounded editable points from unbounded source points and vectors. `LocalMaskCanvas` derives radial/brush display sizes from unbounded source-pixel vectors, not a clamped radius endpoint. It matches `CIRadialGradient`'s separate inner-radius/feather 1 px floors and `BrushMaskRenderer`'s rounded texture dimensions/0.5 px floor; viewport clipping, rather than geometric shortening, hides portions outside an image or crop. Stored `LocalMask` source-normalized state and schema are unchanged.
@@ -1488,26 +1488,27 @@ Implemented:
 - 16.12.4 — CI downloads XcodeGen 2.46.0 from its official release, verifies SHA-256, pins `actions/checkout` to v4.2.2's full commit SHA, and checks the generated `project.pbxproj` after every XcodeGen invocation. A local generation with the same XcodeGen 2.46.0 produced no project drift.
 
 Tests:
-PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate` followed by `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`; no generated-project drift. `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/PhotoTransformGeometryTests -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/SubjectMaskProviderTests -only-testing:MacPhotoStudioTests/SmartMaskTests`; 40 tests, 0 failures. New coverage exercises all image-edge/corner radial and brush vectors across crop/rotation/straighten/flips, a crop-edge pixel render, same-key sharing, different-key concurrency, failure caching, LRU retention and file-resource-identifier keying.
+PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate` followed by `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`; no generated-project drift. `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:MacPhotoStudioTests/PhotoTransformGeometryTests -only-testing:MacPhotoStudioTests/LocalMaskCanvasGeometryTests -only-testing:MacPhotoStudioTests/PhotoEditingTests -only-testing:MacPhotoStudioTests/SubjectMaskProviderTests -only-testing:MacPhotoStudioTests/SmartMaskTests`; 40 tests, 0 failures. New coverage exercises all image-edge/corner radial and brush vectors across crop/rotation/straighten/flips, a crop-edge pixel render, same-key sharing, different-key concurrency, failure caching, LRU retention and file-resource-identifier keying. GitHub Actions run `31318605032` on `macos-26` / Xcode 26.6 / XcodeGen 2.46.0 ran 113 tests, 0 failures.
 
 Build:
-PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate && git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate && git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`. GitHub Actions run `31318605032` completed the matching unsigned Debug build with `BUILD SUCCEEDED`.
 
 Acceptance:
 PASS — no P0/P1 correctness blocker remains in the audited local-mask radius path: the overlay/rings use the same source-space metric as rendering without altering persisted masks, and the pixel integration test proves a displayed crop-edge radial region modifies the matching pipeline pixels. The subject provider retains duplicate suppression and bounded LRU behavior while removing global Vision serialization. The checked-in CI configuration is reproducible and rejects stale generated project files. Branch-protection inspection on 2026-08-09 found `main` unprotected with no applicable rulesets; the regression workflow exists but is not claimed as a required pre-merge check.
 
 Regression:
-PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate && git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; full 113 tests, 0 failures. Existing Xcode warnings and host-service logs did not fail any test.
+PASS — `PATH=/tmp/macphotoedit-phase-16-12-xcodegen/xcodegen/bin:$PATH xcodegen generate && git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj && xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; full 113 tests, 0 failures. GitHub-hosted run `31318605032` independently passed the same 113 tests and Debug build. Existing Xcode warnings and host-service logs did not fail any test.
 
 Manual Verification:
 MANUAL VERIFICATION REQUIRED — on user-authorized horizontal, vertical and square JPEG/HEIC/RAW-derived images, compare large radial and brush overlays with new-file exports at every edge/corner and across crop boundaries, crop+rotation, crop+flip and crop+straighten+flip. Confirm 24/48 MP memory behavior, real Vision behavior and no source-file change according to `docs/manual-validation.md`; automated synthetic pixels cannot validate those media/display conditions.
 
 Known Limitations:
 - The persistent similar-photo dHash cache still uses source size + modification time only. Its resource-identifier addition is deferred pending a deliberately scoped Catalog migration; no existing cache metadata was changed or invalidated speculatively.
-- CI's local software gate cannot validate user media, external storage, macOS permissions, real Vision segmentation quality or HDR displays. Its GitHub-hosted result remains pending until the pushed run finishes.
+- CI's software gate cannot validate user media, external storage, macOS permissions, real Vision segmentation quality or HDR displays; GitHub-hosted run `31318605032` only verifies the automated software contract.
 
 Commit:
 - `fix: preserve local mask radius at image edges`
 - `perf: improve subject mask cache handling`
 - `ci: pin macos regression dependencies`
 - `docs: record phase 16.12 audit fixes`
+- `docs: finalize phase 16.12 CI verification`
