@@ -2172,3 +2172,55 @@ Known Limitations:
 
 Commit:
 - `refactor: simplify library toolbar` (this checkpoint commit)
+
+### UI-2.5 — Secondary native inspector
+
+Status:
+COMPLETED
+
+Implemented:
+- Completed the native on-demand inspector surface introduced by UI2.1 with a
+  consistent inspector header and explicit close action for selected, no
+  selection and no-media states.
+- Retained the existing single-selection information and management content:
+  filename, availability, rating, flag, tags and detailed metadata are still
+  presented through the same Catalog-backed paths.
+- The no-selection state now remains a restrained, full secondary surface only
+  after the user explicitly opens it; no third column is reserved at launch.
+
+Tests:
+- PASS — `git diff --check`
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 117 tests, 0 failures. Existing LMDB map-size host warnings did not fail the suite.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Normal startup and browsing do not reserve an inspector column.
+- PASS — Opening the inspector without a selection gives a restrained empty
+  state with an explicit close action.
+- PASS — One selected item keeps its prior filename, availability, rating,
+  flag, tag and metadata information in the native secondary surface.
+
+Regression:
+- PASS — Full 117-test suite, generated-project drift check and Debug build
+  pass. Inspector changes do not alter Catalog persistence, source media,
+  selection storage or metadata operation implementation.
+
+Manual Verification:
+- PASS — Restarted the new Debug app with the inspector hidden, selected one
+  existing Catalog item, opened the inspector, confirmed its information and
+  management controls, then used the inspector close action. The grid recovered
+  its width. Only selection and presentation state changed; no rating, flag,
+  tag, scan, source-file or Catalog management action was invoked.
+- MANUAL VERIFICATION REQUIRED — Verify inspector resizing, metadata wrapping
+  and VoiceOver navigation with long localized values and an offline source.
+
+Known Limitations:
+- Inspector visibility is intentionally persisted as an app preference. A user
+  who leaves it open will see it on the next launch until explicitly closing it.
+
+Commit:
+- `refactor: adopt a secondary library inspector` (this checkpoint commit)

@@ -12,42 +12,51 @@ struct LibraryInspectorView: View {
     let removeTag: (TagRecord) -> Void
 
     var body: some View {
-        Group {
-            if let asset {
-                inspector(asset)
-            } else if hasMediaRoots {
-                ContentUnavailableView(
-                    "未选择媒体项目",
-                    systemImage: "sidebar.right",
-                    description: Text("选择照片或视频后，可在这里查看元数据、评分、标记和标签等。")
-                )
-            } else {
-                ContentUnavailableView(
-                    "尚未添加媒体",
-                    systemImage: "sidebar.right",
-                    description: Text("添加媒体文件夹后，可在这里查看媒体信息和管理选项。")
-                )
+        VStack(spacing: 0) {
+            inspectorHeader
+            Divider()
+            Group {
+                if let asset {
+                    inspector(asset)
+                } else if hasMediaRoots {
+                    ContentUnavailableView(
+                        "未选择媒体项目",
+                        systemImage: "sidebar.right",
+                        description: Text("选择照片或视频后，可在这里查看元数据、评分、标记和标签等。")
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "尚未添加媒体",
+                        systemImage: "sidebar.right",
+                        description: Text("添加媒体文件夹后，可在这里查看媒体信息和管理选项。")
+                    )
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(.bar)
         .accessibilityElement(children: .contain)
     }
 
+    private var inspectorHeader: some View {
+        HStack {
+            Text("检查器")
+                .font(.headline)
+            Spacer()
+            Button(action: close) {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.borderless)
+            .help("隐藏检查器")
+            .accessibilityLabel("隐藏检查器")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
     private func inspector(_ asset: LibraryAssetRecord) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("检查器")
-                        .font(.headline)
-                    Spacer()
-                    Button(action: close) {
-                        Image(systemName: "xmark")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("隐藏检查器")
-                    .accessibilityLabel("隐藏检查器")
-                }
-
                 VStack(alignment: .leading, spacing: 5) {
                     Label(asset.filename, systemImage: asset.mediaType == .photo ? "photo" : "film")
                         .font(.headline)
