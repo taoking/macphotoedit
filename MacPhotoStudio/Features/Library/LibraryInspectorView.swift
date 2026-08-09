@@ -45,6 +45,7 @@ struct LibraryInspectorView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("隐藏检查器")
+                    .accessibilityLabel("隐藏检查器")
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -68,9 +69,10 @@ struct LibraryInspectorView: View {
                             }
                             .buttonStyle(.borderless)
                             .help(rating == 0 ? "清除评分" : "设置为 \(rating) 星")
+                            .accessibilityLabel(rating == 0 ? "清除评分" : "设置为 \(rating) 星")
                         }
                     }
-                    Picker("Flag", selection: Binding(
+                    Picker("标记", selection: Binding(
                         get: { asset.flag },
                         set: { value in setFlag(value) }
                     )) {
@@ -92,10 +94,12 @@ struct LibraryInspectorView: View {
                                 Button(tag.name) { addTag(tag) }
                             }
                         } label: {
-                            Image(systemName: "plus")
+                            Label("添加标签", systemImage: "plus")
                         }
                         .menuStyle(.borderlessButton)
                         .disabled(allTags.isEmpty)
+                        .help("添加标签")
+                        .accessibilityLabel("添加标签")
                     }
                     if tags.isEmpty {
                         Text("尚未添加标签")
@@ -112,6 +116,7 @@ struct LibraryInspectorView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .help("移除标签 \(tag.name)")
+                                .accessibilityLabel("移除标签 \(tag.name)")
                             }
                         }
                     }

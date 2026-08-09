@@ -1840,3 +1840,66 @@ Known Limitations:
 
 Commit:
 - `docs: record drag and drop deferral`
+
+## UI/UX Redesign Phase 1 — UI-1.8 Accessibility and final regression audit
+
+Status:
+COMPLETED
+
+Implemented:
+- Audited the changed onboarding, toolbar, scan feedback, sidebar and inspector
+  controls for native labels, disabled states, focusable system controls,
+  tooltips and semantic SwiftUI materials/colors.
+- Added explicit VoiceOver names for the inspector close action, every rating
+  action, add/remove tag actions and an unavailable source indicator. Replaced
+  the inspector's remaining English `Flag` label with `标记`; the tag add menu
+  now uses a visible native `Label("添加标签", systemImage: "plus")` rather
+  than relying on a system icon name.
+- Preserved native controls and dynamic system colors. No custom palette,
+  contrast override, source-media operation or layout rewrite was introduced.
+
+Tests:
+- PASS — `xcodegen generate`
+- PASS — `git diff --exit-code -- MacPhotoStudio.xcodeproj/project.pbxproj`
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`; 114 tests, 0 failures. Existing LMDB map-size host warnings did not cause a test failure.
+
+Build:
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Changed icon-only actions expose a clear VoiceOver name and tooltip;
+  visible controls retain their native keyboard-focus behavior and disabled
+  states remain truthful.
+- PASS — The UI uses SwiftUI semantic system materials/colors and works in the
+  current light system appearance without added hard-coded theme styling.
+- PASS — The final suite and Debug product build preserve existing functionality.
+
+Regression:
+- PASS — Full automated suite remains at 114 tests with 0 failures; generated Xcode project has no drift.
+
+Manual Verification:
+- PASS — Empty-library onboarding, safety copy, toolbar and unselected
+  inspector state were inspected in the current Debug app during UI-1.1 through
+  UI-1.5 validation.
+- PASS — Non-destructively selected one item from an already catalogued local
+  library and inspected the grid, sidebar, toolbar, selected-item inspector,
+  ratings, `标记`, and the accessibility tree. No source file, rating, flag,
+  tag, scan or trash action was changed.
+- PARTIAL — The default desktop layout was visually inspected. Resizing a
+  populated library at the minimum, laptop and large-desktop dimensions remains
+  `MANUAL VERIFICATION REQUIRED` on the user's displays.
+- PASS — Light appearance was inspected using native semantic controls.
+- MANUAL VERIFICATION REQUIRED — Dark mode and increased-contrast appearance
+  require the user's system accessibility/display settings; they were not
+  changed during this task.
+
+Known Limitations:
+- Real media-root scan progress, external-volume loss/relink, exact
+  small-window readability, Dark Mode and increased-contrast quality require
+  user-authorised media, hardware and system settings. They remain in
+  `docs/manual-validation.md` scope and are not claimed as automated passes.
+- Drag-and-drop remains deliberately deferred per UI-1.7 until a persistent
+  security-scoped dropped-folder access model is designed and verified.
+
+Commit:
+- `fix: improve library accessibility`

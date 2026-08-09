@@ -50,6 +50,8 @@ struct LibrarySidebar: View {
                                 Image(systemName: "exclamationmark.circle.fill")
                                     .foregroundStyle(.orange)
                                     .help("根目录当前不可访问；已缓存的缩略图仍可浏览。")
+                                    .accessibilityLabel("来源当前不可访问")
+                                    .accessibilityHint(root.lastScanError ?? "已缓存的缩略图仍可浏览。")
                             }
                         }
                     }

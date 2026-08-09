@@ -67,4 +67,4 @@ already-tested referenced-folder and Catalog workflows.
 - [x] UI-1.5 — Native desktop density and responsive layout polish
 - [x] UI-1.6 — Add-media / scan flow clarity
 - [x] UI-1.7 — Drag-and-drop feasibility decision (DEFERRED: persistent security-scoped access contract)
-- [ ] UI-1.8 — Accessibility and final regression audit
+- [x] UI-1.8 — Accessibility and final regression audit
