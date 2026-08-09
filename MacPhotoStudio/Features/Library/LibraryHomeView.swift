@@ -7,6 +7,7 @@ struct LibraryHomeView: View {
     @AppStorage("library.showsInspector") private var showsInspector = false
     @AppStorage("library.rawJPEGPairPreference") private var rawJPEGPairPreferenceRaw = RAWJPEGPairPreference.showBoth.rawValue
     @State private var query = LibraryQuery.all
+    @State private var libraryLocation: LibraryLocation? = .all
     @State private var selectedAssetIDs: Set<UUID> = []
     @State private var selectionAnchor: UUID?
     @State private var previewAsset: LibraryAssetRecord?
@@ -43,6 +44,10 @@ struct LibraryHomeView: View {
             selectionAnchor = nil
             Task { await model.reloadLibraryAssets(query: newQuery) }
         }
+        .onChange(of: libraryLocation) { _, location in
+            guard let location else { return }
+            query = location.libraryQuery(albums: model.albums)
+        }
         .onChange(of: model.libraryAssets.map(\.id)) { _, availableIDs in
             selectedAssetIDs.formIntersection(Set(availableIDs))
             if selectedAssetIDs.count != 1 {
@@ -76,15 +81,7 @@ struct LibraryHomeView: View {
         NavigationSplitView {
             LibrarySidebar(
                 model: model,
-                query: query,
-                selectAll: { updateQuery { $0 = .all } },
-                selectRoot: { rootID in updateQuery { $0.rootID = rootID } },
-                selectMediaType: { mediaType in updateQuery { $0.mediaType = mediaType } },
-                selectMinimumRating: { rating in updateQuery { $0.minimumRating = rating } },
-                selectFlag: { flag in updateQuery { $0.flag = flag } },
-                selectTag: { tagID in updateQuery { $0.tagID = tagID } },
-                selectAlbum: selectAlbum,
-                selectStack: { stack in updateQuery { $0 = LibraryQuery(stackID: stack.id) } },
+                selection: $libraryLocation,
                 addTag: { tagEditor = TagEditorContext(tag: nil) },
                 editTag: { tagEditor = TagEditorContext(tag: $0) },
                 deleteTag: { tag in Task { await model.deleteTag(tag) } },
@@ -180,12 +177,6 @@ struct LibraryHomeView: View {
         RAWJPEGPairing.visibleAssets(from: model.libraryAssets, preference: rawJPEGPairPreference)
     }
 
-    private func updateQuery(_ change: (inout LibraryQuery) -> Void) {
-        var updated = query
-        change(&updated)
-        query = updated
-    }
-
     private func select(_ assetID: UUID, modifiers: NSEvent.ModifierFlags) {
         let normalizedModifiers = modifiers.intersection(.deviceIndependentFlagsMask)
         let assets = visibleLibraryAssets
@@ -235,15 +226,6 @@ struct LibraryHomeView: View {
     private func addTagToSelection(_ tag: TagRecord) {
         guard !selectedAssetIDs.isEmpty else { return }
         Task { await model.addTag(tag, to: Array(selectedAssetIDs)) }
-    }
-
-    private func selectAlbum(_ album: AlbumRecord) {
-        switch album.kind {
-        case .album:
-            updateQuery { $0 = LibraryQuery(albumID: album.id) }
-        case .smartAlbum:
-            updateQuery { $0 = LibraryQuery(smartAlbumCriteria: album.criteria ?? .all) }
-        }
     }
 
     private func removeSelectionFromCurrentAlbum() {

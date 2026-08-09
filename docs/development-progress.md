@@ -1999,3 +1999,59 @@ Known Limitations:
 
 Commit:
 - `fix: make library workspace fill the window` (this checkpoint commit)
+
+### UI-2.2 — Native sidebar location selection
+
+Status:
+COMPLETED
+
+Implemented:
+- Added the UI-only `LibraryLocation` model for all media, photos, videos,
+  roots, albums, smart albums, stacks and tags. Its tested mapping produces
+  only existing `LibraryQuery` values; smart albums reuse their stored criteria
+  and safely fall back to `.all` if their record is no longer available.
+- Replaced hand-coloured sidebar buttons with `List(selection:)` row tags, so
+  macOS supplies the normal selected-row appearance. Existing source relink/
+  rescan and organization context menus are preserved on their native rows.
+- Removed rating and flag filters from location navigation. RAW + JPEG is now
+  isolated under a temporary display section and moves into View Options in
+  UI2.4; no filter or Catalog behavior was removed.
+
+Tests:
+- PASS — `xcodegen generate`; adding the new source and test generated the
+  expected tracked Xcode project references, then the staged project had no
+  further drift.
+- PASS — `xcodebuild -project MacPhotoStudio.xcodeproj -scheme MacPhotoStudio -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -only-testing:MacPhotoStudioTests/LibraryLocationTests test`; 2 tests, 0 failures.
+- PASS — full `xcodebuild … test`; 116 tests, 0 failures. Existing LMDB
+  map-size host warnings did not fail the suite.
+
+Build:
+- PASS — Debug `xcodebuild … build`; `BUILD SUCCEEDED`.
+
+Acceptance:
+- PASS — Current library location uses a real selected sidebar row for all
+  media, photos, videos, roots, albums, smart albums, stacks and tags.
+- PASS — Selection maps to the existing query interface without changing
+  Catalog persistence or the media-root/bookmark architecture.
+- PASS — Rating and flag controls no longer compete with location navigation.
+
+Regression:
+- PASS — Location mapping is covered by two focused tests; the full 116-test
+  suite and Debug build preserve library, Catalog, preview and media behavior.
+
+Manual Verification:
+- PASS — Restarted the Debug application, confirmed the native selected-row
+  appearance for all media, then selected an existing source and Photos. Each
+  row selection changed only the displayed existing Catalog view; no scan,
+  metadata, source file, rating, tag, album, stack or trash operation occurred.
+- MANUAL VERIFICATION REQUIRED — Verify long localized source/album/tag names,
+  keyboard sidebar navigation and smart-album selection in a user-managed
+  library containing those records.
+
+Known Limitations:
+- Clicking an already selected location does not intentionally clear any active
+  filter; this keeps native list semantics. The filter UI remains responsible
+  for subset state and will receive clearer active-filter presentation in UI2.3.
+
+Commit:
+- `refactor: use native library navigation selection` (this checkpoint commit)
